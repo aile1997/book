@@ -1,0 +1,16 @@
+:root {
+  --main-colorspurple1: rgba(233, 223, 252, 1);
+  --main-colorsgray4: rgba(41, 41, 41, 1);
+  --main-colorspurple05: rgba(244, 239, 253, 1);
+  --green-3: rgba(111, 207, 151, 1);
+  --main-colorspurple6: rgba(120, 77, 199, 1);
+  --white: rgba(255, 255, 255, 1);
+  --blue-3: rgba(86, 204, 242, 1);
+  --RB-body-medium-font-family: "Rethink Sans", Helvetica;
+  --RB-body-medium-font-weight: 500;
+  --RB-body-medium-font-size: 14px;
+  --RB-body-medium-letter-spacing: -0.14000000000000004px;
+  --RB-body-medium-line-height: 100%;
+  --RB-body-medium-font-style: normal;
+  --gray-4px: 0px 4px 8px 0px rgba(41, 41, 41, 0.08);
+}

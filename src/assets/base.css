@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --white: #FFF;
+  --gray-dark: #292929;
+  --purple-1: #E9DFFC;
+  --purple-3: #BE9FF6;
+  --purple-6: #784DC7;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  font-family: 'Rethink Sans', 'SF Pro', -apple-system, Roboto, Helvetica, sans-serif;
+  background: #FFF;
+}
+
+#app {
+  min-height: 100vh;
+}

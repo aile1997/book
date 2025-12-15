@@ -1,0 +1,142 @@
+import { ref, computed } from 'vue'
+import type { Seat, Partner } from '../types/booking'
+
+// 座位管理组合式函数
+export function useSeats() {
+  // 所有座位数据
+  const seats = ref<Seat[]>([
+    // 桌子 A - 左侧座位
+    { id: 'A1', table: 'A', position: 'left', index: 0, status: 'occupied', occupiedBy: '' },
+    { id: 'A2', table: 'A', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
+    { id: 'A3', table: 'A', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
+    { id: 'A4', table: 'A', position: 'left', index: 3, status: 'available' },
+    { id: 'A5', table: 'A', position: 'left', index: 4, status: 'available' },
+    { id: 'A6', table: 'A', position: 'left', index: 5, status: 'available' },
+    
+    // 桌子 A - 右侧座位
+    { id: 'A7', table: 'A', position: 'right', index: 0, status: 'available' },
+    { id: 'A8', table: 'A', position: 'right', index: 1, status: 'occupied', occupiedBy: '' },
+    { id: 'A9', table: 'A', position: 'right', index: 2, status: 'available' },
+    { id: 'A10', table: 'A', position: 'right', index: 3, status: 'available' },
+    { id: 'A11', table: 'A', position: 'right', index: 4, status: 'available' },
+    { id: 'A12', table: 'A', position: 'right', index: 5, status: 'occupied', occupiedBy: '' },
+    
+    // 桌子 B - 左侧座位
+    { id: 'B1', table: 'B', position: 'left', index: 0, status: 'available' },
+    { id: 'B2', table: 'B', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
+    { id: 'B3', table: 'B', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
+    { id: 'B4', table: 'B', position: 'left', index: 3, status: 'occupied', occupiedBy: '' },
+    { id: 'B5', table: 'B', position: 'left', index: 4, status: 'occupied', occupiedBy: '' },
+    { id: 'B6', table: 'B', position: 'left', index: 5, status: 'occupied', occupiedBy: '' },
+    
+    // 桌子 B - 右侧座位
+    { id: 'B7', table: 'B', position: 'right', index: 0, status: 'available' },
+    { id: 'B8', table: 'B', position: 'right', index: 1, status: 'occupied', occupiedBy: '' },
+    { id: 'B9', table: 'B', position: 'right', index: 2, status: 'available' },
+    { id: 'B10', table: 'B', position: 'right', index: 3, status: 'available' },
+    { id: 'B11', table: 'B', position: 'right', index: 4, status: 'available' },
+    { id: 'B12', table: 'B', position: 'right', index: 5, status: 'available' },
+    
+    // 桌子 C - 左侧座位
+    { id: 'C1', table: 'C', position: 'left', index: 0, status: 'occupied', occupiedBy: 'Ethan Wei' },
+    { id: 'C2', table: 'C', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
+    { id: 'C3', table: 'C', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
+    { id: 'C4', table: 'C', position: 'left', index: 3, status: 'occupied', occupiedBy: '' },
+    { id: 'C5', table: 'C', position: 'left', index: 4, status: 'occupied', occupiedBy: '' },
+    { id: 'C6', table: 'C', position: 'left', index: 5, status: 'occupied', occupiedBy: '' },
+    
+    // 桌子 C - 右侧座位
+    { id: 'C7', table: 'C', position: 'right', index: 0, status: 'available' },
+    { id: 'C8', table: 'C', position: 'right', index: 1, status: 'available' },
+    { id: 'C9', table: 'C', position: 'right', index: 2, status: 'available' },
+    { id: 'C10', table: 'C', position: 'right', index: 3, status: 'available' },
+    { id: 'C11', table: 'C', position: 'right', index: 4, status: 'available' },
+    { id: 'C12', table: 'C', position: 'right', index: 5, status: 'available' },
+  ])
+
+  // 当前选中的座位
+  const selectedSeat = ref<string | null>(null)
+
+  // 根据桌子和位置获取座位
+  const getSeatsByTable = (table: 'A' | 'B' | 'C', position: 'left' | 'right') => {
+    return seats.value.filter(s => s.table === table && s.position === position)
+  }
+
+  // 选择座位
+  const selectSeat = (seatId: string) => {
+    const seat = seats.value.find(s => s.id === seatId)
+    if (seat && seat.status === 'available') {
+      // 取消之前选中的座位
+      seats.value.forEach(s => {
+        if (s.status === 'selected') {
+          s.status = 'available'
+        }
+      })
+      
+      // 选中新座位
+      seat.status = 'selected'
+      selectedSeat.value = seatId
+    }
+  }
+
+  // 取消选择
+  const clearSelection = () => {
+    seats.value.forEach(s => {
+      if (s.status === 'selected') {
+        s.status = 'available'
+      }
+    })
+    selectedSeat.value = null
+  }
+
+  // 获取座位颜色
+  const getSeatColor = (seat: Seat): string => {
+    switch (seat.status) {
+      case 'selected':
+        return '#A78BFA' // 紫色 - 选中
+      case 'available':
+        return '#38D87B' // 绿色 - 可用
+      case 'occupied':
+        return '#EAEAEA' // 灰色 - 已占用
+      default:
+        return '#EAEAEA'
+    }
+  }
+
+  return {
+    seats,
+    selectedSeat,
+    getSeatsByTable,
+    selectSeat,
+    clearSelection,
+    getSeatColor,
+  }
+}
+
+// 伙伴管理组合式函数
+export function usePartners() {
+  // 所有伙伴列表
+  const allPartners = ref<Partner[]>([
+    { id: '1', name: 'Ethan Wei', table: 'A', seat: 'A1' },
+    { id: '2', name: 'Eric Young Jung', table: 'A', seat: 'A3' },
+    { id: '3', name: 'Elena Zhang', table: 'A', seat: 'A5' },
+    { id: '4', name: 'Elsa Li', table: 'B', seat: 'B2' },
+    { id: '5', name: 'Elsa Xu', table: 'B', seat: 'B4' },
+    { id: '6', name: 'Mike Liao', table: 'A', seat: 'A7' },
+    { id: '7', name: 'Oliver Huang', table: 'A', seat: 'A10' },
+    { id: '8', name: 'Kong Lijun', table: 'A', seat: 'A11' },
+    { id: '9', name: 'Eric Feng', table: 'A', seat: 'A4' },
+    { id: '10', name: 'Sally Zhang', table: 'A', seat: 'A5' },
+    { id: '11', name: 'Tom Li', table: 'A', seat: 'A12' },
+  ])
+
+  // 根据桌子获取伙伴
+  const getPartnersByTable = (table: 'A' | 'B' | 'C') => {
+    return allPartners.value.filter(p => p.table === table)
+  }
+
+  return {
+    allPartners,
+    getPartnersByTable,
+  }
+}

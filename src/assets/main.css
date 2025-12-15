@@ -1,1 +1,259 @@
 @import './base.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局样式优化 */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply font-sans text-gray-dark bg-white;
+    overscroll-behavior: none;
+  }
+
+  /* 移动端触摸优化 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 滚动条样式 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-lighter rounded-lg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray rounded-lg;
+    &:hover {
+      @apply bg-gray-dark;
+    }
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  /* 按钮基础样式 */
+  .btn {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl font-medium transition-all;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-primary-dark;
+    @apply focus:ring-primary;
+  }
+
+  .btn-success {
+    @apply bg-success text-white hover:opacity-90;
+    @apply focus:ring-success;
+  }
+
+  .btn-outline {
+    @apply border-2 border-gray-light text-gray-dark hover:border-gray-dark;
+    @apply focus:ring-gray-dark;
+  }
+
+  /* 卡片样式 */
+  .card {
+    @apply bg-white rounded-2xl shadow-card p-6;
+  }
+
+  /* 输入框样式 */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl border-2 border-gray-light;
+    @apply focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
+    @apply transition-all placeholder-gray;
+  }
+
+  /* 标签样式 */
+  .tag {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full;
+    @apply text-sm font-medium;
+  }
+
+  .tag-primary {
+    @apply bg-primary-light text-primary-dark border border-primary/20;
+  }
+
+  .tag-success {
+    @apply bg-success/10 text-success border border-success/20;
+  }
+}
+
+/* 实用工具类 */
+@layer utilities {
+  /* 文本省略 */
+  .text-ellipsis-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .text-ellipsis-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 安全区域适配（适配刘海屏等） */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* 渐变文字 */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #BE9FF6 0%, #784DC7 100%);
+  }
+
+  /* 玻璃态效果 */
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    background-color: rgba(255, 255, 255, 0.75);
+  }
+
+  /* 阴影效果 */
+  .shadow-neumorphism {
+    box-shadow: 
+      8px 8px 16px rgba(0, 0, 0, 0.1),
+      -8px -8px 16px rgba(255, 255, 255, 0.9);
+  }
+}
+
+/* 动画 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 响应式优化 */
+@media (max-width: 640px) {
+  /* 移动端字体缩放 */
+  html {
+    font-size: 14px;
+  }
+
+  /* 移动端按钮 */
+  .btn {
+    @apply px-4 py-2.5 text-sm;
+  }
+
+  /* 移动端卡片 */
+  .card {
+    @apply p-4;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1024px) {
+  /* 平板端优化 */
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* 桌面端优化 */
+  html {
+    font-size: 16px;
+  }
+
+  /* 鼠标悬停效果 */
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* 深色模式支持（预留） */
+@media (prefers-color-scheme: dark) {
+  /* 可以在这里添加深色模式样式 */
+}
+
+/* 减少动画（用户偏好设置） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

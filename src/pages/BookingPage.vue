@@ -204,7 +204,7 @@ const backToHome = () => {
               </div>
             </div>
             <button
-              @click="openSeatModal"
+              @click="reselectSeat"
               class="px-6 py-3 border-2 border-gray-light rounded-xl text-sm font-medium text-gray-dark hover:border-gray-dark transition-colors"
             >
               Change Seat

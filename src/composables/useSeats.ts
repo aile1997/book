@@ -90,11 +90,11 @@ export function useSeats() {
       case 'selected':
         return '#A78BFA' // 紫色 - 选中
       case 'available':
-        return '#38D87B' // 绿色 - 可用
+        return '#6FCF97' // 绿色 - 可用
       case 'occupied':
-        return '#EAEAEA' // 灰色 - 已占用
+        return '#CCCCCC' // 灰色 - 已占用
       default:
-        return '#EAEAEA'
+        return '#CCCCCC'
     }
   }
 

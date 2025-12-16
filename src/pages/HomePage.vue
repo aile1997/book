@@ -6,6 +6,19 @@ import FeatureCard from '../components/FeatureCard.vue'
 
 const router = useRouter()
 
+// ========== 数据层 ==========
+
+// 用户数据（可以从API获取）
+interface UserData {
+  name: string
+  greeting: string
+}
+
+const userData = ref<UserData>({
+  name: 'Alex Zhou',
+  greeting: 'Morning',
+})
+
 // 功能卡片数据（可以从API获取）
 interface FeatureCardData {
   id: string
@@ -54,6 +67,8 @@ const featureCards = ref<FeatureCardData[]>([
     enabled: false,
   },
 ])
+
+// ========== 事件处理层 ==========
 
 // 点击卡片处理
 const handleCardClick = (card: FeatureCardData) => {
@@ -111,10 +126,10 @@ const navigateToAccount = () => {
       <!-- 问候语 -->
       <div class="px-[33px] mb-12">
         <div class="text-gray-dark text-base font-medium mb-2 leading-[100%] tracking-[-0.16px]">
-          Morning,
+          {{ userData.greeting }},
         </div>
         <h1 class="text-gray-dark text-[32px] font-semibold leading-[100%]">
-          Alex Zhou
+          {{ userData.name }}
         </h1>
       </div>
 

@@ -57,7 +57,11 @@ const isSeatSelected = (seatId: string): boolean => {
 
       <!-- 座位层 (覆盖在背景上) -->
       <div class="relative" style="padding-top: 168%">
-        <svg viewBox="0 0 218 367" class="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          viewBox="0 0 218 367"
+          class="absolute inset-0 w-full h-full"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <!-- 区域 A - 左侧座位 -->
           <g id="area-a-left">
             <g v-for="seat in getSeatsByTable('A', 'left')" :key="seat.id">

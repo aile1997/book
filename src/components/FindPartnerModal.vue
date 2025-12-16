@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { usePartners } from '../composables/useSeats'
 import type { Partner } from '../types/booking'
 
 interface Props {
@@ -16,6 +17,11 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+// ========== 数据层 ==========
+
+// 使用伙伴管理组合式函数
+const { allPartners, getPartnersByTable, searchPartners } = usePartners()
+
 // 视图模式: 'search' | 'table'
 const viewMode = ref<'search' | 'table'>('search')
 
@@ -25,32 +31,20 @@ const selectedTable = ref<'A' | 'B' | 'C'>('A')
 // 搜索关键词
 const searchQuery = ref('')
 
-// 所有可选伙伴列表（带桌子和座位信息）
-const allPartners: Partner[] = [
-  { id: '1', name: 'Ethan Wei', table: 'A', seat: 'A1' },
-  { id: '2', name: 'Eric Young Jung', table: 'A', seat: 'A3' },
-  { id: '3', name: 'Elena Zhang', table: 'A', seat: 'A5' },
-  { id: '4', name: 'Elsa Li', table: 'B', seat: 'B2' },
-  { id: '5', name: 'Elsa Xu', table: 'B', seat: 'B4' },
-  { id: '6', name: 'Mike Liao', table: 'A', seat: 'A7' },
-  { id: '7', name: 'Eric Feng', table: 'A', seat: 'A4' },
-  { id: '8', name: 'Sally Zhang', table: 'A', seat: 'A5' },
-  { id: '9', name: 'Tom Li', table: 'A', seat: 'A12' },
-  { id: '10', name: 'Oliver Huang', table: 'A', seat: 'A10' },
-  { id: '11', name: 'Kong Lijun', table: 'A', seat: 'A11' },
-]
+// ========== 计算属性 ==========
 
 // 过滤后的伙伴列表（基于搜索）
 const filteredPartners = computed(() => {
   if (!searchQuery.value) return []
-  const query = searchQuery.value.toLowerCase()
-  return allPartners.filter((p) => p.name.toLowerCase().includes(query)).slice(0, 5)
+  return searchPartners(searchQuery.value).slice(0, 5)
 })
 
 // 根据桌子获取伙伴
 const partnersByTable = computed(() => {
-  return allPartners.filter((p) => p.table === selectedTable.value)
+  return getPartnersByTable(selectedTable.value)
 })
+
+// ========== 事件处理层 ==========
 
 // 选择伙伴（从搜索）
 const selectPartnerFromSearch = (partnerName: string) => {

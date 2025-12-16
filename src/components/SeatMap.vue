@@ -113,19 +113,16 @@ const isSeatSelected = (seatId: string): boolean => {
         <svg viewBox="0 0 218 320" class="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
           <!-- 区域 A -->
           <g id="area-a">
-            <rect x="30" y="80" width="30" height="138" fill="#EAEAEA" rx="4" />
-            <text x="45" y="155" text-anchor="middle" font-size="24" font-weight="500" fill="#CCCCCC">
+            <rect x="25" y="88" width="25" height="120" fill="#EAEAEA" opacity="0.2" rx="2" />
+            <text x="37" y="152" text-anchor="middle" font-size="20" font-weight="500" fill="#CCC">
               A
             </text>
 
             <!-- 左侧座位 -->
             <g v-for="seat in getSeatsByTable('A', 'left')" :key="seat.id">
-              <rect
-                :x="5"
-                :y="80 + getSeatY(seat.index) - 8"
-                width="18"
-                height="18"
-                rx="9"
+              <!-- 座位图形 -->
+              <path
+                :d="`M ${8} ${88 + getSeatY(seat.index) - 7} h 12 v 12 h -12 a 6 6 0 0 1 0 -12 z`"
                 :fill="getSeatColor(seat)"
                 :class="[
                   'transition-all duration-200',
@@ -137,12 +134,13 @@ const isSeatSelected = (seatId: string): boolean => {
                 @mouseenter="hoveredSeat = seat.id"
                 @mouseleave="hoveredSeat = null"
               />
+              <!-- 选中标记 -->
               <g v-if="isSeatSelected(seat.id)">
-                <circle :cx="14" :cy="80 + getSeatY(seat.index)" r="7" fill="white" />
+                <circle :cx="14" :cy="88 + getSeatY(seat.index) - 1" r="5" fill="white" />
                 <path
-                  :d="`M 11 ${80 + getSeatY(seat.index)} L 13 ${82 + getSeatY(seat.index)} L 17 ${78 + getSeatY(seat.index)}`"
+                  :d="`M 12 ${88 + getSeatY(seat.index) - 1} L 13.5 ${89.5 + getSeatY(seat.index) - 1} L 16 ${86.5 + getSeatY(seat.index) - 1}`"
                   stroke="#A78BFA"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -152,12 +150,9 @@ const isSeatSelected = (seatId: string): boolean => {
 
             <!-- 右侧座位 -->
             <g v-for="seat in getSeatsByTable('A', 'right')" :key="seat.id">
-              <rect
-                :x="62"
-                :y="80 + getSeatY(seat.index) - 8"
-                width="18"
-                height="18"
-                rx="9"
+              <!-- 座位图形 -->
+              <path
+                :d="`M ${52} ${88 + getSeatY(seat.index) - 7} h 12 a 6 6 0 0 1 0 12 h -12 z`"
                 :fill="getSeatColor(seat)"
                 :class="[
                   'transition-all duration-200',
@@ -169,12 +164,13 @@ const isSeatSelected = (seatId: string): boolean => {
                 @mouseenter="hoveredSeat = seat.id"
                 @mouseleave="hoveredSeat = null"
               />
+              <!-- 选中标记 -->
               <g v-if="isSeatSelected(seat.id)">
-                <circle :cx="71" :cy="80 + getSeatY(seat.index)" r="7" fill="white" />
+                <circle :cx="58" :cy="88 + getSeatY(seat.index) - 1" r="5" fill="white" />
                 <path
-                  :d="`M 68 ${80 + getSeatY(seat.index)} L 70 ${82 + getSeatY(seat.index)} L 74 ${78 + getSeatY(seat.index)}`"
+                  :d="`M 56 ${88 + getSeatY(seat.index) - 1} L 57.5 ${89.5 + getSeatY(seat.index) - 1} L 60 ${86.5 + getSeatY(seat.index) - 1}`"
                   stroke="#A78BFA"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -183,23 +179,18 @@ const isSeatSelected = (seatId: string): boolean => {
             </g>
           </g>
 
-          <!-- 分隔线 -->
-          <line x1="100" y1="70" x2="100" y2="260" stroke="#EAEAEA" stroke-width="2" />
-
           <!-- 区域 B (上半部分) -->
           <g id="area-b">
-            <rect x="120" y="80" width="30" height="68" fill="#EAEAEA" rx="4" />
-            <text x="135" y="119" text-anchor="middle" font-size="24" font-weight="500" fill="#CCCCCC">
+            <rect x="98" y="88" width="25" height="58" fill="#EAEAEA" opacity="0.2" rx="2" />
+            <text x="110" y="122" text-anchor="middle" font-size="20" font-weight="500" fill="#CCC">
               B
             </text>
 
-            <!-- 左侧座位 (使用不同形状) -->
+            <!-- 左侧座位 -->
             <g v-for="seat in getSeatsByTable('B', 'left').slice(0, 3)" :key="seat.id">
               <path
                 v-if="seat.index < 3"
-                :d="`M ${95} ${80 + getSeatY(seat.index) - 8} 
-                     h 18 v 18 h -18 
-                     a 9 9 0 0 1 0 -18 z`"
+                :d="`M ${82} ${88 + getSeatY(seat.index) - 7} h 12 v 12 h -12 a 6 6 0 0 1 0 -12 z`"
                 :fill="getSeatColor(seat)"
                 :class="[
                   'transition-all duration-200',
@@ -212,11 +203,11 @@ const isSeatSelected = (seatId: string): boolean => {
                 @mouseleave="hoveredSeat = null"
               />
               <g v-if="isSeatSelected(seat.id)">
-                <circle :cx="104" :cy="80 + getSeatY(seat.index)" r="7" fill="white" />
+                <circle :cx="88" :cy="88 + getSeatY(seat.index) - 1" r="5" fill="white" />
                 <path
-                  :d="`M 101 ${80 + getSeatY(seat.index)} L 103 ${82 + getSeatY(seat.index)} L 107 ${78 + getSeatY(seat.index)}`"
+                  :d="`M 86 ${88 + getSeatY(seat.index) - 1} L 87.5 ${89.5 + getSeatY(seat.index) - 1} L 90 ${86.5 + getSeatY(seat.index) - 1}`"
                   stroke="#A78BFA"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -224,14 +215,11 @@ const isSeatSelected = (seatId: string): boolean => {
               </g>
             </g>
 
-            <!-- 右侧座位 (使用不同形状) -->
+            <!-- 右侧座位 -->
             <g v-for="seat in getSeatsByTable('B', 'right').slice(0, 3)" :key="seat.id">
               <path
                 v-if="seat.index < 3"
-                :d="`M ${152} ${80 + getSeatY(seat.index) - 8} 
-                     h 18 
-                     a 9 9 0 0 1 0 18 
-                     h -18 z`"
+                :d="`M ${125} ${88 + getSeatY(seat.index) - 7} h 12 a 6 6 0 0 1 0 12 h -12 z`"
                 :fill="getSeatColor(seat)"
                 :class="[
                   'transition-all duration-200',
@@ -244,11 +232,11 @@ const isSeatSelected = (seatId: string): boolean => {
                 @mouseleave="hoveredSeat = null"
               />
               <g v-if="isSeatSelected(seat.id)">
-                <circle :cx="161" :cy="80 + getSeatY(seat.index)" r="7" fill="white" />
+                <circle :cx="131" :cy="88 + getSeatY(seat.index) - 1" r="5" fill="white" />
                 <path
-                  :d="`M 158 ${80 + getSeatY(seat.index)} L 160 ${82 + getSeatY(seat.index)} L 164 ${78 + getSeatY(seat.index)}`"
+                  :d="`M 129 ${88 + getSeatY(seat.index) - 1} L 130.5 ${89.5 + getSeatY(seat.index) - 1} L 133 ${86.5 + getSeatY(seat.index) - 1}`"
                   stroke="#A78BFA"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -259,18 +247,16 @@ const isSeatSelected = (seatId: string): boolean => {
 
           <!-- 区域 C (下半部分) -->
           <g id="area-c">
-            <rect x="120" y="152" width="30" height="68" fill="#EAEAEA" rx="4" />
-            <text x="135" y="191" text-anchor="middle" font-size="24" font-weight="500" fill="#CCCCCC">
+            <rect x="98" y="150" width="25" height="58" fill="#EAEAEA" opacity="0.2" rx="2" />
+            <text x="110" y="184" text-anchor="middle" font-size="20" font-weight="500" fill="#CCC">
               C
             </text>
 
-            <!-- 左侧座位 (使用不同形状) -->
+            <!-- 左侧座位 -->
             <g v-for="seat in getSeatsByTable('C', 'left').slice(0, 3)" :key="seat.id">
               <path
                 v-if="seat.index < 3"
-                :d="`M ${95} ${152 + getSeatY(seat.index) - 8} 
-                     h 18 v 18 h -18 
-                     a 9 9 0 0 1 0 -18 z`"
+                :d="`M ${82} ${150 + getSeatY(seat.index) - 7} h 12 v 12 h -12 a 6 6 0 0 1 0 -12 z`"
                 :fill="getSeatColor(seat)"
                 :class="[
                   'transition-all duration-200',
@@ -283,11 +269,11 @@ const isSeatSelected = (seatId: string): boolean => {
                 @mouseleave="hoveredSeat = null"
               />
               <g v-if="isSeatSelected(seat.id)">
-                <circle :cx="104" :cy="152 + getSeatY(seat.index)" r="7" fill="white" />
+                <circle :cx="88" :cy="150 + getSeatY(seat.index) - 1" r="5" fill="white" />
                 <path
-                  :d="`M 101 ${152 + getSeatY(seat.index)} L 103 ${154 + getSeatY(seat.index)} L 107 ${150 + getSeatY(seat.index)}`"
+                  :d="`M 86 ${150 + getSeatY(seat.index) - 1} L 87.5 ${151.5 + getSeatY(seat.index) - 1} L 90 ${148.5 + getSeatY(seat.index) - 1}`"
                   stroke="#A78BFA"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -295,14 +281,11 @@ const isSeatSelected = (seatId: string): boolean => {
               </g>
             </g>
 
-            <!-- 右侧座位 (使用不同形状) -->
+            <!-- 右侧座位 -->
             <g v-for="seat in getSeatsByTable('C', 'right').slice(0, 3)" :key="seat.id">
               <path
                 v-if="seat.index < 3"
-                :d="`M ${152} ${152 + getSeatY(seat.index) - 8} 
-                     h 18 
-                     a 9 9 0 0 1 0 18 
-                     h -18 z`"
+                :d="`M ${125} ${150 + getSeatY(seat.index) - 7} h 12 a 6 6 0 0 1 0 12 h -12 z`"
                 :fill="getSeatColor(seat)"
                 :class="[
                   'transition-all duration-200',
@@ -315,38 +298,16 @@ const isSeatSelected = (seatId: string): boolean => {
                 @mouseleave="hoveredSeat = null"
               />
               <g v-if="isSeatSelected(seat.id)">
-                <circle :cx="161" :cy="152 + getSeatY(seat.index)" r="7" fill="white" />
+                <circle :cx="131" :cy="150 + getSeatY(seat.index) - 1" r="5" fill="white" />
                 <path
-                  :d="`M 158 ${152 + getSeatY(seat.index)} L 160 ${154 + getSeatY(seat.index)} L 164 ${150 + getSeatY(seat.index)}`"
+                  :d="`M 129 ${150 + getSeatY(seat.index) - 1} L 130.5 ${151.5 + getSeatY(seat.index) - 1} L 133 ${148.5 + getSeatY(seat.index) - 1}`"
                   stroke="#A78BFA"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
               </g>
-            </g>
-          </g>
-
-          <!-- 会议室 -->
-          <g id="meeting-rooms">
-            <g id="meeting-a">
-              <rect x="20" y="270" width="70" height="35" fill="#EAEAEA" opacity="0.2" rx="6" />
-              <svg x="28" y="278" width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <circle cx="7" cy="6" r="2.5" fill="#CCCCCC" />
-                <circle cx="13" cy="6" r="2.5" fill="#CCCCCC" />
-              </svg>
-              <text x="50" y="290" font-size="10" font-weight="500" fill="#CCCCCC">Meeting</text>
-              <text x="50" y="299" font-size="10" font-weight="500" fill="#CCCCCC">Room A</text>
-            </g>
-            <g id="meeting-b">
-              <rect x="115" y="270" width="70" height="35" fill="#EAEAEA" opacity="0.2" rx="6" />
-              <svg x="123" y="278" width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <circle cx="7" cy="6" r="2.5" fill="#CCCCCC" />
-                <circle cx="13" cy="6" r="2.5" fill="#CCCCCC" />
-              </svg>
-              <text x="145" y="290" font-size="10" font-weight="500" fill="#CCCCCC">Meeting</text>
-              <text x="145" y="299" font-size="10" font-weight="500" fill="#CCCCCC">Room B</text>
             </g>
           </g>
         </svg>

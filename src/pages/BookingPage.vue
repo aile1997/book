@@ -189,7 +189,7 @@ const backToHome = () => {
               @click="openSeatModal"
               class="px-8 py-4 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg hover:bg-gray-dark/90 transition-all transform hover:scale-105"
             >
-              点击选择座位
+              Select Seat
             </button>
           </div>
         </div>
@@ -207,7 +207,7 @@ const backToHome = () => {
               @click="reselectSeat"
               class="px-6 py-3 border-2 border-gray-light rounded-xl text-sm font-medium text-gray-dark hover:border-gray-dark transition-colors"
             >
-              重新选择
+              Change Seat
             </button>
           </div>
 

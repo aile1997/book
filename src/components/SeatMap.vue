@@ -313,17 +313,5 @@ const isSeatSelected = (seatId: string): boolean => {
         </svg>
       </div>
     </div>
-
-    <!-- 图例 -->
-    <div class="flex items-center justify-center gap-6 mt-4">
-      <div class="flex items-center gap-2">
-        <div class="w-5 h-5 rounded-md bg-gray-lighter"></div>
-        <span class="text-sm font-medium text-gray-dark">Occupied</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <div class="w-5 h-5 rounded-md bg-success"></div>
-        <span class="text-sm font-medium text-gray-dark">Available</span>
-      </div>
-    </div>
   </div>
 </template>

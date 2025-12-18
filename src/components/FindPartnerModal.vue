@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { usePartners } from '../composables/useSeats'
+import { ref, computed, watch } from 'vue'
+import { usePartners, useSeats } from '../composables/useSeats'
 import type { Partner } from '../types/booking'
 
 interface Props {
@@ -12,6 +12,7 @@ interface Emits {
   (e: 'update:visible', value: boolean): void
   (e: 'update:selectedPartners', value: string[]): void
   (e: 'confirm'): void
+  (e: 'select-partner', partner: Partner): void
 }
 
 const props = defineProps<Props>()
@@ -21,6 +22,7 @@ const emit = defineEmits<Emits>()
 
 // 使用伙伴管理组合式函数
 const { allPartners, getPartnersByTable, searchPartners } = usePartners()
+const { seats } = useSeats()
 
 // 视图模式: 'search' | 'table'
 const viewMode = ref<'search' | 'table'>('search')
@@ -31,6 +33,9 @@ const selectedTable = ref<'A' | 'B' | 'C'>('A')
 // 搜索关键词
 const searchQuery = ref('')
 
+// 选中的伙伴（用于高亮显示）
+const selectedPartnerForHighlight = ref<Partner | null>(null)
+
 // ========== 计算属性 ==========
 
 // 过滤后的伙伴列表（基于搜索）
@@ -39,20 +44,48 @@ const filteredPartners = computed(() => {
   return searchPartners(searchQuery.value).slice(0, 5)
 })
 
-// 根据桌子获取伙伴
+// 根据桌子获取伙伴，并关联座位状态
 const partnersByTable = computed(() => {
-  return getPartnersByTable(selectedTable.value)
+  const tablePartners = getPartnersByTable(selectedTable.value)
+  // 获取该桌子的所有座位
+  const tableSeats = seats.value.filter(s => s.table === selectedTable.value)
+  
+  // 创建座位到伙伴的映射
+  const seatPartnerMap: { seat: string; partner: Partner | null; status: 'available' | 'occupied' }[] = []
+  
+  tableSeats.forEach(seat => {
+    const partner = tablePartners.find(p => p.seat === seat.id)
+    seatPartnerMap.push({
+      seat: seat.id,
+      partner: partner || null,
+      status: seat.status === 'available' ? 'available' : 'occupied'
+    })
+  })
+  
+  return seatPartnerMap
+})
+
+// 左侧座位
+const leftSeats = computed(() => {
+  return partnersByTable.value.filter((_, index) => index < partnersByTable.value.length / 2)
+})
+
+// 右侧座位
+const rightSeats = computed(() => {
+  return partnersByTable.value.filter((_, index) => index >= partnersByTable.value.length / 2)
 })
 
 // ========== 事件处理层 ==========
 
 // 选择伙伴（从搜索）
-const selectPartnerFromSearch = (partnerName: string) => {
+const selectPartnerFromSearch = (partner: Partner) => {
   const selected = [...props.selectedPartners]
-  if (!selected.includes(partnerName)) {
-    selected.push(partnerName)
+  if (!selected.includes(partner.name)) {
+    selected.push(partner.name)
     emit('update:selectedPartners', selected)
   }
+  // 发送选中的伙伴用于在地图上高亮
+  emit('select-partner', partner)
   searchQuery.value = ''
 }
 
@@ -87,9 +120,9 @@ const confirm = () => {
 
 // 高亮搜索文本
 const highlightMatch = (text: string, query: string) => {
-  if (!query) return text
+  if (!query) return { before: text, match: '', after: '' }
   const index = text.toLowerCase().indexOf(query.toLowerCase())
-  if (index === -1) return text
+  if (index === -1) return { before: text, match: '', after: '' }
 
   return {
     before: text.slice(0, index),
@@ -97,6 +130,14 @@ const highlightMatch = (text: string, query: string) => {
     after: text.slice(index + query.length),
   }
 }
+
+// 重置状态当模态框关闭
+watch(() => props.visible, (newVal) => {
+  if (!newVal) {
+    viewMode.value = 'search'
+    searchQuery.value = ''
+  }
+})
 </script>
 
 <template>
@@ -104,34 +145,21 @@ const highlightMatch = (text: string, query: string) => {
     <Transition name="modal">
       <div
         v-if="visible"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-md"
+        class="fixed inset-0 z-50 flex items-end justify-center"
+        style="
+          background: linear-gradient(
+            180deg,
+            rgba(0, 0, 0, 0.62) 0%,
+            rgba(102, 102, 102, 0.62) 100%
+          );
+          backdrop-filter: blur(12.5px);
+        "
         @click.self="close"
       >
         <!-- 主模态框容器 -->
         <div
-          class="w-full max-w-[600px] rounded-t-[45px] bg-success px-8 pb-8 pt-12 animate-slide-up"
+          class="w-full max-w-[600px] rounded-t-[45px] bg-success px-6 pb-8 pt-10 animate-slide-up"
         >
-          <!-- 关闭按钮 -->
-          <button
-            @click="close"
-            class="absolute top-6 right-6 w-12 h-12 rounded-full bg-gray-dark flex items-center justify-center hover:opacity-90 transition-opacity"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M6 6L18 18M18 6L6 18"
-                stroke="white"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-
           <!-- 标题 -->
           <h2
             class="text-2xl font-medium text-white text-center mb-8 leading-[100%] tracking-[-0.24px]"
@@ -140,14 +168,14 @@ const highlightMatch = (text: string, query: string) => {
           </h2>
 
           <!-- 搜索视图 -->
-          <div v-if="viewMode === 'search'" class="space-y-6">
+          <div v-if="viewMode === 'search'" class="space-y-4">
             <!-- 搜索框 -->
             <div class="relative">
               <input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search by name..."
-                class="w-full h-[47px] px-4 rounded-lg border-0 text-sm font-medium leading-[100%] tracking-[-0.14px] focus:outline-none focus:ring-2 focus:ring-white"
+                placeholder=""
+                class="w-full h-[47px] px-4 rounded-lg border-0 text-base font-medium leading-[100%] tracking-[-0.16px] focus:outline-none focus:ring-2 focus:ring-white bg-white"
               />
             </div>
 
@@ -156,33 +184,17 @@ const highlightMatch = (text: string, query: string) => {
               <button
                 v-for="partner in filteredPartners"
                 :key="partner.id"
-                @click="selectPartnerFromSearch(partner.name)"
-                class="w-full text-left px-4 py-3 text-sm font-medium hover:bg-success/10 transition-colors leading-[100%] tracking-[-0.14px] border-b border-gray-light last:border-0"
+                @click="selectPartnerFromSearch(partner)"
+                class="w-full text-left px-4 py-3 text-base font-medium hover:bg-success/10 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
               >
-                <template
-                  v-if="
-                    highlightMatch(partner.name, searchQuery) &&
-                    typeof highlightMatch(partner.name, searchQuery) === 'object'
-                  "
-                >
-                  <span class="text-black">{{
-                    (highlightMatch(partner.name, searchQuery) as any).before
-                  }}</span>
-                  <span class="text-success font-semibold">{{
-                    (highlightMatch(partner.name, searchQuery) as any).match
-                  }}</span>
-                  <span class="text-black">{{
-                    (highlightMatch(partner.name, searchQuery) as any).after
-                  }}</span>
-                </template>
-                <template v-else>
-                  <span class="text-black">{{ partner.name }}</span>
-                </template>
+                <span class="text-black">{{ highlightMatch(partner.name, searchQuery).before }}</span>
+                <span class="text-success font-semibold">{{ highlightMatch(partner.name, searchQuery).match }}</span>
+                <span class="text-black">{{ highlightMatch(partner.name, searchQuery).after }}</span>
               </button>
             </div>
 
             <!-- "查看全部" 按钮 -->
-            <div class="text-center">
+            <div class="text-center pt-2">
               <button
                 @click="showTableView"
                 class="text-base font-medium text-white leading-[100%] tracking-[-0.16px] hover:underline"
@@ -193,18 +205,18 @@ const highlightMatch = (text: string, query: string) => {
           </div>
 
           <!-- 桌子视图 -->
-          <div v-else class="space-y-6">
+          <div v-else class="space-y-4">
             <!-- 桌子选项卡 -->
-            <div class="flex items-center justify-center gap-8">
+            <div class="flex items-center bg-white rounded-lg overflow-hidden">
               <button
                 v-for="table in ['A', 'B', 'C']"
                 :key="table"
                 @click="switchTable(table as 'A' | 'B' | 'C')"
                 :class="[
-                  'text-base font-medium leading-[100%] tracking-[-0.16px] transition-all pb-1',
+                  'flex-1 py-3 text-base font-medium leading-[100%] tracking-[-0.16px] transition-all',
                   selectedTable === table
-                    ? 'text-success border-b-2 border-white'
-                    : 'text-white/50 hover:text-white/80',
+                    ? 'text-success bg-white'
+                    : 'text-white/70 bg-success hover:text-white',
                 ]"
               >
                 Table {{ table }}
@@ -213,50 +225,54 @@ const highlightMatch = (text: string, query: string) => {
 
             <!-- 桌子座位视图 -->
             <div class="bg-white rounded-lg p-6 min-h-[240px]">
-              <div class="grid grid-cols-2 gap-8">
+              <div class="flex">
                 <!-- 左侧座位列 -->
-                <div class="space-y-3">
-                  <div v-for="i in 6" :key="`left-${i}`" class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div
-                        class="w-5 h-5 rounded-full"
-                        :class="i <= 3 ? 'bg-gray-light' : 'bg-success'"
-                      ></div>
-                      <span
-                        class="text-sm font-medium"
-                        :class="i <= 3 ? 'text-gray' : 'text-black'"
-                      >
-                        {{ partnersByTable[i - 1]?.name || '-' }}
-                      </span>
-                    </div>
+                <div class="flex-1 space-y-3 pr-4">
+                  <div 
+                    v-for="(item, index) in leftSeats" 
+                    :key="`left-${index}`" 
+                    class="flex items-center gap-3"
+                  >
+                    <span 
+                      class="text-sm font-medium text-right min-w-[80px]"
+                      :class="item.status === 'available' ? 'text-gray-400' : 'text-gray-700'"
+                    >
+                      {{ item.partner?.name || '' }}
+                    </span>
+                    <div
+                      class="w-4 h-4 rounded-sm flex-shrink-0"
+                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-300'"
+                    ></div>
                   </div>
                 </div>
 
                 <!-- 桌子分隔线 -->
-                <div class="border-l-2 border-gray-light"></div>
+                <div class="w-px bg-gray-200 mx-2"></div>
 
                 <!-- 右侧座位列 -->
-                <div class="space-y-3">
-                  <div v-for="i in 6" :key="`right-${i}`" class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div
-                        class="w-5 h-5 rounded-full"
-                        :class="[6, 5].includes(i) ? 'bg-success' : 'bg-gray-light'"
-                      ></div>
-                      <span
-                        class="text-sm font-medium"
-                        :class="[6, 5].includes(i) ? 'text-black' : 'text-gray'"
-                      >
-                        {{ partnersByTable[i + 5]?.name || '-' }}
-                      </span>
-                    </div>
+                <div class="flex-1 space-y-3 pl-4">
+                  <div 
+                    v-for="(item, index) in rightSeats" 
+                    :key="`right-${index}`" 
+                    class="flex items-center gap-3"
+                  >
+                    <div
+                      class="w-4 h-4 rounded-sm flex-shrink-0"
+                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-300'"
+                    ></div>
+                    <span 
+                      class="text-sm font-medium"
+                      :class="item.status === 'available' ? 'text-gray-400' : 'text-gray-700'"
+                    >
+                      {{ item.partner?.name || '' }}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- "返回搜索" 按钮 -->
-            <div class="flex items-center justify-center gap-2">
+            <div class="flex items-center justify-center gap-2 pt-2">
               <svg
                 width="9"
                 height="18"
@@ -286,13 +302,13 @@ const highlightMatch = (text: string, query: string) => {
           <div class="flex gap-3 mt-8">
             <button
               @click="close"
-              class="flex-1 h-12 rounded-lg border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
+              class="flex-1 h-12 rounded-full border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
             >
               Back
             </button>
             <button
               @click="confirm"
-              class="flex-1 h-12 rounded-lg border-2 border-white bg-white text-success text-base font-medium leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
+              class="flex-1 h-12 rounded-full border-2 border-white bg-white text-success text-base font-medium leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
             >
               Confirm
             </button>

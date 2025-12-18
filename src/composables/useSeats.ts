@@ -118,17 +118,20 @@ export function useSeats() {
 export function usePartners() {
   // 所有伙伴列表 - 动态数据层
   const allPartners = ref<Partner[]>([
-    { id: '1', name: 'Ethan Wei', table: 'C', seat: 'C1' },
-    { id: '2', name: 'Eric Young Jung', table: 'A', seat: 'A3' },
-    { id: '3', name: 'Elena Zhang', table: 'A', seat: 'A5' },
-    { id: '4', name: 'Elsa Li', table: 'B', seat: 'B2' },
-    { id: '5', name: 'Elsa Xu', table: 'B', seat: 'B4' },
-    { id: '6', name: 'Mike Liao', table: 'A', seat: 'A7' },
-    { id: '7', name: 'Oliver Huang', table: 'A', seat: 'A10' },
-    { id: '8', name: 'Kong Lijun', table: 'A', seat: 'A11' },
-    { id: '9', name: 'Eric Feng', table: 'A', seat: 'A4' },
-    { id: '10', name: 'Sally Zhang', table: 'A', seat: 'A5' },
-    { id: '11', name: 'Tom Li', table: 'A', seat: 'A12' },
+    // Table A 伙伴
+    { id: '1', name: 'Mike Liao', table: 'A', seat: 'A1' },
+    { id: '2', name: 'Eric Feng', table: 'A', seat: 'A4' },
+    { id: '3', name: 'Sally Zhang', table: 'A', seat: 'A5' },
+    { id: '4', name: 'Tom Li', table: 'A', seat: 'A6' },
+    { id: '5', name: 'Oliver Huang', table: 'A', seat: 'A8' },
+    { id: '6', name: 'Kong Lijun', table: 'A', seat: 'A12' },
+    // Table B 伙伴
+    { id: '7', name: 'Elsa Li', table: 'B', seat: 'B2' },
+    { id: '8', name: 'Elsa Xu', table: 'B', seat: 'B3' },
+    // Table C 伙伴
+    { id: '9', name: 'Ethan Wei', table: 'C', seat: 'C1' },
+    { id: '10', name: 'Eric Young Jung', table: 'C', seat: 'C2' },
+    { id: '11', name: 'Elena Zhang', table: 'C', seat: 'C3' },
   ])
 
   // 根据桌子获取伙伴

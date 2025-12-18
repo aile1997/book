@@ -6,7 +6,7 @@ import SeatMap from '../components/SeatMap.vue'
 import FindPartnerModal from '../components/FindPartnerModal.vue'
 import SeatSelectionModal from '../components/SeatSelectionModal.vue'
 import SuccessModal from '../components/SuccessModal.vue'
-import type { TimeSlot } from '../types/booking'
+import type { TimeSlot, Partner } from '../types/booking'
 
 const router = useRouter()
 
@@ -25,6 +25,9 @@ const coinCost = ref(10)
 const showSeatModal = ref(false)
 const showFindPartnerModal = ref(false)
 const showSuccessModal = ref(false)
+
+// 高亮显示的伙伴（用于在座位图上显示tooltip）
+const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
 
 // ========== 时间段数据 ==========
 
@@ -91,6 +94,7 @@ const handleSeatSelect = (seatId: string) => {
 // 确认座位选择
 const confirmSeatSelection = () => {
   showSeatModal.value = false
+  highlightedPartner.value = null
 }
 
 // 重新选择座位
@@ -104,6 +108,11 @@ const removePartner = (partner: string) => {
   invitedPartners.value = invitedPartners.value.filter((p) => p !== partner)
 }
 
+// 打开查找伙伴模态框（从座位选择模态框）
+const openFindPartnerFromSeatModal = () => {
+  showFindPartnerModal.value = true
+}
+
 // 打开查找伙伴模态框
 const openFindPartnerModal = () => {
   showFindPartnerModal.value = true
@@ -112,6 +121,22 @@ const openFindPartnerModal = () => {
 // 确认邀请伙伴
 const confirmPartnerInvite = () => {
   showFindPartnerModal.value = false
+}
+
+// 处理伙伴选择（用于高亮显示）
+const handlePartnerSelect = (partner: Partner) => {
+  if (partner.seat) {
+    highlightedPartner.value = {
+      name: partner.name,
+      seat: partner.seat
+    }
+  }
+  showFindPartnerModal.value = false
+}
+
+// 清除高亮
+const clearHighlight = () => {
+  highlightedPartner.value = null
 }
 
 // 预定座位
@@ -403,8 +428,11 @@ const backToHome = () => {
       v-model:visible="showSeatModal"
       :seats="seats"
       :selected-seat="selectedSeat"
+      :highlighted-partner="highlightedPartner"
       @select-seat="handleSeatSelect"
       @confirm="confirmSeatSelection"
+      @find-partner="openFindPartnerFromSeatModal"
+      @clear-highlight="clearHighlight"
     />
 
     <!-- 查找伙伴模态框 -->
@@ -412,6 +440,7 @@ const backToHome = () => {
       v-model:visible="showFindPartnerModal"
       v-model:selected-partners="invitedPartners"
       @confirm="confirmPartnerInvite"
+      @select-partner="handlePartnerSelect"
     />
 
     <!-- 成功模态框 -->

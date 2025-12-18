@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import SeatMap from './SeatMap.vue'
-import type { Seat } from '../types/booking'
+import type { Seat, Partner } from '../types/booking'
 
 interface Props {
   visible: boolean
   seats: Seat[]
   selectedSeat: string | null
+  highlightedPartner?: { name: string; seat: string } | null
 }
 
 interface Emits {
@@ -14,9 +15,12 @@ interface Emits {
   (e: 'select-seat', seatId: string): void
   (e: 'confirm'): void
   (e: 'find-partner'): void
+  (e: 'clear-highlight'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  highlightedPartner: null
+})
 const emit = defineEmits<Emits>()
 
 // 选择座位处理
@@ -34,6 +38,7 @@ const confirm = () => {
 // 关闭模态框
 const close = () => {
   emit('update:visible', false)
+  emit('clear-highlight')
 }
 
 // 打开查找伙伴功能
@@ -101,14 +106,24 @@ const canConfirm = computed(() => !!props.selectedSeat)
           <!-- 座位地图卡片 -->
           <div class="bg-white rounded-3xl p-6">
             <!-- 座位地图 -->
-            <SeatMap :seats="seats" :selected-seat="selectedSeat" @select-seat="handleSeatSelect" />
+            <SeatMap 
+              :seats="seats" 
+              :selected-seat="selectedSeat" 
+              :highlighted-partner="highlightedPartner"
+              @select-seat="handleSeatSelect" 
+            />
           </div>
 
           <!-- 当前选择和操作 -->
-          <div v-if="selectedSeat" class="mt-6 text-center">
+          <div class="mt-6 text-center">
             <div class="text-sm font-medium text-white mb-2 tracking-tight">Your Seat</div>
-            <div class="text-5xl font-semibold text-white mb-6 tracking-tight">
-              {{ selectedSeat }}
+            <div 
+              class="h-16 rounded-2xl flex items-center justify-center mb-6"
+              style="background: linear-gradient(90deg, rgba(56, 216, 123, 0.3) 0%, rgba(56, 216, 123, 0.8) 50%, rgba(56, 216, 123, 0.3) 100%);"
+            >
+              <span class="text-5xl font-semibold text-white tracking-tight">
+                {{ selectedSeat || '-' }}
+              </span>
             </div>
 
             <!-- 操作按钮 -->
@@ -125,28 +140,18 @@ const canConfirm = computed(() => !!props.selectedSeat)
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
+                  <!-- 人物图标 -->
+                  <circle cx="9" cy="7" r="3" stroke="white" stroke-width="1.5" />
                   <path
-                    d="M11.7322 14.4564C10.5895 14.794 9.239 14.9498 7.6547 14.9498H-0.136667C-1.72104 14.9498 -3.07146 14.794 -4.21417 14.4564C-3.92846 11.0801 -0.461458 8.41797 3.759 8.41797C7.97946 8.41797 11.4465 11.0801 11.7322 14.4564Z"
+                    d="M3 19C3 15.134 6.13401 12 10 12H8C11.866 12 15 15.134 15 19"
                     stroke="white"
                     stroke-width="1.5"
                     stroke-linecap="round"
-                    stroke-linejoin="round"
-                    transform="translate(8, 4)"
                   />
+                  <!-- 搜索图标 -->
+                  <circle cx="17" cy="11" r="3" stroke="white" stroke-width="1.5" />
                   <path
-                    d="M8.4079 0.120117C8.4079 2.69137 6.33023 4.78195 3.759 4.78195C1.18775 4.78195 -0.889917 2.69137 -0.889917 0.120117C-0.889917 -2.45112 1.18775 -4.54879 3.759 -4.54879C6.33023 -4.54879 8.4079 -2.45112 8.4079 0.120117Z"
-                    stroke="white"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    transform="translate(8, 8)"
-                  />
-                  <circle cx="19" cy="9" r="2.5" stroke="white" stroke-width="1.5" />
-                  <line
-                    x1="17"
-                    y1="11"
-                    x2="14"
-                    y2="14"
+                    d="M19.5 13.5L22 16"
                     stroke="white"
                     stroke-width="1.5"
                     stroke-linecap="round"
@@ -157,7 +162,11 @@ const canConfirm = computed(() => !!props.selectedSeat)
               <!-- 确认按钮 -->
               <button
                 @click="confirm"
-                class="flex-1 h-14 rounded-xl bg-success text-white text-xl font-medium leading-[100%] tracking-[-1px] hover:opacity-90 transition-opacity"
+                :disabled="!canConfirm"
+                :class="[
+                  'flex-1 h-14 rounded-xl text-white text-xl font-medium leading-[100%] tracking-[-1px] transition-opacity',
+                  canConfirm ? 'bg-success hover:opacity-90' : 'bg-gray-400 cursor-not-allowed'
+                ]"
               >
                 Confirm
               </button>

@@ -19,7 +19,7 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  highlightedPartner: null
+  highlightedPartner: null,
 })
 const emit = defineEmits<Emits>()
 
@@ -55,7 +55,7 @@ const canConfirm = computed(() => !!props.selectedSeat)
     <Transition name="modal">
       <div
         v-if="visible"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-12"
         style="
           background: linear-gradient(
             180deg,
@@ -69,7 +69,7 @@ const canConfirm = computed(() => !!props.selectedSeat)
         <!-- 座位选择卡片 -->
         <div class="w-full max-w-[340px] relative animate-scale-in">
           <!-- 图例和关闭按钮 -->
-          <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-8">
               <div class="flex items-center gap-2">
                 <div class="w-5 h-5 rounded bg-white"></div>
@@ -84,7 +84,7 @@ const canConfirm = computed(() => !!props.selectedSeat)
             <!-- 关闭按钮 -->
             <button
               @click="close"
-              class="w-12 h-12 rounded-full bg-gray-dark flex items-center justify-center hover:opacity-90 transition-opacity"
+              class="w-10 h-10 rounded-full bg-gray-dark flex items-center justify-center hover:opacity-90 transition-opacity"
             >
               <svg
                 width="24"
@@ -104,24 +104,22 @@ const canConfirm = computed(() => !!props.selectedSeat)
           </div>
 
           <!-- 座位地图卡片 -->
-          <div class="bg-white rounded-3xl p-6">
+          <div class="rounded-3xl">
             <!-- 座位地图 -->
-            <SeatMap 
-              :seats="seats" 
-              :selected-seat="selectedSeat" 
+            <SeatMap
+              :seats="seats"
+              :selected-seat="selectedSeat"
               :highlighted-partner="highlightedPartner"
-              @select-seat="handleSeatSelect" 
+              @select-seat="handleSeatSelect"
+              :scale="1.2"
             />
           </div>
 
           <!-- 当前选择和操作 -->
-          <div class="mt-6 text-center">
+          <div class="mt-3 text-center">
             <div class="text-sm font-medium text-white mb-2 tracking-tight">Your Seat</div>
-            <div 
-              class="h-16 rounded-2xl flex items-center justify-center mb-6"
-              style="background: linear-gradient(90deg, rgba(56, 216, 123, 0.3) 0%, rgba(56, 216, 123, 0.8) 50%, rgba(56, 216, 123, 0.3) 100%);"
-            >
-              <span class="text-5xl font-semibold text-white tracking-tight">
+            <div class="h-6 rounded-2xl flex items-center justify-center mb-4">
+              <span class="text-3xl font-semibold text-white tracking-tight">
                 {{ selectedSeat || '-' }}
               </span>
             </div>
@@ -131,7 +129,7 @@ const canConfirm = computed(() => !!props.selectedSeat)
               <!-- 查找伙伴按钮 -->
               <button
                 @click="openFindPartner"
-                class="w-14 h-14 rounded-xl bg-gray-dark flex items-center justify-center hover:opacity-90 transition-opacity"
+                class="w-12 h-12 rounded-xl bg-gray-dark flex items-center justify-center hover:opacity-90 transition-opacity"
               >
                 <svg
                   width="24"
@@ -164,8 +162,8 @@ const canConfirm = computed(() => !!props.selectedSeat)
                 @click="confirm"
                 :disabled="!canConfirm"
                 :class="[
-                  'flex-1 h-14 rounded-xl text-white text-xl font-medium leading-[100%] tracking-[-1px] transition-opacity',
-                  canConfirm ? 'bg-success hover:opacity-90' : 'bg-gray-400 cursor-not-allowed'
+                  'w-2/3 h-12 rounded-xl text-white text-xl font-medium leading-[100%] tracking-[-1px] transition-all',
+                  canConfirm ? 'bg-success hover:opacity-90' : 'bg-gray-400 cursor-not-allowed',
                 ]"
               >
                 Confirm

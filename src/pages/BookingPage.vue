@@ -30,12 +30,29 @@ const showSuccessModal = ref(false)
 const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
 
 // ========== 时间段数据 ==========
+// 辅助函数：格式化日期为 11.20 这种格式
+const formatDate = (date: Date) => {
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  return `${month}.${day}`
+}
+
+// 辅助函数：获取星期缩写
+const getWeekday = (date: Date) => {
+  const weekdays = ['Sun.', 'Mon.', 'Tue.', 'Wed.', 'Thu.', 'Fri.', 'Sat.']
+  return weekdays[date.getDay()]
+}
+
+// 获取今天和明天的 Date 对象
+const today = new Date()
+const tomorrow = new Date()
+tomorrow.setDate(today.getDate() + 1)
 
 const timeSlots = ref<TimeSlot[]>([
   {
     id: '1',
-    date: '11.20',
-    weekday: 'Wed.',
+    date: formatDate(today),
+    weekday: getWeekday(today),
     times: [
       { id: '1-1', time: '09:00 - 12:00', selected: true },
       { id: '1-2', time: '12:00 - 18:00', selected: false },
@@ -43,8 +60,8 @@ const timeSlots = ref<TimeSlot[]>([
   },
   {
     id: '2',
-    date: '11.21',
-    weekday: 'Thu.',
+    date: formatDate(tomorrow),
+    weekday: getWeekday(tomorrow),
     times: [
       { id: '2-1', time: '09:00 - 12:00', selected: false },
       { id: '2-2', time: '12:00 - 18:00', selected: false },
@@ -128,7 +145,7 @@ const handlePartnerSelect = (partner: Partner) => {
   if (partner.seat) {
     highlightedPartner.value = {
       name: partner.name,
-      seat: partner.seat
+      seat: partner.seat,
     }
   }
   showFindPartnerModal.value = false
@@ -166,9 +183,11 @@ const backToHome = () => {
 </script>
 
 <template>
-  <div class="relative min-h-screen bg-gradient-to-b from-gray-100 to-white">
+  <div
+    class="relative min-h-screen bg-gradient-to-b from-transparent from-20% via-white via-30% to-white"
+  >
     <!-- ========== 顶部导航栏 ========== -->
-    <div class="sticky top-0 z-30 bg-white/90 backdrop-blur-sm border-b border-gray-light">
+    <div class="sticky top-0 z-30 backdrop-blur-sm">
       <div class="flex items-center justify-between px-6 py-4">
         <button
           @click="goBack"
@@ -199,56 +218,43 @@ const backToHome = () => {
     <!-- ========== 主要内容区域 ========== -->
     <div class="px-6 py-6 pb-28 max-w-2xl mx-auto">
       <!-- ========== 座位选择区域 ========== -->
-      <section class="mb-8">
-        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">选择座位</h2>
-
-        <!-- 未选择座位时显示地图预览 -->
-        <div v-if="!selectedSeat" class="relative">
-          <div class="opacity-60 pointer-events-none">
-            <SeatMap :seats="seats" :selected-seat="null" @select-seat="() => {}" />
-          </div>
-
-          <!-- 选择按钮覆层 -->
-          <div class="absolute inset-0 flex items-center justify-center">
-            <button
-              @click="openSeatModal"
-              class="px-8 py-4 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg hover:bg-gray-dark/90 transition-all transform hover:scale-105"
-            >
-              Select Seat
-            </button>
-          </div>
-        </div>
-
-        <!-- 已选择座位时显示座位信息 -->
-        <div v-else class="bg-white rounded-2xl shadow-card p-6">
-          <div class="flex items-end justify-between">
-            <div>
-              <div class="text-sm font-medium text-gray mb-2 tracking-tight">您的座位</div>
-              <div class="text-5xl font-bold text-gray-dark tracking-tight">
-                {{ selectedSeat }}
-              </div>
-            </div>
-            <button
-              @click="reselectSeat"
-              class="px-6 py-3 border-2 border-gray-light rounded-xl text-sm font-medium text-gray-dark hover:border-gray-dark transition-colors"
-            >
-              Change Seat
-            </button>
-          </div>
-
-          <!-- 座位地图缩略图 -->
-          <div class="mt-6 scale-75 origin-top-left pointer-events-none">
-            <SeatMap :seats="seats" :selected-seat="selectedSeat" @select-seat="() => {}" />
-          </div>
+      <section class="mb-6">
+        <div class="opacity-90 pointer-events-none">
+          <SeatMap :seats="seats" :selected-seat="selectedSeat" @select-seat="() => {}" />
         </div>
       </section>
 
+      <div class="flex items-center justify-center w-full min-h-[64px]">
+        <button
+          v-if="!selectedSeat"
+          @click="openSeatModal"
+          class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg hover:bg-gray-dark/90 transition-all transform hover:scale-105"
+        >
+          Select Seat
+        </button>
+
+        <div v-else class="flex items-center justify-between w-full max-w-2xl px-2">
+          <div class="flex items-baseline gap-4">
+            <span class="text-sm font-medium text-gray-400 tracking-tight">Your Seat</span>
+            <span class="text-3xl font-bold text-gray-dark tracking-tighter">
+              {{ selectedSeat }}
+            </span>
+          </div>
+
+          <button
+            @click="openSeatModal"
+            class="px-5 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-semibold text-gray-dark hover:bg-gray-50 active:scale-95 transition-all"
+          >
+            Change Seat
+          </button>
+        </div>
+      </div>
       <!-- ========== 分隔线 ========== -->
       <div class="border-t border-gray-light my-8"></div>
 
       <!-- ========== 日期和时间选择 ========== -->
       <section class="mb-8">
-        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">日期 & 时间</h2>
+        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Data & Time</h2>
 
         <div class="space-y-4">
           <div v-for="(slot, dateIndex) in timeSlots" :key="slot.id" class="flex gap-4 items-start">
@@ -283,7 +289,7 @@ const backToHome = () => {
 
       <!-- ========== 邀请伙伴 ========== -->
       <section class="mb-8">
-        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">邀请伙伴</h2>
+        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Invite Partner</h2>
 
         <div class="flex flex-wrap gap-3">
           <!-- 已邀请的伙伴标签 -->
@@ -391,33 +397,31 @@ const backToHome = () => {
     </div>
 
     <!-- ========== 底部固定操作栏 ========== -->
-    <div
-      class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-light px-6 py-4 z-20 shadow-lg"
-    >
-      <div class="flex items-center justify-between max-w-2xl mx-auto gap-4">
-        <!-- Coins 显示 -->
-        <div class="flex items-center gap-2 px-4 py-2 bg-cyan/10 rounded-xl">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <circle cx="12" cy="12" r="10" fill="#51D5FF" />
-            <path d="M12 7v10M7 12h10" stroke="white" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          <span class="text-lg font-bold text-cyan">{{ coinCost }}</span>
-        </div>
+    <div class="fixed bottom-0 left-0 right-0 bg-white px-6 py-4 z-20 shadow-lg">
+      <div class="flex justify-end max-w-2xl mx-auto">
+        <div class="flex items-center gap-3 w-2/3">
+          <div class="flex items-center gap-1.5 px-3 py-2 bg-cyan/10 rounded-xl flex-shrink-0">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="12" cy="12" r="10" fill="#51D5FF" />
+              <path d="M12 7v10M7 12h10" stroke="white" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span class="text-base font-bold text-cyan">{{ coinCost }}</span>
+          </div>
 
-        <!-- 预定按钮 -->
-        <button
-          @click="bookNow"
-          :disabled="!selectedSeat"
-          class="flex-1 px-8 py-4 bg-gray-dark text-white text-lg font-semibold rounded-xl hover:bg-gray-dark/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-        >
-          立即预订
-        </button>
+          <button
+            @click="bookNow"
+            :disabled="!selectedSeat"
+            class="flex-1 py-3 bg-gray-dark text-white text-base font-semibold rounded-xl hover:bg-gray-dark/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          >
+            Book Now
+          </button>
+        </div>
       </div>
     </div>
 

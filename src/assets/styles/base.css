@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --white: #fff;
+  --gray-dark: #292929;
+  --purple-1: #e9dffc;
+  --purple-3: #be9ff6;
+  --purple-6: #784dc7;
+  /* 定义背景图路径变量，方便后续维护 */
+  --global-bg: url('@/assets/images/home/all-background.png');
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Rethink Sans',
+    'SF Pro',
+    -apple-system,
+    Roboto,
+    Helvetica,
+    sans-serif;
+  /* 核心设置 */
+  background-image: var(--global-bg);
+  background-attachment: fixed; /* 关键：背景固定，不随滚动条移动 */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover; /* 确保图片覆盖整个屏幕 */
+
+  /* 针对移动端的抗锯齿和流畅度优化 */
+  -webkit-font-smoothing: antialiased;
+  background-color: #f2f2f2; /* 兜底色：在图片加载前显示 */
+}
+
+#app {
+  min-height: 100vh;
+}

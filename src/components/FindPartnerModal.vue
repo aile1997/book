@@ -48,20 +48,24 @@ const filteredPartners = computed(() => {
 const partnersByTable = computed(() => {
   const tablePartners = getPartnersByTable(selectedTable.value)
   // 获取该桌子的所有座位
-  const tableSeats = seats.value.filter(s => s.table === selectedTable.value)
-  
+  const tableSeats = seats.value.filter((s) => s.table === selectedTable.value)
+
   // 创建座位到伙伴的映射
-  const seatPartnerMap: { seat: string; partner: Partner | null; status: 'available' | 'occupied' }[] = []
-  
-  tableSeats.forEach(seat => {
-    const partner = tablePartners.find(p => p.seat === seat.id)
+  const seatPartnerMap: {
+    seat: string
+    partner: Partner | null
+    status: 'available' | 'occupied'
+  }[] = []
+
+  tableSeats.forEach((seat) => {
+    const partner = tablePartners.find((p) => p.seat === seat.id)
     seatPartnerMap.push({
       seat: seat.id,
       partner: partner || null,
-      status: seat.status === 'available' ? 'available' : 'occupied'
+      status: seat.status === 'available' ? 'available' : 'occupied',
     })
   })
-  
+
   return seatPartnerMap
 })
 
@@ -132,12 +136,15 @@ const highlightMatch = (text: string, query: string) => {
 }
 
 // 重置状态当模态框关闭
-watch(() => props.visible, (newVal) => {
-  if (!newVal) {
-    viewMode.value = 'search'
-    searchQuery.value = ''
-  }
-})
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (!newVal) {
+      viewMode.value = 'search'
+      searchQuery.value = ''
+    }
+  },
+)
 </script>
 
 <template>
@@ -187,9 +194,15 @@ watch(() => props.visible, (newVal) => {
                 @click="selectPartnerFromSearch(partner)"
                 class="w-full text-left px-4 py-3 text-base font-medium hover:bg-success/10 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
               >
-                <span class="text-black">{{ highlightMatch(partner.name, searchQuery).before }}</span>
-                <span class="text-success font-semibold">{{ highlightMatch(partner.name, searchQuery).match }}</span>
-                <span class="text-black">{{ highlightMatch(partner.name, searchQuery).after }}</span>
+                <span class="text-black">{{
+                  highlightMatch(partner.name, searchQuery).before
+                }}</span>
+                <span class="text-success font-semibold">{{
+                  highlightMatch(partner.name, searchQuery).match
+                }}</span>
+                <span class="text-black">{{
+                  highlightMatch(partner.name, searchQuery).after
+                }}</span>
               </button>
             </div>
 
@@ -226,45 +239,42 @@ watch(() => props.visible, (newVal) => {
             <!-- 桌子座位视图 -->
             <div class="bg-white rounded-lg p-6 min-h-[240px]">
               <div class="flex">
-                <!-- 左侧座位列 -->
                 <div class="flex-1 space-y-3 pr-4">
-                  <div 
-                    v-for="(item, index) in leftSeats" 
-                    :key="`left-${index}`" 
-                    class="flex items-center gap-3"
+                  <div
+                    v-for="(item, index) in leftSeats"
+                    :key="`left-${index}`"
+                    class="flex items-center justify-end gap-3 h-6"
                   >
-                    <span 
-                      class="text-sm font-medium text-right min-w-[80px]"
-                      :class="item.status === 'available' ? 'text-gray-400' : 'text-gray-700'"
+                    <span
+                      class="text-sm font-medium text-right transition-colors"
+                      :class="item.status === 'available' ? 'text-gray-300' : 'text-gray-700'"
                     >
-                      {{ item.partner?.name || '' }}
+                      {{ item.partner?.name || '&nbsp;' }}
                     </span>
                     <div
                       class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-300'"
+                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-200'"
                     ></div>
                   </div>
                 </div>
 
-                <!-- 桌子分隔线 -->
                 <div class="w-px bg-gray-200 mx-2"></div>
 
-                <!-- 右侧座位列 -->
                 <div class="flex-1 space-y-3 pl-4">
-                  <div 
-                    v-for="(item, index) in rightSeats" 
-                    :key="`right-${index}`" 
-                    class="flex items-center gap-3"
+                  <div
+                    v-for="(item, index) in rightSeats"
+                    :key="`right-${index}`"
+                    class="flex items-center justify-start gap-3 h-6"
                   >
                     <div
                       class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-300'"
+                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-200'"
                     ></div>
-                    <span 
-                      class="text-sm font-medium"
-                      :class="item.status === 'available' ? 'text-gray-400' : 'text-gray-700'"
+                    <span
+                      class="text-sm font-medium text-left transition-colors"
+                      :class="item.status === 'available' ? 'text-gray-300' : 'text-gray-700'"
                     >
-                      {{ item.partner?.name || '' }}
+                      {{ item.partner?.name || '&nbsp;' }}
                     </span>
                   </div>
                 </div>

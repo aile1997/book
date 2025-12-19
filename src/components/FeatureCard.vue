@@ -22,16 +22,11 @@ const props = withDefaults(defineProps<Props>(), {
   >
     <!-- 卡片图片区域 -->
     <div class="relative h-[169px] overflow-hidden rounded-t-[10px]">
-      <img
-        :src="imageUrl"
-        alt=""
-        class="absolute w-[400px] h-[338px] object-cover"
-        :style="imageStyle"
-      />
+      <img :src="imageUrl" alt="" :style="imageStyle" />
       <!-- 图标（如果有） -->
-      <div v-if="iconSvg" class="absolute left-4 top-[25px]" v-html="iconSvg"></div>
+      <img v-if="iconSvg" class="absolute left-4 top-[25px]" :src="iconSvg" />
     </div>
-    
+
     <!-- 卡片内容 -->
     <div class="p-[15px]">
       <div class="text-sm font-medium text-gray-dark mb-[4px] leading-[100%] tracking-[-0.14px]">

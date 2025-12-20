@@ -12,5 +12,4 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  base: '/book/', // 配置基础路径为仓库名
 })

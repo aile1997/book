@@ -4,12 +4,11 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-import basicSsl from '@vitejs/plugin-basic-ssl'
-
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue(), vueDevTools(), basicSsl()],
+  plugins: [vue(), vueDevTools()],
   base: '/book/', // 必须以斜杠开始和结束
+
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -24,9 +23,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false, // 对于自签名证书的开发环境设为false
         rewrite: (path) => path.replace(/^\/api/, '/'), // 根据你的路由调整
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-        },
       },
     },
   },

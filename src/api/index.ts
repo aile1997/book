@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API 基础 URL，根据 Swagger 文档提供的 Ngrok 地址
-const BASE_URL = 'https://continuate-unsanguinely-hui.ngrok-free.dev'
+const BASE_URL = 'http://111.229.50.3:8080/'
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -42,7 +42,7 @@ apiClient.interceptors.request.use(
     const token = getAuthToken()
     if (token) {
       // 假设后端使用 Bearer 认证
-      // config.headers.Authorization = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -68,7 +68,7 @@ apiClient.interceptors.response.use(
       const status = error.response.status
       if (status === 401) {
         // Token 过期或无效，清除本地 Token 并重定向到登录页
-        removeAuthToken()
+        // removeAuthToken()
         // 实际应用中应进行路由跳转，这里仅清除 Token
         console.error('认证失败，请重新登录。')
       }
@@ -109,7 +109,7 @@ export async function login(credentials: any): Promise<any> {
     return response.data || response
   } catch (error) {
     // 登录失败时清除可能存在的旧 Token
-    removeAuthToken()
+    // removeAuthToken()
     throw error
   }
 }

@@ -25,4 +25,12 @@ export default defineConfigWithVueTs(
     files: ['src/**/__tests__/*'],
   },
   skipFormatting,
+  
+  // 添加这一部分来处理 any 类型相关的警告
+  {
+    rules: {
+      // 禁止使用 any 类型（可根据需要开启或关闭）
+      '@typescript-eslint/no-explicit-any': 'off',
+    }
+  }
 )

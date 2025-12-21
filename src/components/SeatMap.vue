@@ -117,7 +117,7 @@ const tooltipPosition = computed(() => {
       </div>
 
       <!-- 座位层 (覆盖在背景上) -->
-      <div class="relative" :style="{ paddingTop: viewport.aspectRatio * scale + '%' }">
+      <div class="relative" :style="{ paddingTop: (Number(viewport.aspectRatio) * scale) + '%' }">
         <svg
           :viewBox="`0 0 ${viewport.width} ${viewport.height}`"
           class="absolute inset-0 w-full h-full"

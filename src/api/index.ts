@@ -54,8 +54,14 @@ apiClient.interceptors.request.use(
 // 响应拦截器：处理全局错误，例如 401 未授权
 apiClient.interceptors.response.use(
   (response) => {
-    // 假设所有成功的响应都包含在 data.result 中
-    return response.data.result
+    // 正确处理响应数据，兼容不同格式
+    if (response.data?.result !== undefined) {
+      return response.data.result
+    }
+    if (response.data?.data !== undefined) {
+      return response.data.data
+    }
+    return response.data
   },
   (error) => {
     if (error.response) {
@@ -67,9 +73,20 @@ apiClient.interceptors.response.use(
         console.error('认证失败，请重新登录。')
       }
       // 抛出包含后端错误信息的 Promise
-      return Promise.reject(error.response.data || error.response)
+      return Promise.reject(
+        new Error(
+          error.response.data?.message ||
+            error.response.data?.error ||
+            error.response.statusText ||
+            '请求失败',
+        ),
+      )
     }
-    return Promise.reject(error)
+    if (error.request) {
+      // 请求已发出但没有收到响应
+      return Promise.reject(new Error('网络连接异常，请检查网络设置'))
+    }
+    return Promise.reject(new Error('请求配置错误'))
   },
 )
 
@@ -83,12 +100,18 @@ apiClient.interceptors.response.use(
  * @returns {Promise<object>} 包含 Token 和用户信息的响应
  */
 export async function login(credentials: any): Promise<any> {
-  const response = await apiClient.post('/api/v1/auth/login', credentials)
-  // 登录成功后，存储 Token
-  if (response && response.token) {
-    setAuthToken(response.token)
+  try {
+    const response = await apiClient.post('/api/v1/auth/login', credentials)
+    // 登录成功后，存储 Token
+    if (response && response.token) {
+      setAuthToken(response.token)
+    }
+    return response.data || response
+  } catch (error) {
+    // 登录失败时清除可能存在的旧 Token
+    removeAuthToken()
+    throw error
   }
-  return response
 }
 
 /**
@@ -105,9 +128,13 @@ export async function register(userData: any): Promise<any> {
  * @returns {Promise<object>} 登出成功的响应
  */
 export async function logout(): Promise<any> {
-  const response = await apiClient.post('/api/v1/auth/logout')
-  removeAuthToken()
-  return response
+  try {
+    const response = await apiClient.post('/api/v1/auth/logout')
+    return response
+  } finally {
+    // 无论请求成功与否都清除本地 Token
+    removeAuthToken()
+  }
 }
 
 // -----------------------------------------------------------------------------

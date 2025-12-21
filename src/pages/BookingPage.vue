@@ -14,7 +14,14 @@ import type { TimeSlot, Partner } from '../types/booking'
 const router = useRouter()
 
 // 使用座位管理组合式函数
-const { seats, selectedSeat, selectSeat, clearSelection, isLoading: isLoadingSeats, error: seatError } = useSeats()
+const {
+  seats,
+  selectedSeat,
+  selectSeat,
+  clearSelection,
+  isLoading: isLoadingSeats,
+  error: seatError,
+} = useSeats()
 
 // 使用预订管理组合式函数
 const { makeBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
@@ -479,13 +486,13 @@ const backToHome = () => {
             <span class="text-base font-bold text-cyan">{{ coinCost }}</span>
           </div>
 
-        <button
-          @click="bookNow"
-          :disabled="!selectedSeat || isBookingLoading || isLoadingSeats"
-          class="w-full py-4 text-lg font-bold text-white rounded-xl bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ isBookingLoading ? 'Booking...' : 'Book Now' }}
-        </button>
+          <button
+            @click="bookNow"
+            :disabled="!selectedSeat || isBookingLoading || isLoadingSeats"
+            class="w-full py-4 text-lg font-bold text-white rounded-xl bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ isBookingLoading ? 'Booking...' : 'Book Now' }}
+          </button>
         </div>
       </div>
     </div>

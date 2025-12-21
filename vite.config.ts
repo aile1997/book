@@ -9,6 +9,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), vueDevTools(), basicSsl()],
+  base: '/book/', // 必须以斜杠开始和结束
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

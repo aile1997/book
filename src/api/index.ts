@@ -42,7 +42,7 @@ apiClient.interceptors.request.use(
     const token = getAuthToken()
     if (token) {
       // 假设后端使用 Bearer 认证
-      config.headers.Authorization = `Bearer ${token}`
+      // config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },

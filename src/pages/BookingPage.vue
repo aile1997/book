@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useBooking } from '../composables/useBooking' // 导入 useBooking
+import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 import { useRouter } from 'vue-router'
 import { useSeats } from '../composables/useSeats'
 import SeatMap from '../components/SeatMap.vue'
@@ -12,7 +14,13 @@ import type { TimeSlot, Partner } from '../types/booking'
 const router = useRouter()
 
 // 使用座位管理组合式函数
-const { seats, selectedSeat, selectSeat, clearSelection } = useSeats()
+const { seats, selectedSeat, selectSeat, clearSelection, isLoading: isLoadingSeats, error: seatError } = useSeats()
+
+// 使用预订管理组合式函数
+const { makeBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
+
+// 使用认证组合式函数
+const { isAuthenticated, signIn } = useAuth()
 
 // ========== 状态管理 ==========
 
@@ -181,19 +189,49 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
 }
 
 // 修改预订执行函数
-const bookNow = () => {
+const bookNow = async () => {
+  if (!isAuthenticated.value) {
+    alert('请先登录才能进行预订操作。')
+    // 实际应用中应跳转到登录页
+    return
+  }
+
   if (!selectedSeat.value) return alert('请先选择座位')
+
+  const selectedTimeSlot = selectedDateTime.value
+  if (!selectedTimeSlot) return alert('请先选择预订时间段')
+
+  // 提取时间段的开始和结束时间
+  const [startTimeStr, endTimeStr] = selectedTimeSlot.time.split(' - ')
+  const todayDate = new Date().toISOString().split('T')[0] // 假设预订日期是今天或明天，这里简化处理为当前日期
 
   // 自动分配邻座给伙伴
   const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
 
-  console.log(`您的座位: ${selectedSeat.value}`)
-  invitedPartners.value.forEach((name, index) => {
-    const assigned = partnerAllocations[index] || '无空闲邻座'
-    console.log(`已为伙伴 ${name} 分配座位: ${assigned}`)
-  })
+  // 构造预订数据
+  const bookingData = {
+    seatId: selectedSeat.value,
+    // 假设 API 期望 ISO 8601 格式的日期时间
+    startTime: `${todayDate}T${startTimeStr}:00`,
+    endTime: `${todayDate}T${endTimeStr}:00`,
+    // 假设 API 接受一个伙伴座位分配列表
+    partnerSeats: partnerAllocations.map((seatId, index) => ({
+      seatId: seatId,
+      partnerName: invitedPartners.value[index], // 假设用名称作为标识
+    })),
+  }
 
-  showSuccessModal.value = true
+  try {
+    await makeBooking(bookingData)
+    // 预订成功
+    showSuccessModal.value = true
+    // 清除选择状态
+    clearSelection()
+    invitedPartners.value = []
+  } catch (error) {
+    alert('预订失败: ' + (bookingError.value || '请检查网络或登录状态'))
+    console.error('预订失败:', error)
+  }
 }
 
 // 返回首页
@@ -254,9 +292,10 @@ const backToHome = () => {
         <button
           v-if="!selectedSeat"
           @click="openSeatModal"
-          class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg hover:bg-gray-dark/90 transition-all transform hover:scale-105"
+          :disabled="isLoadingSeats"
+          class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Select Seat
+          {{ isLoadingSeats ? 'Loading Seats...' : 'Select Seat' }}
         </button>
 
         <div v-else class="flex items-center justify-between w-full max-w-2xl px-2">
@@ -440,13 +479,13 @@ const backToHome = () => {
             <span class="text-base font-bold text-cyan">{{ coinCost }}</span>
           </div>
 
-          <button
-            @click="bookNow"
-            :disabled="!selectedSeat"
-            class="flex-1 py-3 bg-gray-dark text-white text-base font-semibold rounded-xl hover:bg-gray-dark/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-          >
-            Book Now
-          </button>
+        <button
+          @click="bookNow"
+          :disabled="!selectedSeat || isBookingLoading || isLoadingSeats"
+          class="w-full py-4 text-lg font-bold text-white rounded-xl bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{ isBookingLoading ? 'Booking...' : 'Book Now' }}
+        </button>
         </div>
       </div>
     </div>

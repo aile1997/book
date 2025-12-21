@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { usePartners, useSeats } from '../composables/useSeats'
+import SeatMap from './SeatMap.vue' //
 import type { Partner } from '../types/booking'
 
 interface Props {
@@ -77,6 +78,10 @@ const leftSeats = computed(() => {
 // 右侧座位
 const rightSeats = computed(() => {
   return partnersByTable.value.filter((_, index) => index >= partnersByTable.value.length / 2)
+})
+
+const currentTableSeats = computed(() => {
+  return seats.value.filter((s) => s.table === selectedTable.value)
 })
 
 // ========== 事件处理层 ==========
@@ -218,26 +223,31 @@ watch(
           </div>
 
           <!-- 桌子视图 -->
-          <div v-else class="space-y-4">
-            <!-- 桌子选项卡 -->
-            <div class="flex items-center bg-white rounded-lg overflow-hidden">
+          <div v-else class="flex flex-col">
+            <div class="flex w-full h-[48px]">
               <button
                 v-for="table in ['A', 'B', 'C']"
                 :key="table"
                 @click="switchTable(table as 'A' | 'B' | 'C')"
                 :class="[
-                  'flex-1 py-3 text-base font-medium leading-[100%] tracking-[-0.16px] transition-all',
+                  'flex-1 text-base font-medium  border-t border-l border-r rounded-t-2xl relative',
                   selectedTable === table
-                    ? 'text-success bg-white'
-                    : 'text-white/70 bg-success hover:text-white',
+                    ? 'bg-white text-success border-gray-200 z-30 -mb-[1px]' // 选中：白色背景，z-index高，-mb-[1px] 覆盖下方边框线
+                    : 'bg-transparent text-white/70 border-transparent z-10 hover:text-white', // 未选中：透明
                 ]"
               >
                 Table {{ table }}
               </button>
             </div>
 
-            <!-- 桌子座位视图 -->
-            <div class="bg-white rounded-lg p-6 min-h-[240px]">
+            <div
+              class="bg-white border border-gray-200 p-8 min-h-[280px] shadow-sm relative z-20"
+              :class="[
+                'rounded-2xl', // 基础圆角
+                selectedTable === 'A' ? 'rounded-tl-none' : '', // 选中A，左上变直角
+                selectedTable === 'C' ? 'rounded-tr-none' : '', // 选中C，右上变直角
+              ]"
+            >
               <div class="flex">
                 <div class="flex-1 space-y-3 pr-4">
                   <div

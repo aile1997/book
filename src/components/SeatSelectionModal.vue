@@ -72,7 +72,7 @@ const canConfirm = computed(() => !!props.selectedSeat)
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-8">
               <div class="flex items-center gap-2">
-                <div class="w-5 h-5 rounded bg-white"></div>
+                <div class="w-5 h-5 rounded bg-gray-400"></div>
                 <span class="text-sm font-medium text-white">Occupied</span>
               </div>
               <div class="flex items-center gap-2">

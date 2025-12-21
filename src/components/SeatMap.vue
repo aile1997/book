@@ -37,6 +37,25 @@ const {
   calculateSeatY,
 } = useSeatConfig()
 
+// 新增：计算校准后的勾选标记位置
+const getAdjustedCheckmarkPath = (
+  config: any,
+  index: number,
+  side: 'left' | 'right',
+  tableId: string,
+) => {
+  const { cx, cy } = calculateCheckmarkPosition(config, index)
+
+  // 计算“向内靠”的偏移量
+  // 标准座位偏移 1.5，C区异形座位偏移量加大（约 3.5）以适应其形状
+  const innerOffset = tableId === 'C' ? 17 : -3
+  const dx = side === 'left' ? innerOffset : -innerOffset
+
+  const adjCx = cx + dx
+  // 返回路径字符串
+  return `M ${adjCx - 2} ${cy} L ${adjCx - 0.5} ${cy + 1.5} L ${adjCx + 2} ${cy - 1.5}`
+}
+
 const hoveredSeat = ref<string | null>(null)
 
 // 处理座位点击
@@ -151,17 +170,11 @@ const tooltipPosition = computed(() => {
                   />
                 </g>
 
-                <!-- 选中标记（白色圆圈+勾选） -->
+                <!-- 选中标记（勾选） -->
                 <g v-if="isSeatSelected(seat.id)">
-                  <circle
-                    :cx="calculateCheckmarkPosition(table.seats.left, seat.index).cx"
-                    :cy="calculateCheckmarkPosition(table.seats.left, seat.index).cy"
-                    r="5"
-                    fill="white"
-                  />
                   <path
-                    :d="`M ${calculateCheckmarkPosition(table.seats.left, seat.index).cx - 2} ${calculateCheckmarkPosition(table.seats.left, seat.index).cy} L ${calculateCheckmarkPosition(table.seats.left, seat.index).cx - 0.5} ${calculateCheckmarkPosition(table.seats.left, seat.index).cy + 1.5} L ${calculateCheckmarkPosition(table.seats.left, seat.index).cx + 2} ${calculateCheckmarkPosition(table.seats.left, seat.index).cy - 1.5}`"
-                    :stroke="colors.selected"
+                    :d="getAdjustedCheckmarkPath(table.seats.left, seat.index, 'left', table.id)"
+                    :stroke="'#FFFFFF'"
                     stroke-width="1.5"
                     fill="none"
                     stroke-linecap="round"
@@ -216,17 +229,11 @@ const tooltipPosition = computed(() => {
                   />
                 </g>
 
-                <!-- 选中标记（白色圆圈+勾选） -->
+                <!-- 选中标记（勾选） -->
                 <g v-if="isSeatSelected(seat.id)">
-                  <circle
-                    :cx="calculateCheckmarkPosition(table.seats.right, seat.index).cx"
-                    :cy="calculateCheckmarkPosition(table.seats.right, seat.index).cy"
-                    r="5"
-                    fill="white"
-                  />
                   <path
-                    :d="`M ${calculateCheckmarkPosition(table.seats.right, seat.index).cx - 2} ${calculateCheckmarkPosition(table.seats.right, seat.index).cy} L ${calculateCheckmarkPosition(table.seats.right, seat.index).cx - 0.5} ${calculateCheckmarkPosition(table.seats.right, seat.index).cy + 1.5} L ${calculateCheckmarkPosition(table.seats.right, seat.index).cx + 2} ${calculateCheckmarkPosition(table.seats.right, seat.index).cy - 1.5}`"
-                    :stroke="colors.selected"
+                    :d="getAdjustedCheckmarkPath(table.seats.right, seat.index, 'right', table.id)"
+                    :stroke="'#FFFFFF'"
                     stroke-width="1.5"
                     fill="none"
                     stroke-linecap="round"

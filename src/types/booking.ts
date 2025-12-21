@@ -36,6 +36,16 @@ export interface Partner {
   seat?: string // 伙伴的座位
 }
 
+// 预订接口
+export interface Booking {
+  id: string
+  selectedSeat: string | null
+  selectedDate: string | null
+  selectedTime: string | null
+  invitedPartners: string[]
+  coinCost: number
+}
+
 // 预订数据接口
 export interface BookingData {
   selectedSeat: string | null

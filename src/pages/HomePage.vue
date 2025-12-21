@@ -10,8 +10,12 @@ import Group54 from '@/assets/images/home/Group 54.svg'
 import Escultures from '@/assets/images/home/Escultures.png'
 import Group55 from '@/assets/images/home/Group 55.svg'
 
-const router = useRouter()
+import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 
+const router = useRouter()
+// 使用认证组合式函数
+const { signIn } = useAuth()
+signIn()
 // ========== 数据层 ==========
 
 // 用户数据（可以从API获取）

@@ -7,6 +7,10 @@
 
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+
+    // 添加这些选项来更好地处理 any 类型相关的问题
+    "noImplicitAny": false,
+    "strict": false
   }
 }

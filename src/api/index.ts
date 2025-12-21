@@ -1,7 +1,7 @@
-import axios from 'axios';
+import axios from 'axios'
 
 // API 基础 URL，根据 Swagger 文档提供的 Ngrok 地址
-const BASE_URL = 'https://continuate-unsanguinely-hui.ngrok-free.app';
+const BASE_URL = 'https://continuate-unsanguinely-hui.ngrok-free.dev'
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -10,7 +10,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-});
+})
 
 /**
  * 获取存储在本地的认证 Token
@@ -18,7 +18,7 @@ const apiClient = axios.create({
  */
 function getAuthToken(): string | null {
   // 假设 Token 存储在 localStorage 中
-  return localStorage.getItem('authToken');
+  return localStorage.getItem('authToken')
 }
 
 /**
@@ -26,52 +26,52 @@ function getAuthToken(): string | null {
  * @param {string} token JWT Token
  */
 export function setAuthToken(token: string): void {
-  localStorage.setItem('authToken', token);
+  localStorage.setItem('authToken', token)
 }
 
 /**
  * 移除本地存储的认证 Token
  */
 export function removeAuthToken(): void {
-  localStorage.removeItem('authToken');
+  localStorage.removeItem('authToken')
 }
 
 // 请求拦截器：在发送请求前，如果存在 Token，则将其添加到请求头中
 apiClient.interceptors.request.use(
   (config) => {
-    const token = getAuthToken();
+    const token = getAuthToken()
     if (token) {
       // 假设后端使用 Bearer 认证
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`
     }
-    return config;
+    return config
   },
   (error) => {
-    return Promise.reject(error);
-  }
-);
+    return Promise.reject(error)
+  },
+)
 
 // 响应拦截器：处理全局错误，例如 401 未授权
 apiClient.interceptors.response.use(
   (response) => {
     // 假设所有成功的响应都包含在 data.result 中
-    return response.data.result;
+    return response.data.result
   },
   (error) => {
     if (error.response) {
-      const status = error.response.status;
+      const status = error.response.status
       if (status === 401) {
         // Token 过期或无效，清除本地 Token 并重定向到登录页
-        removeAuthToken();
+        removeAuthToken()
         // 实际应用中应进行路由跳转，这里仅清除 Token
-        console.error('认证失败，请重新登录。');
+        console.error('认证失败，请重新登录。')
       }
       // 抛出包含后端错误信息的 Promise
-      return Promise.reject(error.response.data || error.response);
+      return Promise.reject(error.response.data || error.response)
     }
-    return Promise.reject(error);
-  }
-);
+    return Promise.reject(error)
+  },
+)
 
 // -----------------------------------------------------------------------------
 // 认证相关 API
@@ -83,12 +83,12 @@ apiClient.interceptors.response.use(
  * @returns {Promise<object>} 包含 Token 和用户信息的响应
  */
 export async function login(credentials: any): Promise<any> {
-  const response = await apiClient.post('/api/v1/auth/login', credentials);
+  const response = await apiClient.post('/api/v1/auth/login', credentials)
   // 登录成功后，存储 Token
   if (response && response.token) {
-    setAuthToken(response.token);
+    setAuthToken(response.token)
   }
-  return response;
+  return response
 }
 
 /**
@@ -97,7 +97,7 @@ export async function login(credentials: any): Promise<any> {
  * @returns {Promise<object>} 注册成功的响应
  */
 export async function register(userData: any): Promise<any> {
-  return apiClient.post('/api/v1/auth/register', userData);
+  return apiClient.post('/api/v1/auth/register', userData)
 }
 
 /**
@@ -105,9 +105,9 @@ export async function register(userData: any): Promise<any> {
  * @returns {Promise<object>} 登出成功的响应
  */
 export async function logout(): Promise<any> {
-  const response = await apiClient.post('/api/v1/auth/logout');
-  removeAuthToken();
-  return response;
+  const response = await apiClient.post('/api/v1/auth/logout')
+  removeAuthToken()
+  return response
 }
 
 // -----------------------------------------------------------------------------
@@ -119,7 +119,7 @@ export async function logout(): Promise<any> {
  * @returns {Promise<object>} 用户信息
  */
 export async function getCurrentUser(): Promise<any> {
-  return apiClient.get('/api/v1/users/me');
+  return apiClient.get('/api/v1/users/me')
 }
 
 /**
@@ -127,7 +127,7 @@ export async function getCurrentUser(): Promise<any> {
  * @returns {Promise<object>} 积分余额信息
  */
 export async function getUserCredits(): Promise<any> {
-  return apiClient.get('/api/v1/users/me/credits');
+  return apiClient.get('/api/v1/users/me/credits')
 }
 
 /**
@@ -135,7 +135,7 @@ export async function getUserCredits(): Promise<any> {
  * @returns {Promise<object>} 积分交易记录列表
  */
 export async function getUserTransactions(): Promise<any> {
-  return apiClient.get('/api/v1/users/me/transactions');
+  return apiClient.get('/api/v1/users/me/transactions')
 }
 
 // -----------------------------------------------------------------------------
@@ -148,7 +148,7 @@ export async function getUserTransactions(): Promise<any> {
  * @returns {Promise<object>} 预订成功的响应
  */
 export async function createBooking(bookingData: any): Promise<any> {
-  return apiClient.post('/api/v1/bookings', bookingData);
+  return apiClient.post('/api/v1/bookings', bookingData)
 }
 
 /**
@@ -156,7 +156,7 @@ export async function createBooking(bookingData: any): Promise<any> {
  * @returns {Promise<object>} 预订列表
  */
 export async function getUserBookings(): Promise<any> {
-  return apiClient.get('/api/v1/bookings');
+  return apiClient.get('/api/v1/bookings')
 }
 
 /**
@@ -165,7 +165,7 @@ export async function getUserBookings(): Promise<any> {
  * @returns {Promise<object>} 取消成功的响应
  */
 export async function cancelBooking(bookingId: string): Promise<any> {
-  return apiClient.delete(`/api/v1/bookings/${bookingId}`);
+  return apiClient.delete(`/api/v1/bookings/${bookingId}`)
 }
 
 // -----------------------------------------------------------------------------
@@ -177,8 +177,8 @@ export async function cancelBooking(bookingId: string): Promise<any> {
  * @returns {Promise<object>} 座位图数据
  */
 export async function getSeatMap(): Promise<any> {
-  return apiClient.get('/api/v1/seats/map');
+  return apiClient.get('/api/v1/seats/map')
 }
 
 // 导出 apiClient 实例，以便在需要时进行更灵活的请求
-export default apiClient;
+export default apiClient

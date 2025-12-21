@@ -20,7 +20,7 @@ async function checkAuthStatus() {
       user.value = await getCurrentUser()
     } catch (error: any) {
       console.error('Token 无效或过期，请重新登录:', error)
-      removeAuthToken()
+      // removeAuthToken()
       isAuthenticated.value = false
       user.value = null
     } finally {

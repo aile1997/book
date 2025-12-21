@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSeats } from '../composables/useSeats'
 import SeatMap from '../components/SeatMap.vue'
+import InvitePartnerModal from '../components/InvitePartnerModal.vue'
 import FindPartnerModal from '../components/FindPartnerModal.vue'
 import SeatSelectionModal from '../components/SeatSelectionModal.vue'
 import SuccessModal from '../components/SuccessModal.vue'
@@ -156,17 +157,42 @@ const clearHighlight = () => {
   highlightedPartner.value = null
 }
 
-// 预定座位
+// --- 邻座分配逻辑 ---
+const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
+  if (!mySeatId || partnersCount <= 0) return []
+
+  const table = mySeatId.charAt(0) // 获取桌号，如 'A'
+  const myNum = parseInt(mySeatId.substring(1)) // 获取座位数字，如 6
+
+  // 筛选同桌的其他空位
+  const availableSeatsOnSameTable = seats.value.filter(
+    (s) => s.table === table && s.status === 'available' && s.id !== mySeatId,
+  )
+
+  // 排序规则：计算与我的座位数字距离最近的位子 (曼哈顿距离)
+  return availableSeatsOnSameTable
+    .sort((a, b) => {
+      const distA = Math.abs(parseInt(a.id.substring(1)) - myNum)
+      const distB = Math.abs(parseInt(b.id.substring(1)) - myNum)
+      return distA - distB
+    })
+    .slice(0, partnersCount)
+    .map((s) => s.id)
+}
+
+// 修改预订执行函数
 const bookNow = () => {
-  if (!selectedSeat.value) {
-    alert('请先选择座位')
-    return
-  }
-  if (!selectedDateTime.value) {
-    alert('请选择日期和时间')
-    return
-  }
-  // 显示成功模态框
+  if (!selectedSeat.value) return alert('请先选择座位')
+
+  // 自动分配邻座给伙伴
+  const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
+
+  console.log(`您的座位: ${selectedSeat.value}`)
+  invitedPartners.value.forEach((name, index) => {
+    const assigned = partnerAllocations[index] || '无空闲邻座'
+    console.log(`已为伙伴 ${name} 分配座位: ${assigned}`)
+  })
+
   showSuccessModal.value = true
 }
 
@@ -270,11 +296,11 @@ const backToHome = () => {
                 v-for="(time, timeIndex) in slot.times"
                 :key="time.id"
                 @click="toggleTimeSlot(dateIndex, timeIndex)"
-                class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight"
+                class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight border-2"
                 :class="[
                   time.selected
-                    ? 'bg-success text-white shadow-md'
-                    : 'border-2 border-gray-light text-gray-dark hover:border-gray-dark',
+                    ? 'bg-success text-white shadow-md border-success'
+                    : 'border-gray-light text-gray-dark hover:border-gray-dark',
                 ]"
               >
                 {{ time.time }}
@@ -441,10 +467,18 @@ const backToHome = () => {
 
     <!-- 查找伙伴模态框 -->
     <FindPartnerModal
+      v-if="showSeatModal"
       v-model:visible="showFindPartnerModal"
       v-model:selected-partners="invitedPartners"
       @confirm="confirmPartnerInvite"
       @select-partner="handlePartnerSelect"
+    />
+
+    <InvitePartnerModal
+      v-else
+      v-model:visible="showFindPartnerModal"
+      v-model:selected-partners="invitedPartners"
+      @confirm="confirmPartnerInvite"
     />
 
     <!-- 成功模态框 -->

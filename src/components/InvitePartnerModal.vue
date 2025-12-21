@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-
-interface Partner {
-  id: string
-  name: string
-}
+import { ref, computed, watch } from 'vue'
+import { usePartners } from '../composables/useSeats' // 复用相同的伙伴管理逻辑
+import type { Partner } from '../types/booking'
 
 interface Props {
   visible: boolean
@@ -20,105 +17,132 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// 搜索关键词
+// ========== 数据与逻辑层 (参照 FindPartnerModal) ==========
+
+const { searchPartners } = usePartners()
 const searchQuery = ref('')
 
-// 所有可选伙伴列表
-const allPartners: Partner[] = [
-  { id: '1', name: 'Ethan Wei' },
-  { id: '2', name: 'Eric Young Jung' },
-  { id: '3', name: 'Elena Zhang' },
-  { id: '4', name: 'Elsa Li' },
-  { id: '5', name: 'Elsa Xu' },
-]
-
-// 过滤后的伙伴列表（基于搜索）
+// 1. 统一搜索逻辑：匹配并截取前 5 条
 const filteredPartners = computed(() => {
-  if (!searchQuery.value) return allPartners
-  const query = searchQuery.value.toLowerCase()
-  return allPartners.filter(p => p.name.toLowerCase().includes(query))
+  if (!searchQuery.value) return []
+  return searchPartners(searchQuery.value).slice(0, 5)
 })
 
-// 选择伙伴
-const selectPartner = (partnerName: string) => {
-  const selected = [...props.selectedPartners]
-  if (!selected.includes(partnerName)) {
-    selected.push(partnerName)
-    emit('update:selectedPartners', selected)
+// 2. 统一高亮函数：支持文字任意位置匹配
+const highlightMatch = (text: string, query: string) => {
+  if (!query) return { before: text, match: '', after: '' }
+  const index = text.toLowerCase().indexOf(query.toLowerCase())
+  if (index === -1) return { before: text, match: '', after: '' }
+
+  return {
+    before: text.slice(0, index),
+    match: text.slice(index, index + query.length),
+    after: text.slice(index + query.length),
   }
-  searchQuery.value = ''
 }
 
-// 关闭模态框
+// 选择伙伴
+const selectPartner = (partner: Partner) => {
+  const selected = [...props.selectedPartners]
+  if (!selected.includes(partner.name)) {
+    selected.push(partner.name)
+    emit('update:selectedPartners', selected)
+  }
+  searchQuery.value = '' // 选择后清空
+}
+
 const close = () => {
   emit('update:visible', false)
 }
 
-// 确认
 const confirm = () => {
   emit('confirm')
   close()
 }
+
+// 监听关闭状态，重置搜索框
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (!newVal) searchQuery.value = ''
+  },
+)
 </script>
 
 <template>
-  <div
-    v-if="visible"
-    class="fixed inset-0 z-50 flex items-end justify-center"
-    @click.self="close"
-  >
-    <!-- 紫色模态框 -->
-    <div class="w-full rounded-t-[45px] bg-primary-dark px-8 pb-8 pt-10 animate-slide-up">
-      <h2 class="text-2xl font-medium text-white text-center mb-8 leading-[100%] tracking-[-0.24px]">
-        Invite Partner
-      </h2>
-
-      <!-- 搜索框 -->
-      <div class="mb-4">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search..."
-          class="w-full h-[42px] px-3.5 rounded-lg border-0 text-sm font-medium leading-[100%] tracking-[-0.14px] focus:outline-none focus:ring-2 focus:ring-white"
-        />
-      </div>
-
-      <!-- 伙伴列表 -->
+  <Teleport to="body">
+    <Transition name="fade">
       <div
-        v-if="searchQuery"
-        class="bg-white rounded-lg max-h-[130px] overflow-y-auto mb-6"
+        v-if="visible"
+        class="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 backdrop-blur-sm"
+        @click.self="close"
       >
-        <button
-          v-for="partner in filteredPartners"
-          :key="partner.id"
-          @click="selectPartner(partner.name)"
-          class="w-full text-left px-3.5 py-2 text-sm font-medium hover:bg-primary-light transition-colors leading-[100%] tracking-[-0.14px]"
+        <div
+          class="w-full max-w-md rounded-t-[45px] bg-[#784DC7] px-8 pb-10 pt-10 animate-slide-up"
         >
-          <span class="text-primary-dark">{{ searchQuery }}</span>
-          <span class="text-black">{{ partner.name.replace(searchQuery, '') }}</span>
-        </button>
-      </div>
+          <h2
+            class="text-2xl font-medium text-white text-center mb-8 leading-[100%] tracking-[-0.24px]"
+          >
+            Invite Partner
+          </h2>
 
-      <!-- 操作按钮 -->
-      <div class="flex gap-2">
-        <button
-          @click="close"
-          class="flex-1 h-12 rounded-lg border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
-        >
-          Back
-        </button>
-        <button
-          @click="confirm"
-          class="flex-1 h-12 rounded-lg border border-white bg-white text-primary-dark text-base font-medium leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
-        >
-          Confirm
-        </button>
+          <div class="relative mb-4">
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search partner name..."
+              class="w-full h-[47px] px-4 rounded-lg border-0 text-base font-medium leading-[100%] tracking-[-0.16px] focus:outline-none focus:ring-2 focus:ring-white bg-white shadow-sm"
+            />
+          </div>
+
+          <div
+            v-if="searchQuery && filteredPartners.length > 0"
+            class="bg-white rounded-lg overflow-hidden mb-8 shadow-xl"
+          >
+            <button
+              v-for="partner in filteredPartners"
+              :key="partner.id"
+              @click="selectPartner(partner)"
+              class="w-full text-left px-4 py-3 text-base font-medium hover:bg-purple-50 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
+            >
+              <span class="text-black">{{ highlightMatch(partner.name, searchQuery).before }}</span>
+              <span class="text-[#784DC7] font-bold">{{
+                highlightMatch(partner.name, searchQuery).match
+              }}</span>
+              <span class="text-black">{{ highlightMatch(partner.name, searchQuery).after }}</span>
+            </button>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              @click="close"
+              class="flex-1 h-12 rounded-full border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
+            >
+              Back
+            </button>
+            <button
+              @click="confirm"
+              class="flex-1 h-12 rounded-full border-2 border-white bg-white text-[#784DC7] text-base font-bold leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 @keyframes slide-up {
   from {
     transform: translateY(100%);
@@ -127,7 +151,6 @@ const confirm = () => {
     transform: translateY(0);
   }
 }
-
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }

@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API 基础 URL，根据 Swagger 文档提供的 Ngrok 地址
-const BASE_URL = 'http://111.229.50.3:8080/'
+const BASE_URL = 'https://111.229.50.3/'
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -42,7 +42,7 @@ apiClient.interceptors.request.use(
     const token = getAuthToken()
     if (token) {
       // 假设后端使用 Bearer 认证
-      config.headers.Authorization = `Bearer ${token}`
+      // config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -140,6 +140,14 @@ export async function logout(): Promise<any> {
 // -----------------------------------------------------------------------------
 // 用户信息相关 API
 // -----------------------------------------------------------------------------
+
+/**
+ * 获取当前登录用户信息
+ * @returns {Promise<object>} 用户信息
+ */
+export async function getFeishuUser(): Promise<any> {
+  return apiClient.get('/api/v1/auth/feishu/login')
+}
 
 /**
  * 获取当前登录用户信息

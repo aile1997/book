@@ -1,7 +1,7 @@
-import axios from 'axios'
+import axios from 'axios';
 
-// API 基础 URL，根据 Swagger 文档提供的 Ngrok 地址
-const BASE_URL = import.meta.env.DEV ? '' : 'http://你的生产环境域名'
+// API 基础 URL，根据用户提供的 Swagger 文档地址
+const BASE_URL = 'https://111.229.50.3';
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -10,34 +10,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-})
-
-// --- 新增：飞书 JS-SDK 获取 Code ---
-export const getLarkAuthCode = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    if (!window.h5sdk) {
-      return reject(new Error('非飞书环境或 SDK 未加载'))
-    }
-    window.h5sdk.ready(() => {
-      // 注意：飞书 SDK 全局变量是 tt
-      tt.requestAuthCode({
-        appId: import.meta.env.VITE_LARK_APP_ID,
-        scopeList: [],
-        success: (res) => resolve(res.code),
-        fail: (err) => {
-          console.error('Code 获取失败:', err)
-          reject(err)
-        },
-      })
-    })
-  })
-}
-
-// --- 新增：对接后端飞书登录接口 ---
-export async function loginWithFeishu(code: string): Promise<any> {
-  // 使用之前配置的 apiClient，会自动处理 BASE_URL 和 headers
-  return apiClient.post('/api/v1/auth/feishu/callback', { code })
-}
+});
 
 /**
  * 获取存储在本地的认证 Token
@@ -45,7 +18,7 @@ export async function loginWithFeishu(code: string): Promise<any> {
  */
 function getAuthToken(): string | null {
   // 假设 Token 存储在 localStorage 中
-  return localStorage.getItem('authToken')
+  return localStorage.getItem('authToken');
 }
 
 /**
@@ -53,72 +26,52 @@ function getAuthToken(): string | null {
  * @param {string} token JWT Token
  */
 export function setAuthToken(token: string): void {
-  localStorage.setItem('authToken', token)
+  localStorage.setItem('authToken', token);
 }
 
 /**
  * 移除本地存储的认证 Token
  */
 export function removeAuthToken(): void {
-  localStorage.removeItem('authToken')
+  localStorage.removeItem('authToken');
 }
 
 // 请求拦截器：在发送请求前，如果存在 Token，则将其添加到请求头中
 apiClient.interceptors.request.use(
   (config) => {
-    const token = getAuthToken()
+    const token = getAuthToken();
     if (token) {
       // 假设后端使用 Bearer 认证
-      config.headers.Authorization = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    return config
+    return config;
   },
   (error) => {
-    return Promise.reject(error)
-  },
-)
+    return Promise.reject(error);
+  }
+);
 
 // 响应拦截器：处理全局错误，例如 401 未授权
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(response)
-
-    // 正确处理响应数据，兼容不同格式
-    if (response.data?.result !== undefined) {
-      return response.data.result
-    }
-    if (response.data?.data !== undefined) {
-      return response.data.data
-    }
-    return response.data
+    // 假设所有成功的响应都包含在 data.result 中
+    return response.data.result;
   },
   (error) => {
-    console.log(error)
     if (error.response) {
-      const status = error.response.status
+      const status = error.response.status;
       if (status === 401) {
         // Token 过期或无效，清除本地 Token 并重定向到登录页
-        // removeAuthToken()
+        removeAuthToken();
         // 实际应用中应进行路由跳转，这里仅清除 Token
-        console.error('认证失败，请重新登录。')
+        console.error('认证失败，请重新登录。');
       }
       // 抛出包含后端错误信息的 Promise
-      return Promise.reject(
-        new Error(
-          error.response.data?.message ||
-            error.response.data?.error ||
-            error.response.statusText ||
-            '请求失败',
-        ),
-      )
+      return Promise.reject(error.response.data || error.response);
     }
-    if (error.request) {
-      // 请求已发出但没有收到响应
-      return Promise.reject(new Error('网络连接异常，请检查网络设置'))
-    }
-    return Promise.reject(new Error('请求配置错误'))
-  },
-)
+    return Promise.reject(error);
+  }
+);
 
 // -----------------------------------------------------------------------------
 // 认证相关 API
@@ -130,18 +83,12 @@ apiClient.interceptors.response.use(
  * @returns {Promise<object>} 包含 Token 和用户信息的响应
  */
 export async function login(credentials: any): Promise<any> {
-  try {
-    const response = await apiClient.post('/api/v1/auth/login', credentials)
-    // 登录成功后，存储 Token
-    if (response && response.token) {
-      setAuthToken(response.token)
-    }
-    return response.data || response
-  } catch (error) {
-    // 登录失败时清除可能存在的旧 Token
-    // removeAuthToken()
-    throw error
+  const response = await apiClient.post('/api/v1/auth/login', credentials);
+  // 登录成功后，存储 Token
+  if (response && response.token) {
+    setAuthToken(response.token);
   }
+  return response;
 }
 
 /**
@@ -150,7 +97,7 @@ export async function login(credentials: any): Promise<any> {
  * @returns {Promise<object>} 注册成功的响应
  */
 export async function register(userData: any): Promise<any> {
-  return apiClient.post('/api/v1/auth/register', userData)
+  return apiClient.post('/api/v1/auth/register', userData);
 }
 
 /**
@@ -158,13 +105,9 @@ export async function register(userData: any): Promise<any> {
  * @returns {Promise<object>} 登出成功的响应
  */
 export async function logout(): Promise<any> {
-  try {
-    const response = await apiClient.post('/api/v1/auth/logout')
-    return response
-  } finally {
-    // 无论请求成功与否都清除本地 Token
-    removeAuthToken()
-  }
+  const response = await apiClient.post('/api/v1/auth/logout');
+  removeAuthToken();
+  return response;
 }
 
 // -----------------------------------------------------------------------------
@@ -175,16 +118,8 @@ export async function logout(): Promise<any> {
  * 获取当前登录用户信息
  * @returns {Promise<object>} 用户信息
  */
-export async function getFeishuUser(): Promise<any> {
-  return apiClient.get('/api/v1/auth/feishu/login')
-}
-
-/**
- * 获取当前登录用户信息
- * @returns {Promise<object>} 用户信息
- */
 export async function getCurrentUser(): Promise<any> {
-  return apiClient.get('/api/v1/users/me')
+  return apiClient.get('/api/v1/users/me');
 }
 
 /**
@@ -192,7 +127,7 @@ export async function getCurrentUser(): Promise<any> {
  * @returns {Promise<object>} 积分余额信息
  */
 export async function getUserCredits(): Promise<any> {
-  return apiClient.get('/api/v1/users/me/credits')
+  return apiClient.get('/api/v1/users/me/credits');
 }
 
 /**
@@ -200,7 +135,29 @@ export async function getUserCredits(): Promise<any> {
  * @returns {Promise<object>} 积分交易记录列表
  */
 export async function getUserTransactions(): Promise<any> {
-  return apiClient.get('/api/v1/users/me/transactions')
+  return apiClient.get('/api/v1/users/me/transactions');
+}
+
+// -----------------------------------------------------------------------------
+// 管理员相关 API
+// -----------------------------------------------------------------------------
+
+/**
+ * 创建新区域
+ * @param {object} areaData - 区域数据
+ * @returns {Promise<object>} 创建成功的响应
+ */
+export async function createArea(areaData: any): Promise<any> {
+  return apiClient.post('/api/v1/admin/areas', areaData);
+}
+
+/**
+ * 批量创建座位
+ * @param {object} seatsData - 包含 seats 数组的对象
+ * @returns {Promise<object>} 批量创建成功的响应
+ */
+export async function batchCreateSeats(seatsData: any): Promise<any> {
+  return apiClient.post('/api/v1/admin/seats/batch', seatsData);
 }
 
 // -----------------------------------------------------------------------------
@@ -213,7 +170,7 @@ export async function getUserTransactions(): Promise<any> {
  * @returns {Promise<object>} 预订成功的响应
  */
 export async function createBooking(bookingData: any): Promise<any> {
-  return apiClient.post('/api/v1/bookings', bookingData)
+  return apiClient.post('/api/v1/bookings', bookingData);
 }
 
 /**
@@ -221,7 +178,7 @@ export async function createBooking(bookingData: any): Promise<any> {
  * @returns {Promise<object>} 预订列表
  */
 export async function getUserBookings(): Promise<any> {
-  return apiClient.get('/api/v1/bookings')
+  return apiClient.get('/api/v1/bookings');
 }
 
 /**
@@ -230,7 +187,7 @@ export async function getUserBookings(): Promise<any> {
  * @returns {Promise<object>} 取消成功的响应
  */
 export async function cancelBooking(bookingId: string): Promise<any> {
-  return apiClient.delete(`/api/v1/bookings/${bookingId}`)
+  return apiClient.delete(`/api/v1/bookings/${bookingId}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -242,8 +199,55 @@ export async function cancelBooking(bookingId: string): Promise<any> {
  * @returns {Promise<object>} 座位图数据
  */
 export async function getSeatMap(): Promise<any> {
-  return apiClient.get('/api/v1/seats/map')
+  return apiClient.get('/api/v1/seats/map');
+}
+
+/**
+ * 查询座位可用性
+ * @param {object} query - 查询参数 { bookingDate: string, timeSlotId: number, areaId: number }
+ * @returns {Promise<object>} 座位可用性数据
+ */
+export async function getSeatAvailability(query: { bookingDate: string, timeSlotId: number, areaId: number }): Promise<any> {
+  return apiClient.get('/api/v1/seats/availability', { params: query });
+}
+
+/**
+ * 获取可预订时间段列表
+ * @returns {Promise<object>} 时间段列表
+ */
+export async function getTimeSlots(): Promise<any> {
+  return apiClient.get('/api/v1/seats/timeslots');
+}
+
+// -----------------------------------------------------------------------------
+// 伙伴邀请相关 API
+// -----------------------------------------------------------------------------
+
+/**
+ * 轮询获取未来邀请列表
+ * @returns {Promise<object>} 未来邀请列表
+ */
+export async function getUpcomingInvitations(): Promise<any> {
+  return apiClient.get('/api/v1/partner-invitations/upcoming');
+}
+
+/**
+ * 拒绝邀请
+ * @param {number} invitationId - 邀请 ID
+ * @returns {Promise<object>} 拒绝成功的响应
+ */
+export async function declineInvitation(invitationId: number): Promise<any> {
+  return apiClient.post(`/api/v1/partner-invitations/${invitationId}/decline`);
+}
+
+/**
+ * 接受邀请
+ * @param {number} invitationId - 邀请 ID
+ * @returns {Promise<object>} 接受成功的响应
+ */
+export async function acceptInvitation(invitationId: number): Promise<any> {
+  return apiClient.post(`/api/v1/partner-invitations/${invitationId}/accept`);
 }
 
 // 导出 apiClient 实例，以便在需要时进行更灵活的请求
-export default apiClient
+export default apiClient;

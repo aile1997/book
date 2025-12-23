@@ -16,11 +16,14 @@ const router = useRouter()
 // 使用座位管理组合式函数
 const {
   seats,
+  timeSlots: apiTimeSlots, // 从 API 获取的时间段
+  seatAvailability, // 可用性数据
   selectedSeat,
   selectSeat,
   clearSelection,
   isLoading: isLoadingSeats,
   error: seatError,
+  querySeatAvailability, // 查询可用性函数
 } = useSeats()
 
 // 使用预订管理组合式函数
@@ -64,55 +67,59 @@ const today = new Date()
 const tomorrow = new Date()
 tomorrow.setDate(today.getDate() + 1)
 
-const timeSlots = ref<TimeSlot[]>([
-  {
-    id: '1',
-    date: formatDate(today),
-    weekday: getWeekday(today),
-    times: [
-      { id: '1-1', time: '09:00 - 12:00', selected: true },
-      { id: '1-2', time: '12:00 - 18:00', selected: false },
-    ],
-  },
-  {
-    id: '2',
-    date: formatDate(tomorrow),
-    weekday: getWeekday(tomorrow),
-    times: [
-      { id: '2-1', time: '09:00 - 12:00', selected: false },
-      { id: '2-2', time: '12:00 - 18:00', selected: false },
-    ],
-  },
-])
+// 整合日期和时间段
+const dateSlots = computed(() => {
+  const dates = [
+    { date: formatDate(today), weekday: getWeekday(today), dateISO: today.toISOString().split('T')[0] },
+    { date: formatDate(tomorrow), weekday: getWeekday(tomorrow), dateISO: tomorrow.toISOString().split('T')[0] },
+  ]
 
-// 当前选中的日期和时间
+  return dates.map((date, dateIndex) => ({
+    ...date,
+    times: apiTimeSlots.value.map((slot, timeIndex) => ({
+      ...slot,
+      selected: dateIndex === 0 && timeIndex === 0, // 默认选中第一个时间段
+    })),
+  }))
+})
+
+// 选中的时间段
 const selectedDateTime = computed(() => {
-  for (const slot of timeSlots.value) {
-    const selectedTime = slot.times.find((t) => t.selected)
+  for (const dateSlot of dateSlots.value) {
+    const selectedTime = dateSlot.times.find((t) => t.selected)
     if (selectedTime) {
       return {
-        date: slot.date,
-        weekday: slot.weekday,
+        date: dateSlot.date,
+        weekday: dateSlot.weekday,
+        dateISO: dateSlot.dateISO,
         time: selectedTime.time,
+        timeSlotId: selectedTime.id, // 使用 API 返回的 ID
       }
     }
   }
   return null
 })
 
-// ========== 事件处理函数 ==========
-
 // 切换时间段选择
 const toggleTimeSlot = (dateIndex: number, timeIndex: number) => {
   // 先取消所有选择
-  timeSlots.value.forEach((slot) => {
+  dateSlots.value.forEach((slot) => {
     slot.times.forEach((time) => {
       time.selected = false
     })
   })
   // 选中新的时间段
-  timeSlots.value[dateIndex].times[timeIndex].selected = true
+  dateSlots.value[dateIndex].times[timeIndex].selected = true
+
+  // 触发可用性查询
+  if (selectedDateTime.value) {
+    // 假设我们只查询 A 区域的可用性作为示例
+    // 实际应用中，需要知道所有区域的 ID 并循环查询
+    querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId), 1) // 假设区域 A 的 ID 是 1
+  }
 }
+
+// ========== 事件处理函数 ==========
 
 // 打开座位选择模态框
 const openSeatModal = () => {
@@ -122,6 +129,7 @@ const openSeatModal = () => {
 // 选择座位（从模态框）
 const handleSeatSelect = (seatId: string) => {
   selectSeat(seatId)
+  showSeatModal.value = false
 }
 
 // 确认座位选择
@@ -203,29 +211,35 @@ const bookNow = async () => {
     return
   }
 
-  if (!selectedSeat.value) return alert('请先选择座位')
+  const seat = seats.value.find(s => s.id === selectedSeat.value)
+  if (!seat || !seat.backendSeatId) return alert('请先选择有效的座位')
 
   const selectedTimeSlot = selectedDateTime.value
   if (!selectedTimeSlot) return alert('请先选择预订时间段')
 
-  // 提取时间段的开始和结束时间
-  const [startTimeStr, endTimeStr] = selectedTimeSlot.time.split(' - ')
-  const todayDate = new Date().toISOString().split('T')[0] // 假设预订日期是今天或明天，这里简化处理为当前日期
-
   // 自动分配邻座给伙伴
   const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
 
+  // 构造 partnerSeatMap
+  const partnerSeatMap: { [key: number]: number } = {}
+  // 假设 invitedPartners 存储的是用户 ID，这里需要一个映射关系
+  // 由于目前没有用户搜索和 ID 获取接口，我们暂时使用模拟数据
+  // 假设第一个伙伴的用户 ID 是 100，第二个是 101...
+  invitedPartners.value.forEach((partnerName, index) => {
+    const assignedSeat = seats.value.find(s => s.id === partnerAllocations[index])
+    if (assignedSeat && assignedSeat.backendSeatId) {
+      // 模拟用户 ID
+      const userId = 100 + index
+      partnerSeatMap[userId] = assignedSeat.backendSeatId
+    }
+  })
+
   // 构造预订数据
   const bookingData = {
-    seatId: selectedSeat.value,
-    // 假设 API 期望 ISO 8601 格式的日期时间
-    startTime: `${todayDate}T${startTimeStr}:00`,
-    endTime: `${todayDate}T${endTimeStr}:00`,
-    // 假设 API 接受一个伙伴座位分配列表
-    partnerSeats: partnerAllocations.map((seatId, index) => ({
-      seatId: seatId,
-      partnerName: invitedPartners.value[index], // 假设用名称作为标识
-    })),
+    seatId: seat.backendSeatId, // 后端座位 ID
+    bookingDate: selectedTimeSlot.dateISO, // 日期
+    timeSlotId: Number(selectedTimeSlot.timeSlotId), // 时间段 ID
+    partnerSeatMap: partnerSeatMap,
   }
 
   try {
@@ -339,7 +353,7 @@ const backToHome = () => {
             <!-- 时间段选择 -->
             <div class="flex-1 space-y-2">
               <button
-                v-for="(time, timeIndex) in slot.times"
+                v-for="(time, timeIndex) in dateSlot.times"
                 :key="time.id"
                 @click="toggleTimeSlot(dateIndex, timeIndex)"
                 class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight border-2"

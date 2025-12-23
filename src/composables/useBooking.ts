@@ -10,7 +10,7 @@ export function useBooking() {
 
   /**
    * 创建新的预订
-   * @param {object} bookingData - 预订数据 (e.g., { seatId: 'A1', startTime: '...', endTime: '...' })
+   * @param {object} bookingData - 预订数据 (e.g., { seatId: 1, bookingDate: '2025-12-23', timeSlotId: 0, partnerSeatMap: {} })
    */
   async function makeBooking(bookingData: any) {
     isLoading.value = true;

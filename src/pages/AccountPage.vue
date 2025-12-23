@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useInvitation } from '../composables/useInvitation' // 导入 useInvitation
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 
@@ -11,13 +12,8 @@ const userProfile = ref({
   coins: 1200,
 })
 
-const invitation = ref({
-  show: true,
-  date: '2025.11.20',
-  time: '13:00 - 18:00',
-  seat: 'B4',
-  partner: 'Elena Zhang',
-})
+// 移除旧的模拟邀请数据，使用 useInvitation
+// const invitation = ref(...)
 
 const currentBooking = ref({
   date: '2025.11.20',
@@ -56,8 +52,32 @@ const logout = () => {
   alert('Logged out')
   router.push('/')
 }
-const confirmInvitation = () => (invitation.value.show = false)
-const rejectInvitation = () => (invitation.value.show = false)
+// 移除旧的邀请处理函数
+// const confirmInvitation = () => (invitation.value.show = false)
+// const rejectInvitation = () => (invitation.value.show = false)
+
+// 使用邀请管理组合式函数
+const { upcomingInvitations, isLoading: isLoadingInvitations, accept, decline } = useInvitation()
+
+// 处理接受邀请
+const handleAccept = async (invitationId: number) => {
+  const success = await accept(invitationId)
+  if (success) {
+    alert('已接受邀请！')
+  } else {
+    alert('接受邀请失败，请重试。')
+  }
+}
+
+// 处理拒绝邀请
+const handleDecline = async (invitationId: number) => {
+  const success = await decline(invitationId)
+  if (success) {
+    alert('已拒绝邀请！')
+  } else {
+    alert('拒绝邀请失败，请重试。')
+  }
+}
 </script>
 
 <template>
@@ -88,49 +108,47 @@ const rejectInvitation = () => (invitation.value.show = false)
         <h1 class="text-[32px] font-semibold leading-none">{{ userProfile.name }}</h1>
       </div>
 
+      <!-- 伙伴邀请列表 -->
       <div
-        v-if="invitation.show"
+        v-if="isLoadingInvitations || upcomingInvitations.length > 0"
         class="bg-white rounded-[10px] shadow-card p-5 mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
       >
-        <h2 class="text-base font-semibold text-gray-dark mb-4">New Invitation</h2>
-        <div class="space-y-3 mb-5">
-          <div class="flex items-start gap-3">
-            <div class="w-4 h-4 rounded-full bg-warning mt-1"></div>
-            <div class="flex-1 space-y-2">
-              <div class="flex items-center gap-2 text-xs text-gray-400">
-                <span>Date</span
-                ><span class="text-sm font-medium text-gray-dark">{{ invitation.date }}</span>
-              </div>
-              <div class="flex items-center gap-2 text-xs text-gray-400">
-                <span>Time</span
-                ><span class="text-sm font-medium text-gray-dark">{{ invitation.time }}</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <span class="text-xs text-gray-400">Seat</span>
-                <span class="text-2xl font-bold text-gray-dark leading-none">{{
-                  invitation.seat
-                }}</span>
-              </div>
-              <div class="flex items-center gap-2 text-xs text-gray-400 pt-1">
-                <span>with</span
-                ><span class="text-sm font-medium text-gray-dark">{{ invitation.partner }}</span>
-              </div>
+        <h2 class="text-base font-semibold text-gray-dark mb-4">伙伴邀请</h2>
+        <div v-if="isLoadingInvitations" class="text-center py-4 text-gray-500">
+          加载邀请中...
+        </div>
+        <div v-else-if="upcomingInvitations.length === 0" class="text-center py-4 text-gray-500">
+          暂无新的伙伴邀请。
+        </div>
+        <div v-else class="space-y-4">
+          <div
+            v-for="invitation in upcomingInvitations"
+            :key="invitation.id"
+            class="p-4 bg-white rounded-xl shadow-md flex items-center justify-between"
+          >
+            <div>
+              <p class="text-sm font-medium text-gray-dark">
+                <span class="font-bold text-primary">{{ invitation.senderName }}</span> 邀请您加入预订
+              </p>
+              <p class="text-xs text-gray mt-1">
+                {{ invitation.bookingDate }} {{ invitation.timeSlot }} ({{ invitation.seatNumber }})
+              </p>
+            </div>
+            <div class="flex space-x-2">
+              <button
+                @click="handleAccept(invitation.id)"
+                class="px-3 py-1 text-sm font-medium text-white bg-success rounded-lg hover:bg-success-dark transition-colors"
+              >
+                接受
+              </button>
+              <button
+                @click="handleDecline(invitation.id)"
+                class="px-3 py-1 text-sm font-medium text-gray-dark bg-gray-light rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                拒绝
+              </button>
             </div>
           </div>
-        </div>
-        <div class="flex gap-2">
-          <button
-            @click="rejectInvitation"
-            class="flex-1 py-2.5 rounded-lg border border-gray-100 text-sm font-medium text-gray-600"
-          >
-            Reject
-          </button>
-          <button
-            @click="confirmInvitation"
-            class="flex-1 py-2.5 rounded-lg bg-success text-sm font-medium text-white shadow-sm"
-          >
-            Confirm
-          </button>
         </div>
       </div>
 

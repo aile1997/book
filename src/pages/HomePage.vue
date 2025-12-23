@@ -55,15 +55,15 @@ const featureCards = ref<FeatureCardData[]>([
     enabled: true,
   },
   {
-    id: 'coin-store',
+    id: 'admin',
     title: 'Coin Store',
     status: 'New arrival',
     subtitle: 'Coming soon',
     imageUrl: Escultures,
     imageStyle: '',
     iconSvg: Group55,
-    route: '/coin-store',
-    enabled: false,
+    route: '/admin',
+    enabled: true,
   },
 ])
 

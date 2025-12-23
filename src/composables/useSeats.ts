@@ -1,16 +1,19 @@
 import { ref, computed } from 'vue'
-import type { Seat, Partner, TimeSlot } from '../types/booking' // 导入 TimeSlot
-import { getSeatMap, getSeatAvailability, getTimeSlots } from '../api' // 导入 API 客户端和新 API
-import { convertBackendMapToFrontendSeats, convertBackendAvailabilityToFrontend } from '../utils/dataAdapter' // 导入数据适配器
+import type { Seat, Partner } from '../types/booking'
+import { getSeatMap, getSeatAvailability } from '../api' // 导入 API 客户端和新 API
+import {
+  convertBackendMapToFrontendSeats,
+  convertBackendAvailabilityToFrontend,
+} from '../utils/dataAdapter' // 导入数据适配器
 
 // 座位管理组合式函数
 export function useSeats() {
   // 所有座位数据 - 动态数据层
   const seats = ref<Seat[]>([])
-  const timeSlots = ref<TimeSlot[]>([]) // 新增：时间段列表
+
   const seatAvailability = ref<any[]>([]) // 新增：座位可用性数据
   const isLoading = ref(false)
-  const isLoadingTimeSlots = ref(false) // 新增：加载时间段状态
+
   const isLoadingAvailability = ref(false) // 新增：加载可用性状态
   const error = ref<string | null>(null)
 
@@ -23,7 +26,7 @@ export function useSeats() {
     try {
       // 调用 API 获取座位图数据
       const data = await getSeatMap()
-      
+
       // 使用数据适配器转换后端数据到前端 Seat 结构
       if (data && data.areas) {
         seats.value = convertBackendMapToFrontendSeats(data)
@@ -46,33 +49,6 @@ export function useSeats() {
   // 首次加载时调用
   if (seats.value.length === 0) {
     loadSeatMap()
-  }
-
-  /**
-   * 从后端 API 加载可预订时间段列表
-   */
-  async function loadTimeSlots() {
-    isLoadingTimeSlots.value = true
-    try {
-      const data = await getTimeSlots()
-      // 假设 API 返回一个 TimeSlot[] 数组
-      if (data && Array.isArray(data)) {
-        timeSlots.value = data.map((slot: any) => ({
-          id: String(slot.id),
-          time: slot.time,
-          selected: false, // 默认不选中
-        }))
-      }
-    } catch (err: any) {
-      console.error('加载时间段失败:', err)
-    } finally {
-      isLoadingTimeSlots.value = false
-    }
-  }
-
-  // 首次加载时调用
-  if (timeSlots.value.length === 0) {
-    loadTimeSlots()
   }
 
   /**
@@ -152,16 +128,16 @@ export function useSeats() {
 
   return {
     seats,
-    timeSlots, // 暴露时间段
+
     seatAvailability, // 暴露可用性数据
     selectedSeat,
     availableSeatsCount,
     isLoading,
-    isLoadingTimeSlots, // 暴露加载状态
+
     isLoadingAvailability, // 暴露加载状态
     error,
     loadSeatMap, // 暴露加载函数
-    loadTimeSlots, // 暴露加载时间段函数
+
     querySeatAvailability, // 暴露查询可用性函数
     getSeatsByTable,
     selectSeat,

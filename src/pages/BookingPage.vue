@@ -16,7 +16,7 @@ const router = useRouter()
 // 使用座位管理组合式函数
 const {
   seats,
-  timeSlots: apiTimeSlots, // 从 API 获取的时间段
+  // timeSlots: apiTimeSlots, // 从 API 获取的时间段
   seatAvailability, // 可用性数据
   selectedSeat,
   selectSeat,
@@ -67,33 +67,38 @@ const today = new Date()
 const tomorrow = new Date()
 tomorrow.setDate(today.getDate() + 1)
 
-// 整合日期和时间段
-const dateSlots = computed(() => {
-  const dates = [
-    { date: formatDate(today), weekday: getWeekday(today), dateISO: today.toISOString().split('T')[0] },
-    { date: formatDate(tomorrow), weekday: getWeekday(tomorrow), dateISO: tomorrow.toISOString().split('T')[0] },
-  ]
-
-  return dates.map((date, dateIndex) => ({
-    ...date,
-    times: apiTimeSlots.value.map((slot, timeIndex) => ({
-      ...slot,
-      selected: dateIndex === 0 && timeIndex === 0, // 默认选中第一个时间段
-    })),
-  }))
-})
+const timeSlots = ref<TimeSlot[]>([
+  {
+    id: '1',
+    date: formatDate(today),
+    weekday: getWeekday(today),
+    times: [
+      { id: '0', time: '09:00 - 12:00', selected: true }, // timeSlotId 0
+      { id: '1', time: '12:00 - 18:00', selected: false }, // timeSlotId 1
+    ],
+  },
+  {
+    id: '2',
+    date: formatDate(tomorrow),
+    weekday: getWeekday(tomorrow),
+    times: [
+      { id: '0', time: '09:00 - 12:00', selected: false },
+      { id: '1', time: '12:00 - 18:00', selected: false },
+    ],
+  },
+])
 
 // 选中的时间段
 const selectedDateTime = computed(() => {
-  for (const dateSlot of dateSlots.value) {
-    const selectedTime = dateSlot.times.find((t) => t.selected)
+  for (const slot of timeSlots.value) {
+    const selectedTime = slot.times.find((t) => t.selected)
     if (selectedTime) {
       return {
-        date: dateSlot.date,
-        weekday: dateSlot.weekday,
-        dateISO: dateSlot.dateISO,
+        date: slot.date,
+        weekday: slot.weekday,
+        // dateISO: slot.dateISO,
         time: selectedTime.time,
-        timeSlotId: selectedTime.id, // 使用 API 返回的 ID
+        timeSlotId: selectedTime.id, // 使用 timeSlotId 0 或 1
       }
     }
   }
@@ -103,19 +108,23 @@ const selectedDateTime = computed(() => {
 // 切换时间段选择
 const toggleTimeSlot = (dateIndex: number, timeIndex: number) => {
   // 先取消所有选择
-  dateSlots.value.forEach((slot) => {
+  timeSlots.value.forEach((slot) => {
     slot.times.forEach((time) => {
       time.selected = false
     })
   })
   // 选中新的时间段
-  dateSlots.value[dateIndex].times[timeIndex].selected = true
+  timeSlots.value[dateIndex].times[timeIndex].selected = true
 
   // 触发可用性查询
   if (selectedDateTime.value) {
     // 假设我们只查询 A 区域的可用性作为示例
     // 实际应用中，需要知道所有区域的 ID 并循环查询
-    querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId), 1) // 假设区域 A 的 ID 是 1
+    querySeatAvailability(
+      selectedDateTime.value.dateISO,
+      Number(selectedDateTime.value.timeSlotId),
+      1,
+    ) // 假设区域 A 的 ID 是 1
   }
 }
 
@@ -211,7 +220,7 @@ const bookNow = async () => {
     return
   }
 
-  const seat = seats.value.find(s => s.id === selectedSeat.value)
+  const seat = seats.value.find((s) => s.id === selectedSeat.value)
   if (!seat || !seat.backendSeatId) return alert('请先选择有效的座位')
 
   const selectedTimeSlot = selectedDateTime.value
@@ -226,7 +235,7 @@ const bookNow = async () => {
   // 由于目前没有用户搜索和 ID 获取接口，我们暂时使用模拟数据
   // 假设第一个伙伴的用户 ID 是 100，第二个是 101...
   invitedPartners.value.forEach((partnerName, index) => {
-    const assignedSeat = seats.value.find(s => s.id === partnerAllocations[index])
+    const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
     if (assignedSeat && assignedSeat.backendSeatId) {
       // 模拟用户 ID
       const userId = 100 + index
@@ -237,7 +246,7 @@ const bookNow = async () => {
   // 构造预订数据
   const bookingData = {
     seatId: seat.backendSeatId, // 后端座位 ID
-    bookingDate: selectedTimeSlot.dateISO, // 日期
+    // bookingDate: selectedTimeSlot.dateISO, // 日期
     timeSlotId: Number(selectedTimeSlot.timeSlotId), // 时间段 ID
     partnerSeatMap: partnerSeatMap,
   }
@@ -353,7 +362,7 @@ const backToHome = () => {
             <!-- 时间段选择 -->
             <div class="flex-1 space-y-2">
               <button
-                v-for="(time, timeIndex) in dateSlot.times"
+                v-for="(time, timeIndex) in slot.times"
                 :key="time.id"
                 @click="toggleTimeSlot(dateIndex, timeIndex)"
                 class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight border-2"

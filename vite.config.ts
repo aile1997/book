@@ -18,7 +18,7 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://172.25.144.44:8080',
+        target: 'https://111.229.50.3/',
         changeOrigin: true,
         secure: false, // 对于自签名证书的开发环境设为false
         rewrite: (path) => path,

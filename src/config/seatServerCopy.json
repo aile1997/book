@@ -1,0 +1,265 @@
+{
+  "code": 200,
+  "message": "操作成功",
+  "data": {
+    "areas": [
+      {
+        "id": 1,
+        "name": "Entrance",
+        "nameZh": "入口",
+        "areaType": "ENTRANCE",
+        "capacity": 0,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 1,
+            "seatNumber": "E-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 100,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Bar",
+        "nameZh": "吧台区",
+        "areaType": "BAR",
+        "capacity": 10,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 2,
+            "seatNumber": "B-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 150,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 3,
+            "seatNumber": "B-02",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 180,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 4,
+            "seatNumber": "B-03",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 210,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Lounge",
+        "nameZh": "休息区",
+        "areaType": "LOUNGE",
+        "capacity": 20,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 5,
+            "seatNumber": "L-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 50,
+            "positionY": 150,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 6,
+            "seatNumber": "L-02",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 80,
+            "positionY": 150,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 7,
+            "seatNumber": "L-03",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 50,
+            "positionY": 190,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "Fitness",
+        "nameZh": "健身区",
+        "areaType": "FITNESS",
+        "capacity": 15,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 8,
+            "seatNumber": "F-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 250,
+            "positionY": 150,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 9,
+            "seatNumber": "F-02",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 280,
+            "positionY": 150,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "Meeting Room A",
+        "nameZh": "会议室A",
+        "areaType": "MEETING_ROOM",
+        "capacity": 8,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 10,
+            "seatNumber": "MA-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 300,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 11,
+            "seatNumber": "MA-02",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 330,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "name": "Meeting Room B",
+        "nameZh": "会议室B",
+        "areaType": "MEETING_ROOM",
+        "capacity": 8,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 12,
+            "seatNumber": "MB-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 300,
+            "positionY": 200,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 13,
+            "seatNumber": "MB-02",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 330,
+            "positionY": 200,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "name": "Workspace",
+        "nameZh": "工作区",
+        "areaType": "WORKSPACE",
+        "capacity": 50,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 14,
+            "seatNumber": "W-01",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 400,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          },
+          {
+            "seatId": 15,
+            "seatNumber": "W-02",
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 430,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      }
+    ]
+  }
+}

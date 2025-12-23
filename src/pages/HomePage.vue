@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 import FeatureCard from '../components/FeatureCard.vue'
@@ -13,20 +13,20 @@ import Group55 from '@/assets/images/home/Group 55.svg'
 import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 
 const router = useRouter()
-// 使用认证组合式函数
-const { signIn } = useAuth()
-signIn()
-// ========== 数据层 ==========
+const { user } = useAuth()
 
-// 用户数据（可以从API获取）
-interface UserData {
-  name: string
-  greeting: string
-}
+const userData = computed(() => {
+  const hour = new Date().getHours()
 
-const userData = ref<UserData>({
-  name: 'Alex Zhou',
-  greeting: 'Morning',
+  // 1. 极简时间判断：使用三元表达式或映射
+  const greeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
+
+  // 2. 直接返回：通过可选链确保响应式追踪
+  // 这里的 user.value 只要在 App.vue 接口返回后更新，这里会自动重新计算
+  return {
+    name: user.value?.fullName || user.value?.name || '...',
+    greeting,
+  }
 })
 
 // 功能卡片数据（可以从API获取）

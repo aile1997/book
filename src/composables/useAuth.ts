@@ -1,10 +1,18 @@
 import { ref, computed } from 'vue'
-import { login, logout, getCurrentUser, setAuthToken, removeAuthToken } from '../api'
+import {
+  login,
+  logout,
+  getCurrentUser,
+  setAuthToken,
+  removeAuthToken,
+  getLarkAuthCode,
+  loginWithFeishu,
+} from '../api'
 
 // 认证状态
 const isAuthenticated = ref(!!localStorage.getItem('authToken'))
 const user = ref<any>(null)
-const isLoading = ref(false)
+const isLoading = ref(!!localStorage.getItem('authToken')) // 如果有token，初始就是加载中
 const authError = ref<string | null>(null)
 
 /**
@@ -77,6 +85,38 @@ async function signOut() {
 }
 
 /**
+ * 飞书免登操作
+ */
+async function signInWithFeishu() {
+  isLoading.value = true
+  authError.value = null
+  try {
+    // 1. 获取飞书临时 Code
+    const code = await getLarkAuthCode()
+
+    // 2. 传给后端换取用户信息和 Token
+    const response = await loginWithFeishu(code)
+    console.log(response)
+
+    // 3. 存储 Token (注意：后端返回字段可能是 token 或 data.token，根据实际调整)
+    const token = response.token || response.data?.token
+    if (token) {
+      setAuthToken(token)
+    }
+
+    isAuthenticated.value = true
+    user.value = response.userInfo || response.data?.userInfo || response
+    return response
+  } catch (error: any) {
+    authError.value = error.message || '飞书登录失败'
+    isAuthenticated.value = false
+    throw error
+  } finally {
+    isLoading.value = false
+  }
+}
+
+/**
  * 认证状态管理 Composable
  */
 export function useAuth() {
@@ -91,6 +131,7 @@ export function useAuth() {
     isLoading: computed(() => isLoading.value),
     authError: computed(() => authError.value),
     signIn,
+    signInWithFeishu,
     signOut,
     checkAuthStatus,
   }

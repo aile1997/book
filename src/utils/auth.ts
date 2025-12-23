@@ -36,11 +36,10 @@ export const getLarkCode = (): Promise<string> => {
  */
 export const loginWithBackend = async (code: string) => {
   // 注意：这里使用的是我们之前配置的 Vite Proxy 路径 /api
-  const response = await fetch('api/v1/auth/feishu/callback', {
+  const response = await fetch('/api/v1/auth/feishu/callback', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true', // 针对 ngrok 必带
     },
     body: JSON.stringify({ code }),
   })

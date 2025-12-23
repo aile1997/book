@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API 基础 URL，根据 Swagger 文档提供的 Ngrok 地址
-const BASE_URL = 'https://111.229.50.3/'
+const BASE_URL = import.meta.env.DEV ? '' : 'http://你的生产环境域名'
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -11,6 +11,33 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 })
+
+// --- 新增：飞书 JS-SDK 获取 Code ---
+export const getLarkAuthCode = (): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!window.h5sdk) {
+      return reject(new Error('非飞书环境或 SDK 未加载'))
+    }
+    window.h5sdk.ready(() => {
+      // 注意：飞书 SDK 全局变量是 tt
+      tt.requestAuthCode({
+        appId: import.meta.env.VITE_LARK_APP_ID,
+        scopeList: [],
+        success: (res) => resolve(res.code),
+        fail: (err) => {
+          console.error('Code 获取失败:', err)
+          reject(err)
+        },
+      })
+    })
+  })
+}
+
+// --- 新增：对接后端飞书登录接口 ---
+export async function loginWithFeishu(code: string): Promise<any> {
+  // 使用之前配置的 apiClient，会自动处理 BASE_URL 和 headers
+  return apiClient.post('/api/v1/auth/feishu/callback', { code })
+}
 
 /**
  * 获取存储在本地的认证 Token
@@ -42,7 +69,7 @@ apiClient.interceptors.request.use(
     const token = getAuthToken()
     if (token) {
       // 假设后端使用 Bearer 认证
-      // config.headers.Authorization = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -54,6 +81,8 @@ apiClient.interceptors.request.use(
 // 响应拦截器：处理全局错误，例如 401 未授权
 apiClient.interceptors.response.use(
   (response) => {
+    console.log(response)
+
     // 正确处理响应数据，兼容不同格式
     if (response.data?.result !== undefined) {
       return response.data.result
@@ -64,6 +93,7 @@ apiClient.interceptors.response.use(
     return response.data
   },
   (error) => {
+    console.log(error)
     if (error.response) {
       const status = error.response.status
       if (status === 401) {

@@ -1,0 +1,63 @@
+1.通过/api/v1/seats/map获取座位平面图数据接口，我们可以知道后端返回的座位数据结构大致为：  "data": {
+    "areas": [
+      {
+        "id": 1,
+        "name": "Entrance",（区域名称）
+        "nameZh": "入口",
+        "areaType": "ENTRANCE",
+        "capacity": 0,
+        "description": null,
+        "isActive": true,
+        "seats": [
+          {
+            "seatId": 1,
+            "seatNumber": "E-01", （座位名称）
+            "table": null,
+            "areaName": "",
+            "rowNum": null,
+            "columnNum": null,
+            "positionX": 100,
+            "positionY": 100,
+            "isAvailable": true,
+            "bookingUserInfo": null
+          }
+        ]
+      },
+即包含区域-》座位，我们保留后端的结构，但对应的是ABC三个座位区域，内部座位数据结构仍然根据后端格式，在前端进行代码修改以适配数据结构，或者加入中间件进行转换。
+2.本条针对管理员，可以进行创建座位，建议创建一个管理员界面，通过id进行判断管理员权限，管理员界面支持上传座位：先通过/api/v1/admin/areas（
+  {
+  "name": "string", 区域名称必填
+  "nameZh": "string",
+  "areaType": "LOUNGE",
+  "capacity": 0,
+  "description": "string"
+}）
+创建新区域ABC，再分别通过/api/v1/admin/seats/batch{
+  "seats": [
+    {
+      "seatNumber": "string", 座位名称必填
+      "table": "string",
+      "areaId": 0, 对应区域id必填
+      "rowNum": 0,
+      "columnNum": 0,
+      "positionX": 0, 对应startX必填
+      "positionY": 0, 对应startY必填
+      "description": "string" 
+    }
+  ]
+}批量创建座位，数据使用前端的模拟数据，即seatLayout.json中的tables，但要注意"count": 6,"startX": 28,"startY": 144,"spacing": 20,要根据后端数据结构进行转换。"width": 10,"height": 12,"shape":"semicircle-left"这类info信息以description对象形式作为参数存入。初始化时座位状态都应该是闲置
+3.现在可以进行选座了，首先选择一个时间段，然后点击选座，这时需要调用
+/api/v1/seats/availability查询座位可用性，传参：bookingDate对应日期，timeSlotId为0则对应上午时间段，为1则对应下午时间段，areaId对应区域id，正常情况我们需要一次性查询所有区域数据，以在选座页面进行可选性筛选（这里的数据可以直接用于FindPartnerModal）。
+4.选择座位后，根据是否邀请伙伴，调用
+/api/v1/bookings创建预订{
+  "seatId": 0, 座位id必填
+  "bookingDate": "2025-12-23", 日期必填
+  "timeSlotId": 0,  时间段必填
+  "partnerSeatMap": {
+    "additionalProp1": 0, （key 是userId，即用户id。 value是seatId，邀请伙伴的seatId是在assignNearbySeats方法自动获取的）
+    "additionalProp2": 0,
+    "additionalProp3": 0
+  }
+}。（同时后端通过飞书接口发送消息给用户和伙伴，目前无接口，先通过 /api/v1/partner-invitations/upcoming 轮询获取未来邀请列表），被邀请用户可以选择接受或者拒绝，
+/api/v1/partner-invitations/{invitationId}/decline拒绝邀请
+/api/v1/partner-invitations/{invitationId}/accept接受邀请，invitationId对应upcoming接口返回的id

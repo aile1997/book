@@ -27,24 +27,16 @@ export function useSeats() {
    * @param {number} [areaId] - 可选的区域 ID
    */
   async function loadSeatMap(areaId?: number) {
-    // 如果没有传入 areaId，尝试使用第一个区域的 ID
-    const targetAreaId = areaId || (areas.value.length > 0 ? areas.value[0].id : undefined)
-
-    if (!targetAreaId) {
-      console.warn('无法加载座位图：没有可用的区域 ID。')
-      return
-    }
+    // 如果传入了 areaId，则只加载该区域的座位图。
+    // 如果没有传入 areaId，则加载所有区域的座位图。
+    const targetAreaId = areaId
 
     isLoading.value = true
     error.value = null
     try {
       // 调用 API 获取座位图数据
+      // 如果 targetAreaId 为 undefined，getSeatMap 将不带参数调用，返回所有区域数据
       const data = await getSeatMap(targetAreaId)
-    isLoading.value = true
-    error.value = null
-    try {
-      // 调用 API 获取座位图数据
-      const data = await getSeatMap(areaId)
 
       // 使用数据适配器转换后端数据到前端 Seat 结构
       if (data && data.areas) {
@@ -196,10 +188,8 @@ export function useSeats() {
     // 2. 加载时间段列表
     await loadTimeSlots()
 
-    // 3. 加载默认区域的座位图
-    if (areas.value.length > 0) {
-      await loadSeatMap(areas.value[0].id)
-    }
+    // 3. 加载所有区域的座位图 (不传 areaId)
+    await loadSeatMap()
   }
 
   return {

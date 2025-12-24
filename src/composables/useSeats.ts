@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import type { Seat, Partner } from '../types/booking'
-import { getSeatMap, getSeatAvailability } from '../api' // 导入 API 客户端和新 API
+import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots } from '../api' // 导入 API 客户端和新 API
 import {
   convertBackendMapToFrontendSeats,
   convertBackendAvailabilityToFrontend,
@@ -10,11 +10,16 @@ import {
 export function useSeats() {
   // 所有座位数据 - 动态数据层
   const seats = ref<Seat[]>([])
+  const areas = ref<any[]>([]) // 区域列表
+  const timeSlots = ref<any[]>([]) // 时间段列表
+  const selectedTimeSlotId = ref<number | null>(null) // 默认选中的时间段 ID
 
   const seatAvailability = ref<any[]>([]) // 新增：座位可用性数据
   const isLoading = ref(false)
+  const isLoadingTimeSlots = ref(false)
+  const isLoadingAreas = ref(false)
 
-  const isLoadingAvailability = ref(false) // 新增：加载可用性状态
+  const isLoadingAvailability = ref(false) // 加载可用性状态
   const error = ref<string | null>(null)
 
   /**
@@ -22,6 +27,19 @@ export function useSeats() {
    * @param {number} [areaId] - 可选的区域 ID
    */
   async function loadSeatMap(areaId?: number) {
+    // 如果没有传入 areaId，尝试使用第一个区域的 ID
+    const targetAreaId = areaId || (areas.value.length > 0 ? areas.value[0].id : undefined)
+
+    if (!targetAreaId) {
+      console.warn('无法加载座位图：没有可用的区域 ID。')
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+    try {
+      // 调用 API 获取座位图数据
+      const data = await getSeatMap(targetAreaId)
     isLoading.value = true
     error.value = null
     try {
@@ -47,6 +65,42 @@ export function useSeats() {
     }
   }
 
+  /**
+   * 加载区域列表
+   */
+  async function loadAreas() {
+    isLoadingAreas.value = true
+    try {
+      const data = await getAreas()
+      areas.value = data || []
+    } catch (err: any) {
+      error.value = '加载区域列表失败: ' + (err.message || '未知错误')
+      console.error(error.value, err)
+    } finally {
+      isLoadingAreas.value = false
+    }
+  }
+
+  /**
+   * 加载时间段列表
+   */
+  async function loadTimeSlots() {
+    isLoadingTimeSlots.value = true
+    try {
+      const data = await getTimeSlots()
+      timeSlots.value = data || []
+      // 默认选中第一个时间段
+      if (timeSlots.value.length > 0) {
+        selectedTimeSlotId.value = timeSlots.value[0].id
+      }
+    } catch (err: any) {
+      error.value = '加载时间段失败: ' + (err.message || '未知错误')
+      console.error(error.value, err)
+    } finally {
+      isLoadingTimeSlots.value = false
+    }
+  }
+
   // 首次加载时调用
   // 移除自动调用，让外部组件决定何时调用，特别是需要 areaId 时
   // if (seats.value.length === 0) {
@@ -60,6 +114,10 @@ export function useSeats() {
    * @param areaId 区域 ID
    */
   async function querySeatAvailability(bookingDate: string, timeSlotId: number, areaId: number) {
+    if (!bookingDate) {
+      console.error('查询座位可用性失败: 预订日期不能为空')
+      return
+    }
     isLoadingAvailability.value = true
     try {
       const data = await getSeatAvailability({ bookingDate, timeSlotId, areaId })
@@ -128,17 +186,40 @@ export function useSeats() {
     return seats.value.filter((s) => s.status === 'available').length
   })
 
+  /**
+   * 初始化函数：加载区域、时间段和默认座位图
+   */
+  async function initialize() {
+    // 1. 加载区域列表
+    await loadAreas()
+
+    // 2. 加载时间段列表
+    await loadTimeSlots()
+
+    // 3. 加载默认区域的座位图
+    if (areas.value.length > 0) {
+      await loadSeatMap(areas.value[0].id)
+    }
+  }
+
   return {
     seats,
+    areas, // 暴露区域列表
+    timeSlots, // 暴露时间段列表
+    selectedTimeSlotId, // 暴露选中的时间段 ID
+    initialize, // 暴露初始化函数
 
     seatAvailability, // 暴露可用性数据
     selectedSeat,
     availableSeatsCount,
     isLoading,
-
-    isLoadingAvailability, // 暴露加载状态
+    isLoadingAreas, // 暴露区域加载状态
+    isLoadingTimeSlots, // 暴露时间段加载状态
+    isLoadingAvailability, // 暴露可用性加载状态
     error,
-    loadSeatMap, // 暴露加载函数
+    loadSeatMap, // 暴露加载座位图函数
+    loadAreas, // 暴露加载区域函数
+    loadTimeSlots, // 暴露加载时间段函数
 
     querySeatAvailability, // 暴露查询可用性函数
     getSeatsByTable,

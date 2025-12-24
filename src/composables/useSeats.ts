@@ -19,13 +19,14 @@ export function useSeats() {
 
   /**
    * 从后端 API 加载座位平面图数据
+   * @param {number} [areaId] - 可选的区域 ID
    */
-  async function loadSeatMap() {
+  async function loadSeatMap(areaId?: number) {
     isLoading.value = true
     error.value = null
     try {
       // 调用 API 获取座位图数据
-      const data = await getSeatMap()
+      const data = await getSeatMap(areaId)
 
       // 使用数据适配器转换后端数据到前端 Seat 结构
       if (data && data.areas) {
@@ -47,9 +48,10 @@ export function useSeats() {
   }
 
   // 首次加载时调用
-  if (seats.value.length === 0) {
-    loadSeatMap()
-  }
+  // 移除自动调用，让外部组件决定何时调用，特别是需要 areaId 时
+  // if (seats.value.length === 0) {
+  //   loadSeatMap()
+  // }
 
   /**
    * 查询座位可用性

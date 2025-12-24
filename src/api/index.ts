@@ -185,6 +185,15 @@ export async function createArea(areaData: any): Promise<any> {
 }
 
 /**
+ * 删除区域
+ * @param {number} areaId - 区域 ID
+ * @returns {Promise<object>} 删除成功的响应
+ */
+export async function deleteArea(areaId: number): Promise<any> {
+  return apiClient.delete(`/api/v1/admin/areas/${areaId}`)
+}
+
+/**
  * 批量创建座位
  * @param {object} seatsData - 包含 seats 数组的对象
  * @returns {Promise<object>} 批量创建成功的响应
@@ -228,11 +237,21 @@ export async function cancelBooking(bookingId: string): Promise<any> {
 // -----------------------------------------------------------------------------
 
 /**
+ * 获取所有区域列表
+ * @returns {Promise<object>} 区域列表数据
+ */
+export async function getAreas(): Promise<any> {
+  return apiClient.get('/api/v1/seats/areas')
+}
+
+/**
  * 获取座位平面图数据
+ * @param {number} [areaId] - 可选的区域 ID
  * @returns {Promise<object>} 座位图数据
  */
-export async function getSeatMap(): Promise<any> {
-  return apiClient.get('/api/v1/seats/map')
+export async function getSeatMap(areaId?: number): Promise<any> {
+  const params = areaId ? { areaId } : {}
+  return apiClient.get('/api/v1/seats/map', { params })
 }
 
 /**

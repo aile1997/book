@@ -1,9 +1,22 @@
+
 <template>
   <div class="p-6 max-w-2xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">管理员界面 - 座位初始化</h1>
+    <h1 class="text-2xl font-bold mb-6">管理员界面</h1>
 
     <section class="mb-8 p-4 border rounded-lg shadow-sm">
-      <h2 class="text-xl font-semibold mb-4">1. 创建区域 (A, B, C)</h2>
+      <h2 class="text-xl font-semibold mb-4">区域管理</h2>
+      <div v-if="isLoadingAreas">正在加载区域列表...</div>
+      <div v-else-if="areas.length > 0" class="space-y-2">
+        <div v-for="area in areas" :key="area.id" class="flex items-center justify-between p-2 border rounded">
+          <span>{{ area.nameZh }} ({{ area.name }}) - ID: {{ area.id }}</span>
+          <button @click="handleDeleteArea(area.id)" class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">删除</button>
+        </div>
+      </div>
+      <div v-else>暂无区域数据。</div>
+    </section>
+
+    <section class="mb-8 p-4 border rounded-lg shadow-sm">
+      <h2 class="text-xl font-semibold mb-4">创建新区域 (用于初始化)</h2>
       <button
         @click="createAreas"
         :disabled="isCreatingAreas"
@@ -39,8 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { createArea, batchCreateSeats as apiBatchCreateSeats } from '../api';
+import { ref, onMounted } from 'vue';
+import { createArea, batchCreateSeats as apiBatchCreateSeats, getAreas, deleteArea } from '../api';
 import { convertFrontendConfigToBackendAreas, convertFrontendConfigToBackendSeats } from '../utils/dataAdapter';
 
 // 状态
@@ -51,6 +64,39 @@ const areaIdMap = ref<{ [key: string]: number } | null>(null);
 const isCreatingSeats = ref(false);
 const seatCreationMessage = ref('');
 const seatCreationSuccess = ref(false);
+
+const areas = ref<any[]>([]);
+const isLoadingAreas = ref(false);
+
+async function loadAreas() {
+  isLoadingAreas.value = true;
+  try {
+    const response = await getAreas();
+    areas.value = response || [];
+  } catch (error) {
+    console.error('加载区域列表失败:', error);
+    areas.value = [];
+  } finally {
+    isLoadingAreas.value = false;
+  }
+}
+
+async function handleDeleteArea(areaId: number) {
+  if (confirm('确定要删除这个区域吗？删除后，该区域下的所有座位和预订信息都将丢失。')) {
+    try {
+      await deleteArea(areaId);
+      alert('区域删除成功！');
+      loadAreas(); // 重新加载列表
+    } catch (error: any) {
+      const message = error.message || (error.data && error.data.message) || '未知错误';
+      alert(`删除失败: ${message}`);
+    }
+  }
+}
+
+onMounted(() => {
+  loadAreas();
+});
 
 /**
  * 创建区域 A, B, C
@@ -65,9 +111,8 @@ async function createAreas() {
 
   for (const areaData of areasToCreate) {
     try {
-      // 假设 createArea 返回 { id: number, name: string }
       const response = await createArea(areaData);
-      const areaId = response.id || response.areaId; // 尝试从不同字段获取 ID
+      const areaId = response.id || response.areaId;
       
       if (areaId) {
         map[areaData.name] = areaId;
@@ -95,6 +140,7 @@ async function createAreas() {
     areaIdMap.value = null;
   }
   isCreatingAreas.value = false;
+  loadAreas(); // 创建后重新加载区域列表
 }
 
 /**
@@ -114,12 +160,10 @@ async function batchCreateSeats() {
   try {
     const backendSeats = convertFrontendConfigToBackendSeats(areaIdMap.value);
     
-    // 构造批量创建的请求体
     const seatsData = {
       seats: backendSeats,
     };
 
-    // 调用批量创建 API
     await apiBatchCreateSeats(seatsData);
 
     seatCreationMessage.value = `成功批量创建 ${backendSeats.length} 个座位！`;

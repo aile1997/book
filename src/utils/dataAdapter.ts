@@ -20,16 +20,16 @@ export function convertFrontendConfigToBackendSeats(areaIdMap: { [key: string]: 
       return;
     }
 
-    // 遍历左右两侧的座位配置
-    ['left', 'right'].forEach(position => {
-      const seatConfig = table.seats[position as keyof typeof table.seats];
-      if (!seatConfig) return;
+    let seatIndex = 0; // 区域内座位总索引
 
-      const { count, startX, startY, spacing, width, height, shape, ...extraInfo } = seatConfig;
-
+    // 1. 处理左侧座位 (第一列)
+    const leftConfig = table.seats.left;
+    if (leftConfig) {
+      const { count, startX, startY, spacing, width, height, shape, ...extraInfo } = leftConfig;
       for (let i = 0; i < count; i++) {
+        seatIndex++;
         // 计算座位编号，例如 A-01, A-02...
-        const seatNumber = `${table.id}-${String(i + 1).padStart(2, '0')}`;
+        const seatNumber = `${table.id}-${String(seatIndex).padStart(2, '0')}`;
 
         // 计算座位的位置 (这里简化处理，实际可能需要更复杂的计算)
         // 假设座位是垂直排列，startY 递增
@@ -49,13 +49,48 @@ export function convertFrontendConfigToBackendSeats(areaIdMap: { [key: string]: 
           table: table.id, // 仍然保留 table 字段，方便后端识别
           areaId: areaId,
           rowNum: i + 1, // 假设 rowNum 就是索引
-          columnNum: position === 'left' ? 1 : 2, // 假设 columnNum 是左右侧
+          columnNum: 1, // 左侧为第一列
           positionX: positionX,
           positionY: positionY,
           description: description,
         });
       }
-    });
+    }
+
+    // 2. 处理右侧座位 (第二列)
+    const rightConfig = table.seats.right;
+    if (rightConfig) {
+      const { count, startX, startY, spacing, width, height, shape, ...extraInfo } = rightConfig;
+      for (let i = 0; i < count; i++) {
+        seatIndex++;
+        // 计算座位编号，例如 A-07, A-08...
+        const seatNumber = `${table.id}-${String(seatIndex).padStart(2, '0')}`;
+
+        // 计算座位的位置 (这里简化处理，实际可能需要更复杂的计算)
+        // 假设座位是垂直排列，startY 递增
+        const positionY = startY + i * spacing;
+        const positionX = startX;
+
+        // 将额外的配置信息（如 shape, scale, svgPath 等）存入 description 字段
+        const description = JSON.stringify({
+          width,
+          height,
+          shape,
+          ...extraInfo,
+        });
+
+        backendSeats.push({
+          seatNumber: seatNumber,
+          table: table.id, // 仍然保留 table 字段，方便后端识别
+          areaId: areaId,
+          rowNum: i + 1, // 假设 rowNum 就是索引
+          columnNum: 2, // 右侧为第二列
+          positionX: positionX,
+          positionY: positionY,
+          description: description,
+        });
+      }
+    }
   });
 
   return backendSeats;

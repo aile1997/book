@@ -104,7 +104,7 @@ export function convertFrontendConfigToBackendAreas(): any[] {
   return seatLayout.tables.map(table => ({
     name: table.id, // 区域名称使用 table ID
     nameZh: table.label, // 区域中文名称使用 label
-    areaType: 'SEATING', // 假设所有座位区域类型为 SEATING
+    areaType: 'MEETING_ROOM', // 与用户提供的后端数据保持一致
     capacity: table.seats.left.count + table.seats.right.count, // 容量为左右座位数之和
     description: JSON.stringify({ type: table.type }), // 额外的配置信息
   }));
@@ -123,8 +123,9 @@ export function convertBackendMapToFrontendSeats(backendData: { areas: Area[] })
   const frontendSeats: Seat[] = [];
 
   backendData.areas.forEach(area => {
-    // 忽略非座位区域，例如 Entrance
-    if (area.areaType !== 'SEATING') return;
+    // 修复：后端返回的 areaType 可能不是 'SEATING' (例如 'MEETING_ROOM')，
+    // 只要区域包含座位，就应该进行处理。
+    if (!area.seats || area.seats.length === 0) return;
 
     area.seats.forEach(seat => {
       // 从 description 中解析出前端所需的渲染信息

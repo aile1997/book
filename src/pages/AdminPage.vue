@@ -9,7 +9,10 @@
       <div v-else-if="areas.length > 0" class="space-y-2">
         <div v-for="area in areas" :key="area.id" class="flex items-center justify-between p-2 border rounded">
           <span>{{ area.nameZh }} ({{ area.name }}) - ID: {{ area.id }}</span>
-          <button @click="handleDeleteArea(area.id)" class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">删除</button>
+          <div class="space-x-2">
+            <button @click="handleDeleteAllSeats(area.id, area.nameZh)" class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600">清空座位</button>
+            <button @click="handleDeleteArea(area.id)" class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">删除区域</button>
+          </div>
         </div>
       </div>
       <div v-else>暂无区域数据。</div>
@@ -53,7 +56,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { createArea, batchCreateSeats as apiBatchCreateSeats, getAreas, deleteArea } from '../api';
+import { createArea, batchCreateSeats as apiBatchCreateSeats, getAreas, deleteArea, deleteSeat, getSeatMap } from '../api';
 import { convertFrontendConfigToBackendAreas, convertFrontendConfigToBackendSeats } from '../utils/dataAdapter';
 
 // 状态
@@ -91,6 +94,52 @@ async function handleDeleteArea(areaId: number) {
       const message = error.message || (error.data && error.data.message) || '未知错误';
       alert(`删除失败: ${message}`);
     }
+  }
+}
+
+async function handleDeleteAllSeats(areaId: number, areaName: string) {
+  if (!confirm(`确定要删除 ${areaName} 区域下的所有座位吗？此操作不可逆。`)) {
+    return;
+  }
+
+  try {
+    // 1. 获取该区域的所有座位数据
+    const mapData = await getSeatMap(areaId);
+    const area = mapData.areas.find((a: any) => a.id === areaId);
+
+    if (!area || !area.seats || area.seats.length === 0) {
+      alert(`${areaName} 区域下没有座位需要删除。`);
+      return;
+    }
+
+    const seatIds = area.seats.map((seat: any) => seat.seatId);
+    let successCount = 0;
+    let failCount = 0;
+
+    // 2. 循环调用单个删除 API
+    for (const seatId of seatIds) {
+      try {
+        await deleteSeat(seatId);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        console.error(`删除座位 ID ${seatId} 失败:`, error);
+      }
+    }
+
+    if (failCount === 0) {
+      alert(`成功删除 ${areaName} 区域下的 ${successCount} 个座位！`);
+    } else {
+      alert(`删除完成。成功 ${successCount} 个，失败 ${failCount} 个。请检查控制台了解详情。`);
+    }
+    
+    // 重新加载区域列表，虽然座位删除不影响区域列表，但可以确保状态最新
+    loadAreas(); 
+
+  } catch (error: any) {
+    const message = error.message || (error.data && error.data.message) || '未知错误';
+    alert(`清空座位失败: ${message}`);
+    console.error('清空座位失败:', error);
   }
 }
 

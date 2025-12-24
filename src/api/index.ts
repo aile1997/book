@@ -202,6 +202,15 @@ export async function batchCreateSeats(seatsData: any): Promise<any> {
   return apiClient.post('/api/v1/admin/seats/batch', seatsData)
 }
 
+/**
+ * 删除座位
+ * @param {number} seatId - 座位 ID
+ * @returns {Promise<object>} 删除成功的响应
+ */
+export async function deleteSeat(seatId: number): Promise<any> {
+  return apiClient.delete(`/api/v1/admin/seats/${seatId}`)
+}
+
 // -----------------------------------------------------------------------------
 // 预订相关 API
 // -----------------------------------------------------------------------------

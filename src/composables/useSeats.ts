@@ -144,6 +144,40 @@ export function useSeats() {
   // 当前选中的座位
   const selectedSeat = ref<string | null>(null)
 
+  // 监听 seatAvailability 变化，更新 seats 状态
+  watch(seatAvailability, (newAvailability) => {
+    // 创建一个 Map，方便查找
+    const availabilityMap = new Map(newAvailability.map((item: any) => [item.seatId, item]))
+
+    seats.value.forEach((seat) => {
+      const availability = availabilityMap.get(seat.backendSeatId)
+
+      if (availability) {
+        // 状态同步
+        if (availability.isAvailable) {
+          seat.status = 'available'
+          seat.occupiedBy = ''
+        } else {
+          // 如果不可用，检查是否被预订 (bookingUserInfo 存在)
+          if (availability.bookingUserInfo) {
+            seat.status = 'occupied'
+            // 使用 fullName 或 userName，这里使用 userName
+            seat.occupiedBy = availability.bookingUserInfo.fullName || availability.bookingUserInfo.username || '已预订'
+          } else {
+            // 如果不可用但没有预订信息，可能是被管理员锁定或其他原因
+            seat.status = 'occupied' // 统一显示为 occupied
+            seat.occupiedBy = '不可用' // 明确显示为不可用
+          }
+        }
+      } else {
+        // 如果没有可用性信息，保持默认状态（可能是 available）
+        // 确保没有可用性信息的座位默认是可用的，除非有其他逻辑覆盖
+        // seat.status = 'available'
+        // seat.occupiedBy = ''
+      }
+    })
+  })
+
   // 根据桌子和位置获取座位
   const getSeatsByTable = (table: 'A' | 'B' | 'C', position: 'left' | 'right') => {
     return seats.value.filter((s) => s.table === table && s.position === position)

@@ -182,14 +182,8 @@ export function convertBackendMapToFrontendSeats(backendData: { areas: Area[] })
  * @returns 包含可用座位信息的数组
  */
 export function convertBackendAvailabilityToFrontend(backendData: any): any[] {
-  // 假设后端返回的是一个包含 Area 信息的数组
-  return backendData.map((area: any) => ({
-    areaId: area.areaId,
-    areaName: area.areaName,
-    availableSeats: area.availableSeats.map((seat: any) => ({
-      seatId: seat.seatId,
-      seatNumber: seat.seatNumber,
-      // ... 其他可用性信息
-    })),
-  }));
+  // 后端返回的是一个包含所有座位可用性信息的扁平数组
+  // 我们直接返回原始数据，因为 useSeats.ts 中的逻辑需要遍历这个扁平数组
+  // 确保数据结构中包含 seatId, isAvailable, bookingUserInfo 等关键字段
+  return backendData;
 }

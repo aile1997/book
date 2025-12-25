@@ -109,16 +109,20 @@ export function useSeats() {
    * 查询座位可用性
    * @param bookingDate 预订日期 (YYYY-MM-DD)
    * @param timeSlotId 时间段 ID (0 或 1)
-   * @param areaId 区域 ID
+   * @param areaId 区域 ID (可选，如果传入则只查询该区域)
    */
-  async function querySeatAvailability(bookingDate: string, timeSlotId: number, areaId: number) {
+  async function querySeatAvailability(bookingDate: string, timeSlotId: number, areaId?: number) {
     if (!bookingDate) {
       console.error('查询座位可用性失败: 预订日期不能为空')
       return
     }
     isLoadingAvailability.value = true
     try {
-      const data = await getSeatAvailability({ bookingDate, timeSlotId, areaId })
+      const params: { bookingDate: string; timeSlotId: number; areaId?: number } = { bookingDate, timeSlotId }
+      if (areaId) {
+        params.areaId = areaId
+      }
+      const data = await getSeatAvailability(params)
       // 使用数据适配器转换后端可用性数据
       if (data && Array.isArray(data)) {
         seatAvailability.value = convertBackendAvailabilityToFrontend(data)
@@ -228,39 +232,48 @@ export function useSeats() {
 
 // 伙伴管理组合式函数
 export function usePartners() {
-  // 伙伴数据暂时保留为本地模拟数据，因为 API 文档中没有直接获取所有伙伴的接口
-  // 这里的伙伴数据应该从 /api/v1/users/search 或其他接口获取，目前先保留本地模拟数据
-  const allPartners = ref<Partner[]>([
-    // Table A 伙伴
-    { id: '1', name: 'Mike Liao', table: 'A', seat: 'A1' },
-    { id: '2', name: 'Eric Feng', table: 'A', seat: 'A4' },
-    { id: '3', name: 'Sally Zhang', table: 'A', seat: 'A5' },
-    { id: '4', name: 'Tom Li', table: 'A', seat: 'A6' },
-    { id: '5', name: 'Oliver Huang', table: 'A', seat: 'A8' },
-    { id: '6', name: 'Kong Lijun', table: 'A', seat: 'A12' },
-    // Table B 伙伴
-    { id: '7', name: 'Elsa Li', table: 'B', seat: 'B2' },
-    { id: '8', name: 'Elsa Xu', table: 'B', seat: 'B3' },
-    // Table C 伙伴
-    { id: '9', name: 'Ethan Wei', table: 'C', seat: 'C1' },
-    { id: '10', name: 'Eric Young Jung', table: 'C', seat: 'C2' },
-    { id: '11', name: 'Elena Zhang', table: 'C', seat: 'C3' },
-  ])
+  // 引入 useSeats 来获取 seatAvailability
+  const { seatAvailability, seats } = useSeats()
 
-  // 根据桌子获取伙伴
-  const getPartnersByTable = (table: string) => {
-    return allPartners.value.filter((p) => p.table === table)
-  }
+  // 计算属性：从 seatAvailability 中提取已预订座位的人员信息
+  const bookedPartners = computed<Partner[]>(() => {
+    const partners: Partner[] = []
+    
+    // 遍历 seatAvailability (后端返回的可用性数据，包含预订信息)
+    seatAvailability.value.forEach((seatStatus: any) => {
+      // 检查是否有预订信息，并且预订信息中包含用户信息
+      if (seatStatus.bookingUserInfo) {
+        // 找到对应的 Seat 对象，获取 table 和 seatNumber
+        const frontendSeat = seats.value.find(s => s.backendSeatId === seatStatus.seatId)
+        
+        if (frontendSeat) {
+          partners.push({
+            // 假设 bookingUserInfo 包含 name 和 id
+            id: String(seatStatus.bookingUserInfo.userId), // 使用 userId 作为 id
+            name: seatStatus.bookingUserInfo.userName, // 使用 userName 作为 name
+            table: frontendSeat.table, // 从前端座位数据获取 table
+            seat: frontendSeat.id, // 使用前端 seatNumber (例如 A-01) 作为 seat
+          })
+        }
+      }
+    })
+    return partners
+  })
 
   // 搜索伙伴
   const searchPartners = (query: string) => {
-    if (!query) return []
+    if (!query) return bookedPartners.value
     const lowerQuery = query.toLowerCase()
-    return allPartners.value.filter((p) => p.name.toLowerCase().includes(lowerQuery))
+    return bookedPartners.value.filter((p) => p.name.toLowerCase().includes(lowerQuery))
+  }
+
+  // 根据桌子获取伙伴 (现在基于 bookedPartners)
+  const getPartnersByTable = (table: string) => {
+    return bookedPartners.value.filter((p) => p.table === table)
   }
 
   return {
-    allPartners,
+    allPartners: bookedPartners, // 暴露已预订的伙伴列表
     getPartnersByTable,
     searchPartners,
   }

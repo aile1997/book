@@ -73,10 +73,24 @@ const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
 // 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
 const adaptTimeSlots = (backendSlots: any[]) => {
-  const backendTimeSlots = backendSlots.map((slot: any) => ({
-    id: String(slot.id), // 确保是字符串
-    time: `${slot.startTime} - ${slot.endTime}`,
-  }))
+  const now = new Date()
+  const nowTime = now.getHours() * 60 + now.getMinutes() // 当前时间（分钟）
+
+  const backendTimeSlots = backendSlots.map((slot: any) => {
+    // 解析结束时间为分钟
+    const [endHour, endMinute] = slot.endTime.split(':').map(Number)
+    const endTimeInMinutes = endHour * 60 + endMinute
+
+    // 判断今天的时间段是否已过期
+    const isExpiredToday = now.toISOString().split('T')[0] === today.toISOString().split('T')[0] && nowTime > endTimeInMinutes
+
+    return {
+      id: String(slot.id), // 确保是字符串
+      time: `${slot.startTime} - ${slot.endTime}`,
+      isExpiredToday: isExpiredToday, // 标记今天的时间段是否已过期
+      rawEndTime: slot.endTime, // 保留原始结束时间
+    }
+  })
 
   // 模拟两天的 TimeSlot 结构
   timeSlots.value = [
@@ -87,7 +101,8 @@ const adaptTimeSlots = (backendSlots: any[]) => {
       dateISO: today.toISOString().split('T')[0],
       times: backendTimeSlots.map((slot: any, index: number) => ({
         ...slot,
-        selected: index === 0, // 默认选中第一个时间段
+        selected: index === 0 && !slot.isExpiredToday, // 默认选中第一个未过期的时间段
+        disabled: slot.isExpiredToday, // 今天已过期的时间段禁用
       })),
     },
     {
@@ -98,6 +113,7 @@ const adaptTimeSlots = (backendSlots: any[]) => {
       times: backendTimeSlots.map((slot: any) => ({
         ...slot,
         selected: false,
+        disabled: false, // 明天的时间段不禁用
       })),
     },
   ]
@@ -120,9 +136,8 @@ onMounted(async () => {
   if (timeSlots.value.length > 0) {
     // 触发可用性查询
     if (selectedDateTime.value) {
-      // 假设我们只查询 A 区域的可用性作为示例
-      // 实际应用中，需要知道所有区域的 ID 并循环查询
-      querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId), 1) // 假设区域 A 的 ID 是 1
+      // 查询所有区域的可用性
+      querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId)) // 不传 areaId，查询所有区域
     }
   }
 })
@@ -157,9 +172,8 @@ const toggleTimeSlot = (dateIndex: number, timeIndex: number) => {
 
   // 触发可用性查询
   if (selectedDateTime.value) {
-    // 假设我们只查询 A 区域的可用性作为示例
-    // 实际应用中，需要知道所有区域的 ID 并循环查询
-    querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId), 1) // 假设区域 A 的 ID 是 1
+    // 查询所有区域的可用性
+    querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId)) // 不传 areaId，查询所有区域
   }
 }
 
@@ -401,10 +415,13 @@ const backToHome = () => {
                 v-for="(time, timeIndex) in slot.times"
                 :key="time.id"
                 @click="toggleTimeSlot(dateIndex, timeIndex)"
+                :disabled="time.disabled"
                 class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight border-2"
                 :class="[
                   time.selected
                     ? 'bg-success text-white shadow-md border-success'
+                    : time.disabled
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-100'
                     : 'border-gray-light text-gray-dark hover:border-gray-dark',
                 ]"
               >

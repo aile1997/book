@@ -22,7 +22,7 @@ const emit = defineEmits<Emits>()
 // ========== 数据层 ==========
 
 // 使用伙伴管理组合式函数
-const { allPartners, getPartnersByTable, searchPartners } = usePartners()
+const { allPartners, getPartnersByTable, searchPartners, getSeatsForTable } = usePartners()
 const { seats } = useSeats()
 
 // 视图模式: 'search' | 'table'
@@ -45,39 +45,36 @@ const filteredPartners = computed(() => {
   return searchPartners(searchQuery.value).slice(0, 5)
 })
 
-// 根据桌子获取伙伴，并关联座位状态
-const partnersByTable = computed(() => {
-  const tablePartners = getPartnersByTable(selectedTable.value)
-  // 获取该桌子的所有座位
-  const tableSeats = seats.value.filter((s) => s.table === selectedTable.value)
+// 根据桌子获取座位布局，并关联伙伴数据
+const tableSeatMap = computed(() => {
+  // 获取该桌子的所有座位（完整布局）
+  const tableSeats = getSeatsForTable(selectedTable.value)
+  const partners = allPartners.value // 所有已预订的伙伴
 
-  // 创建座位到伙伴的映射
-  const seatPartnerMap: {
-    seat: string
-    partner: Partner | null
-    status: 'available' | 'occupied'
-  }[] = []
+  // 创建座位 ID 到伙伴的映射，方便查找
+  const partnerMap = new Map(partners.map(p => [p.seat, p]))
 
-  tableSeats.forEach((seat) => {
-    const partner = tablePartners.find((p) => p.seat === seat.id)
-    seatPartnerMap.push({
+  return tableSeats.map(seat => {
+    const partner = partnerMap.get(seat.id) || null
+    return {
       seat: seat.id,
-      partner: partner || null,
-      status: seat.status === 'available' ? 'available' : 'occupied',
-    })
+      partner: partner,
+      // 状态基于是否有伙伴预订
+      status: partner ? 'occupied' : 'available',
+    }
   })
-
-  return seatPartnerMap
 })
 
 // 左侧座位
 const leftSeats = computed(() => {
-  return partnersByTable.value.filter((_, index) => index < partnersByTable.value.length / 2)
+  // 假设座位列表已在 usePartners 中排序，左侧座位是前半部分
+  return tableSeatMap.value.filter((_, index) => index < tableSeatMap.value.length / 2)
 })
 
 // 右侧座位
 const rightSeats = computed(() => {
-  return partnersByTable.value.filter((_, index) => index >= partnersByTable.value.length / 2)
+  // 右侧座位是后半部分
+  return tableSeatMap.value.filter((_, index) => index >= tableSeatMap.value.length / 2)
 })
 
 const currentTableSeats = computed(() => {
@@ -259,11 +256,11 @@ watch(
                       class="text-sm font-medium text-right transition-colors"
                       :class="item.status === 'available' ? 'text-gray-300' : 'text-gray-700'"
                     >
-                      {{ item.partner?.name || '&nbsp;' }}
+                      {{ item.partner?.name || item.seat }}
                     </span>
                     <div
                       class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-200'"
+                      :class="item.status === 'available' ? 'bg-gray-200' : 'bg-success'"
                     ></div>
                   </div>
                 </div>
@@ -278,13 +275,13 @@ watch(
                   >
                     <div
                       class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.status === 'available' ? 'bg-success' : 'bg-gray-200'"
+                      :class="item.status === 'available' ? 'bg-gray-200' : 'bg-success'"
                     ></div>
                     <span
                       class="text-sm font-medium text-left transition-colors"
                       :class="item.status === 'available' ? 'text-gray-300' : 'text-gray-700'"
                     >
-                      {{ item.partner?.name || '&nbsp;' }}
+                      {{ item.partner?.name || item.seat }}
                     </span>
                   </div>
                 </div>

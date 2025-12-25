@@ -239,8 +239,31 @@ export function useSeats() {
 
 // 伙伴管理组合式函数
 export function usePartners() {
-  // 引入 useSeats 来获取 seatAvailability
+  // 引入 useSeats 来获取 seatAvailability 和 seats
   const { seatAvailability, seats } = useSeats()
+
+  // 计算属性：获取所有存在的桌子及其座位
+  const allTables = computed(() => {
+    const tables: { [key: string]: Seat[] } = {}
+    seats.value.forEach(seat => {
+      const tableId = seat.table as string
+      if (!tables[tableId]) {
+        tables[tableId] = []
+      }
+      tables[tableId].push(seat)
+    })
+    // 对每个桌子的座位进行排序，确保渲染顺序正确
+    Object.values(tables).forEach(seatList => {
+      seatList.sort((a, b) => {
+        if (a.position === b.position) {
+          return a.index - b.index
+        }
+        // 确保 left 在 right 之前
+        return a.position === 'left' ? -1 : 1
+      })
+    })
+    return tables
+  })
 
   // 计算属性：从 seatAvailability 中提取已预订座位的人员信息
   const bookedPartners = computed<Partner[]>(() => {
@@ -279,9 +302,16 @@ export function usePartners() {
     return bookedPartners.value.filter((p) => p.table === table)
   }
 
+  // 获取某个桌子的所有座位 (用于 FindPartnerModal 渲染)
+  const getSeatsForTable = (table: string) => {
+    return allTables.value[table] || []
+  }
+
   return {
     allPartners: bookedPartners, // 暴露已预订的伙伴列表
+    allTables, // 暴露所有桌子及其座位
     getPartnersByTable,
+    getSeatsForTable, // 暴露获取某个桌子所有座位的函数
     searchPartners,
   }
 }

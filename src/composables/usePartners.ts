@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { useSeats } from './useSeats'
 import { searchUsers } from '../api'
 import type { Seat, Partner } from '../types/booking'
+import { debounce } from '../utils/debounce'
 
 // 伙伴管理组合式函数
 export function usePartners() {
@@ -61,7 +62,7 @@ export function usePartners() {
   })
 
   // 搜索伙伴 (Find Partner)
-  const searchBookedPartners = (query: string) => {
+  const searchPartners = (query: string) => {
     if (!query) return bookedPartners.value
     const lowerQuery = query.toLowerCase()
     return bookedPartners.value.filter((p) => p.name.toLowerCase().includes(lowerQuery))
@@ -86,7 +87,7 @@ export function usePartners() {
   const searchError = ref<string | null>(null)
 
   /**
-   * 搜索用户 (Invite Partner)
+   * 搜索用户 (Invite Partner) - 实际执行函数
    * @param query 搜索关键词
    */
   async function searchUsersForInvite(query: string) {
@@ -110,18 +111,21 @@ export function usePartners() {
     }
   }
 
+  // 对搜索用户函数进行防抖处理 (延迟 500ms)
+  const debouncedSearchUsersForInvite = debounce(searchUsersForInvite, 500)
+
   return {
     // Find Partner 导出
     allPartners: bookedPartners,
     allTables,
     getPartnersByTable,
     getSeatsForTable,
-    searchBookedPartners, // 重命名以区分
+    searchPartners, // 恢复为 searchPartners
 
     // Invite Partner 导出
     searchResults,
     isSearching,
     searchError,
-    searchUsersForInvite,
+    searchUsersForInvite: debouncedSearchUsersForInvite, // 暴露防抖后的函数
   }
 }

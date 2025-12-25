@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Seat, Partner } from '../types/booking'
 import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots } from '../api' // 导入 API 客户端和新 API
 import {
@@ -82,14 +82,13 @@ export function useSeats() {
       const response = await getTimeSlots()
       // 使用用户指定的获取数据逻辑
       const data = response.data || response || []
-      
+
       // 确保 timeSlots 变量是空的，避免类型冲突
       timeSlots.value = []
       selectedTimeSlotId.value = null
 
       // 返回原始数据，供 BookingPage.vue 自己处理
       return data
-      
     } catch (err: any) {
       error.value = '加载时间段失败: ' + (err.message || '未知错误')
       console.error(error.value, err)
@@ -116,15 +115,18 @@ export function useSeats() {
       console.error('查询座位可用性失败: 预订日期不能为空')
       return
     }
-    
+
     // 默认使用第一个区域的 ID
     const defaultAreaId = areas.value.length > 0 ? areas.value[0].id : undefined
     const targetAreaId = areaId ?? defaultAreaId
 
     isLoadingAvailability.value = true
     try {
-      const params: { bookingDate: string; timeSlotId: number; areaId?: number } = { bookingDate, timeSlotId }
-      
+      const params: { bookingDate: string; timeSlotId: number; areaId?: number } = {
+        bookingDate,
+        timeSlotId,
+      }
+
       // 只有当 targetAreaId 存在时才添加到参数中
       if (targetAreaId) {
         params.areaId = targetAreaId
@@ -162,7 +164,10 @@ export function useSeats() {
           if (availability.bookingUserInfo) {
             seat.status = 'occupied'
             // 使用 fullName 或 userName，这里使用 userName
-            seat.occupiedBy = availability.bookingUserInfo.fullName || availability.bookingUserInfo.username || '已预订'
+            seat.occupiedBy =
+              availability.bookingUserInfo.fullName ||
+              availability.bookingUserInfo.username ||
+              '已预订'
           } else {
             // 如果不可用但没有预订信息，可能是被管理员锁定或其他原因
             seat.status = 'occupied' // 统一显示为 occupied
@@ -279,7 +284,7 @@ export function usePartners() {
   // 计算属性：获取所有存在的桌子及其座位
   const allTables = computed(() => {
     const tables: { [key: string]: Seat[] } = {}
-    seats.value.forEach(seat => {
+    seats.value.forEach((seat) => {
       const tableId = seat.table as string
       if (!tables[tableId]) {
         tables[tableId] = []
@@ -287,7 +292,7 @@ export function usePartners() {
       tables[tableId].push(seat)
     })
     // 对每个桌子的座位进行排序，确保渲染顺序正确
-    Object.values(tables).forEach(seatList => {
+    Object.values(tables).forEach((seatList) => {
       seatList.sort((a, b) => {
         if (a.position === b.position) {
           return a.index - b.index
@@ -302,14 +307,14 @@ export function usePartners() {
   // 计算属性：从 seatAvailability 中提取已预订座位的人员信息
   const bookedPartners = computed<Partner[]>(() => {
     const partners: Partner[] = []
-    
+
     // 遍历 seatAvailability (后端返回的可用性数据，包含预订信息)
     seatAvailability.value.forEach((seatStatus: any) => {
       // 检查是否有预订信息，并且预订信息中包含用户信息
       if (seatStatus.bookingUserInfo) {
         // 找到对应的 Seat 对象，获取 table 和 seatNumber
-        const frontendSeat = seats.value.find(s => s.backendSeatId === seatStatus.seatId)
-        
+        const frontendSeat = seats.value.find((s) => s.backendSeatId === seatStatus.seatId)
+
         if (frontendSeat) {
           partners.push({
             // 假设 bookingUserInfo 包含 name 和 id

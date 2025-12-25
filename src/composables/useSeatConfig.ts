@@ -36,7 +36,7 @@ export function useSeatConfig() {
 
   // 计算座位的Y坐标
   const calculateSeatY = (groupConfig: SeatGroupConfig, index: number): number => {
-    return groupConfig.startY + index * groupConfig.spacing
+    return groupConfig.startY + index * groupConfig.spacing - 20
   }
 
   // 计算座位的X坐标（通常使用配置中的startX）

@@ -5,7 +5,7 @@ const BASE_URL = import.meta.env.DEV ? '' : 'http://你的生产环境域名'
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000, // 请求超时时间
+  timeout: 1000000, // 请求超时时间
   headers: {
     'Content-Type': 'application/json',
   },

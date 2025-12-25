@@ -93,12 +93,12 @@ async function signOut() {
 async function feishuLoginCore(isSilent: boolean) {
   const loginType = isSilent ? '静默登录' : '免登'
   const loadingRef = isSilent ? isSilentLogin : isLoading
-  
+
   if (isSilent && loadingRef.value) return // 避免重复静默登录
 
   loadingRef.value = true
   authError.value = null
-  
+
   try {
     // 1. 获取飞书临时 Code
     const code = await getLarkAuthCode()
@@ -121,7 +121,7 @@ async function feishuLoginCore(isSilent: boolean) {
     authError.value = error.message || `飞书${loginType}失败`
     isAuthenticated.value = false
     console.error(`飞书${loginType}失败:`, error)
-    
+
     if (isSilent) {
       // 静默登录失败，清除 Token
       removeAuthToken()

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { usePartners, useSeats } from '../composables/useSeats'
+import { useSeats } from '../composables/useSeats'
+import { usePartners } from '../composables/usePartners'
 import SeatMap from './SeatMap.vue' //
 import type { Partner } from '../types/booking'
 
@@ -52,9 +53,9 @@ const tableSeatMap = computed(() => {
   const partners = allPartners.value // 所有已预订的伙伴
 
   // 创建座位 ID 到伙伴的映射，方便查找
-  const partnerMap = new Map(partners.map(p => [p.seat, p]))
+  const partnerMap = new Map(partners.map((p) => [p.seat, p]))
 
-  return tableSeats.map(seat => {
+  return tableSeats.map((seat) => {
     const partner = partnerMap.get(seat.id) || null
     return {
       seat: seat.id,

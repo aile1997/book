@@ -49,12 +49,12 @@ const highlightMatch = (text: string, query: string) => {
 // 选择伙伴
 const selectPartner = (partner: Partner) => {
   const selected = [...props.selectedPartners]
-    // Invite Partner 应该使用用户的 ID (id) 而不是 name 来进行预订
-    // 假设 partner 对象包含 id 字段
-    if (!selected.includes(String(partner.id))) {
-      selected.push(String(partner.id))
-      emit('update:selectedPartners', selected)
-    }
+  // Invite Partner 应该使用用户的 ID (id) 而不是 name 来进行预订
+  // 假设 partner 对象包含 id 字段
+  if (!selected.includes(String(partner.id))) {
+    selected.push(String(partner.id))
+    emit('update:selectedPartners', selected)
+  }
   searchQuery.value = '' // 选择后清空
 }
 
@@ -117,11 +117,11 @@ watch(
               :disabled="selectedPartners.includes(String(partner.id))"
               class="w-full text-left px-4 py-3 text-base font-medium hover:bg-purple-50 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
             >
-              <span class="text-black">{{ highlightMatch(partner.name, searchQuery).before }}</span>
+              <span class="text-black">{{ highlightMatch(partner.fullName, searchQuery).before }}</span>
               <span class="text-[#784DC7] font-bold">{{
-                highlightMatch(partner.name, searchQuery).match
+                highlightMatch(partner.fullName, searchQuery).match
               }}</span>
-              <span class="text-black">{{ highlightMatch(partner.name, searchQuery).after }}</span>
+              <span class="text-black">{{ highlightMatch(partner.fullName, searchQuery).after }}</span>
             </button>
           </div>
 

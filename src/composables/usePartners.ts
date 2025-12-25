@@ -91,7 +91,7 @@ export function usePartners() {
    * @param query 搜索关键词
    */
   async function searchUsersForInvite(query: string) {
-    if (!query || query.length < 2) {
+    if (!query) {
       searchResults.value = []
       return
     }
@@ -102,6 +102,8 @@ export function usePartners() {
       // 调用新增的 searchUsers API
       const data = await searchUsers(query, 10) // 限制返回 10 个结果
       searchResults.value = data || []
+  
+      
     } catch (err: any) {
       searchError.value = '搜索用户失败: ' + (err.message || '未知错误')
       console.error(searchError.value, err)
@@ -129,6 +131,3 @@ export function usePartners() {
     searchUsersForInvite: debouncedSearchUsersForInvite, // 暴露防抖后的函数
   }
 }
-
-// 对搜索用户函数进行防抖处理 (延迟 500ms)
-const debouncedSearchUsersForInvite = debounce(searchUsersForInvite, 500)

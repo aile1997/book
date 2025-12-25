@@ -128,7 +128,7 @@ export function useSeats() {
       }
 
       // 只有当 targetAreaId 存在时才添加到参数中
-      if (targetAreaId !== undefined) {
+      if (targetAreaId) {
         params.areaId = targetAreaId
       }
       const data = await getSeatAvailability(params)
@@ -275,5 +275,3 @@ export function useSeats() {
     getSeatColor,
   }
 }
-
-

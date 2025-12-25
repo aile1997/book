@@ -61,6 +61,9 @@ apiClient.interceptors.response.use(
     if (response.data?.data !== undefined) {
       return response.data.data
     }
+    if (response.data?.data?.data !== undefined) {
+      return response.data.data.data
+    }
     return response.data
   },
   (error) => {

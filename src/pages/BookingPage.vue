@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useBooking } from '../composables/useBooking' // 导入 useBooking
 import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 import { useRouter } from 'vue-router'
@@ -16,9 +16,6 @@ const router = useRouter()
 // 使用座位管理组合式函数
 const {
   seats,
-  areas, // 区域列表
-  timeSlots: apiTimeSlots, // 从 API 获取的时间段
-  selectedTimeSlotId: apiSelectedTimeSlotId, // 默认选中的时间段 ID
   seatAvailability, // 可用性数据
   selectedSeat,
   selectSeat,
@@ -26,7 +23,6 @@ const {
   isLoading: isLoadingSeats,
   error: seatError,
   querySeatAvailability, // 查询可用性函数
-  initialize, // 初始化函数
 } = useSeats()
 
 // 使用预订管理组合式函数
@@ -51,18 +47,9 @@ const showSuccessModal = ref(false)
 // 高亮显示的伙伴（用于在座位图上显示tooltip）
 const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
 
-// ========== 日期和时间选择逻辑 ==========
-
-// 辅助函数：格式化日期为 YYYY-MM-DD 格式
-const formatDateISO = (date: Date) => {
-  const year = date.getFullYear()
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-// 辅助函数：格式化日期为 11.20 格式
-const formatDateDisplay = (date: Date) => {
+// ========== 时间段数据 ==========
+// 辅助函数：格式化日期为 11.20 这种格式
+const formatDate = (date: Date) => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
   return `${month}.${day}`
@@ -79,83 +66,64 @@ const today = new Date()
 const tomorrow = new Date()
 tomorrow.setDate(today.getDate() + 1)
 
-// 包含日期信息的本地数据结构
-const dateSlots = ref([
+const timeSlots = ref<TimeSlot[]>([
   {
-    id: 1,
-    date: formatDateDisplay(today),
-    dateISO: formatDateISO(today),
+    id: '1',
+    date: formatDate(today),
     weekday: getWeekday(today),
-    selected: true,
+    dateISO: today.toISOString().split('T')[0],
+    times: [
+      { id: '0', time: '09:00 - 12:00', selected: true }, // timeSlotId 0
+      { id: '1', time: '12:00 - 18:00', selected: false }, // timeSlotId 1
+    ],
   },
   {
-    id: 2,
-    date: formatDateDisplay(tomorrow),
-    dateISO: formatDateISO(tomorrow),
+    id: '2',
+    date: formatDate(tomorrow),
     weekday: getWeekday(tomorrow),
-    selected: false,
+    dateISO: tomorrow.toISOString().split('T')[0],
+    times: [
+      { id: '0', time: '09:00 - 12:00', selected: false },
+      { id: '1', time: '12:00 - 18:00', selected: false },
+    ],
   },
 ])
 
-// 选中的日期
-const selectedDateSlot = computed(() => {
-  return dateSlots.value.find((slot) => slot.selected)
-})
-
-// 选中的时间段（结合日期和时间）
+// 选中的时间段
 const selectedDateTime = computed(() => {
-  const dateSlot = selectedDateSlot.value
-  const timeSlot = apiTimeSlots.value.find(
-    (t: any) => t.id === apiSelectedTimeSlotId.value,
-  )
-
-  if (!dateSlot || !timeSlot) return null
-
-  return {
-    date: dateSlot.date,
-    weekday: dateSlot.weekday,
-    dateISO: dateSlot.dateISO, // YYYY-MM-DD 格式
-    time: timeSlot.time,
-    timeSlotId: timeSlot.id, // timeSlotId 0 或 1
+  for (const slot of timeSlots.value) {
+    const selectedTime = slot.times.find((t) => t.selected)
+    if (selectedTime) {
+      return {
+        date: slot.date,
+        weekday: slot.weekday,
+        dateISO: slot.dateISO,
+        time: selectedTime.time,
+        timeSlotId: selectedTime.id, // 使用 timeSlotId 0 或 1
+      }
+    }
   }
+  return null
 })
-
-// 切换日期选择
-const toggleDate = (dateId: number) => {
-  dateSlots.value.forEach((slot) => {
-    slot.selected = slot.id === dateId
-  })
-  // 切换日期后，重新查询可用性
-  queryAvailability()
-}
 
 // 切换时间段选择
-const toggleTimeSlot = (timeSlotId: number) => {
-  apiSelectedTimeSlotId.value = timeSlotId
-  // 切换时间段后，重新查询可用性
-  queryAvailability()
+const toggleTimeSlot = (dateIndex: number, timeIndex: number) => {
+  // 先取消所有选择
+  timeSlots.value.forEach((slot) => {
+    slot.times.forEach((time) => {
+      time.selected = false
+    })
+  })
+  // 选中新的时间段
+  timeSlots.value[dateIndex].times[timeIndex].selected = true
+
+  // 触发可用性查询
+  if (selectedDateTime.value) {
+    // 假设我们只查询 A 区域的可用性作为示例
+    // 实际应用中，需要知道所有区域的 ID 并循环查询
+    querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId), 1) // 假设区域 A 的 ID 是 1
+  }
 }
-
-// 统一的可用性查询函数
-const queryAvailability = () => {
-  if (!selectedDateTime.value || areas.value.length === 0) return
-
-  // 默认查询第一个区域的可用性
-  const defaultAreaId = areas.value[0].id
-
-  querySeatAvailability(
-    selectedDateTime.value.dateISO,
-    Number(selectedDateTime.value.timeSlotId),
-    defaultAreaId,
-  )
-}
-
-// 初始化
-onMounted(async () => {
-  await initialize()
-  // 初始化完成后，查询一次默认的可用性
-  queryAvailability()
-})
 
 // ========== 事件处理函数 ==========
 
@@ -362,7 +330,7 @@ const backToHome = () => {
           <div class="flex items-baseline gap-4">
             <span class="text-sm font-medium text-gray-400 tracking-tight">Your Seat</span>
             <span class="text-3xl font-bold text-gray-dark tracking-tighter">
-              {{ seats.find(s => s.id === selectedSeat)?.id || selectedSeat }}
+              {{ selectedSeat }}
             </span>
           </div>
 
@@ -382,34 +350,22 @@ const backToHome = () => {
         <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Data & Time</h2>
 
         <div class="space-y-4">
-          <div class="flex gap-4 items-start">
-            <!-- 日期选择 -->
-            <div class="flex flex-col space-y-2">
-              <button
-                v-for="slot in dateSlots"
-                :key="slot.id"
-                @click="toggleDate(slot.id)"
-                class="w-20 px-2 py-3 rounded-xl text-sm font-medium transition-all tracking-tight border-2"
-                :class="[
-                  slot.selected
-                    ? 'bg-blue-500 text-white shadow-md border-blue-500'
-                    : 'border-gray-light text-gray-dark hover:border-gray-dark',
-                ]"
-              >
-                <div class="text-lg font-bold">{{ slot.date }}</div>
-                <div class="text-xs mt-1">{{ slot.weekday }}</div>
-              </button>
+          <div v-for="(slot, dateIndex) in timeSlots" :key="slot.id" class="flex gap-4 items-start">
+            <!-- 日期显示 -->
+            <div class="w-20 flex-shrink-0">
+              <div class="text-2xl font-bold text-gray-dark tracking-tight">{{ slot.date }}</div>
+              <div class="text-xs text-gray mt-1 tracking-tight">{{ slot.weekday }}</div>
             </div>
 
             <!-- 时间段选择 -->
             <div class="flex-1 space-y-2">
               <button
-                v-for="time in apiTimeSlots"
+                v-for="(time, timeIndex) in slot.times"
                 :key="time.id"
-                @click="toggleTimeSlot(time.id)"
+                @click="toggleTimeSlot(dateIndex, timeIndex)"
                 class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight border-2"
                 :class="[
-                  time.id === apiSelectedTimeSlotId
+                  time.selected
                     ? 'bg-success text-white shadow-md border-success'
                     : 'border-gray-light text-gray-dark hover:border-gray-dark',
                 ]"

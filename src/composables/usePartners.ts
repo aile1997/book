@@ -120,7 +120,7 @@ export function usePartners() {
     allTables,
     getPartnersByTable,
     getSeatsForTable,
-    searchPartners, // 恢复为 searchPartners
+    searchPartners,
 
     // Invite Partner 导出
     searchResults,
@@ -129,3 +129,6 @@ export function usePartners() {
     searchUsersForInvite: debouncedSearchUsersForInvite, // 暴露防抖后的函数
   }
 }
+
+// 对搜索用户函数进行防抖处理 (延迟 500ms)
+const debouncedSearchUsersForInvite = debounce(searchUsersForInvite, 500)

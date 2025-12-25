@@ -7,19 +7,16 @@ import type { SeatConfig, Seat, Area } from '../types/booking';
 
 /**
  * 将前端的 seatLayout.json 配置转换为后端批量创建座位所需的结构
- * @param areaIdMap 区域名称到 ID 的映射 (e.g., { 'A': 1, 'B': 2, 'C': 3 })
+ * 简化为只使用一个 areaId (nsd 区域的 ID)
+ * @param nsdAreaId nsd 区域的 ID
  * @returns 包含所有座位数据的数组
  */
-export function convertFrontendConfigToBackendSeats(areaIdMap: { [key: string]: number }): any[] {
+export function convertFrontendConfigToBackendSeats(nsdAreaId: number): any[] {
   const backendSeats: any[] = [];
+  const areaId = nsdAreaId; // 统一使用 nsd 区域的 ID
 
   seatLayout.tables.forEach(table => {
-    const areaId = areaIdMap[table.id];
-    if (!areaId) {
-      console.error(`Area ID not found for table: ${table.id}`);
-      return;
-    }
-
+    // 区域 ID 统一使用 nsdAreaId
     let seatIndex = 0; // 区域内座位总索引
 
     // 1. 处理左侧座位 (第一列)
@@ -100,14 +97,25 @@ export function convertFrontendConfigToBackendSeats(areaIdMap: { [key: string]: 
  * 将前端的 seatLayout.json 配置转换为后端创建区域所需的结构
  * @returns 包含所有区域数据的数组
  */
+/**
+ * 将前端的 seatLayout.json 配置转换为后端创建区域所需的结构
+ * 简化为只创建一个 'nsd' 区域
+ * @returns 包含所有区域数据的数组
+ */
 export function convertFrontendConfigToBackendAreas(): any[] {
-  return seatLayout.tables.map(table => ({
-    name: table.id, // 区域名称使用 table ID
-    nameZh: table.label, // 区域中文名称使用 label
-    areaType: 'MEETING_ROOM', // 与用户提供的后端数据保持一致
-    capacity: table.seats.left.count + table.seats.right.count, // 容量为左右座位数之和
-    description: JSON.stringify({ type: table.type }), // 额外的配置信息
-  }));
+  // 假设 seatLayout.json 中有一个顶层配置用于 nsd 区域，如果没有，则手动创建
+  // 这里我们手动创建一个名为 'nsd' 的区域
+  const totalCapacity = seatLayout.tables.reduce((sum, table) => {
+    return sum + (table.seats.left?.count || 0) + (table.seats.right?.count || 0);
+  }, 0);
+
+  return [{
+    name: 'nsd', // 区域名称固定为 nsd
+    nameZh: '某某公司', // 区域中文名称
+    areaType: 'MEETING_ROOM', // 保持一致
+    capacity: totalCapacity, // 总容量
+    description: JSON.stringify({ tables: seatLayout.tables.map(t => t.id).join(',') }), // 记录包含的桌子
+  }];
 }
 
 // -----------------------------------------------------------------------------

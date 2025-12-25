@@ -25,7 +25,7 @@
         :disabled="isCreatingAreas"
         class="w-full py-3 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400"
       >
-        {{ isCreatingAreas ? '创建中...' : '创建 A, B, C 区域' }}
+        {{ isCreatingAreas ? '创建中...' : '创建 nsd 区域' }}
       </button>
       <div v-if="areaCreationStatus.length" class="mt-4 space-y-2">
         <div v-for="status in areaCreationStatus" :key="status.name" :class="status.success ? 'text-green-600' : 'text-red-600'">
@@ -157,35 +157,30 @@ async function createAreas() {
 
   const areasToCreate = convertFrontendConfigToBackendAreas();
   const map: { [key: string]: number } = {};
+  const areaData = areasToCreate[0]; // 只有一个 nsd 区域
 
-  for (const areaData of areasToCreate) {
-    try {
-      const response = await createArea(areaData);
-      const areaId = response.id || response.areaId;
-      
-      if (areaId) {
-        map[areaData.name] = areaId;
-        areaCreationStatus.value.push({
-          name: areaData.name,
-          success: true,
-          message: `创建成功，ID: ${areaId}`,
-        });
-      } else {
-        throw new Error('API 返回中未找到区域 ID');
-      }
-    } catch (error: any) {
-      const message = error.message || (error.data && error.data.message) || '未知错误';
+  try {
+    const response = await createArea(areaData);
+    const areaId = response.id || response.areaId;
+    
+    if (areaId) {
+      map[areaData.name] = areaId;
       areaCreationStatus.value.push({
         name: areaData.name,
-        success: false,
-        message: `创建失败: ${message}`,
+        success: true,
+        message: `创建成功，ID: ${areaId}`,
       });
+      areaIdMap.value = map;
+    } else {
+      throw new Error('API 返回中未找到区域 ID');
     }
-  }
-
-  if (Object.keys(map).length === areasToCreate.length) {
-    areaIdMap.value = map;
-  } else {
+  } catch (error: any) {
+    const message = error.message || (error.data && error.data.message) || '未知错误';
+    areaCreationStatus.value.push({
+      name: areaData.name,
+      success: false,
+      message: `创建失败: ${message}`,
+    });
     areaIdMap.value = null;
   }
   isCreatingAreas.value = false;
@@ -196,8 +191,8 @@ async function createAreas() {
  * 批量创建座位
  */
 async function batchCreateSeats() {
-  if (!areaIdMap.value) {
-    seatCreationMessage.value = '请先成功创建区域。';
+  if (!areaIdMap.value || !areaIdMap.value['nsd']) {
+    seatCreationMessage.value = '请先成功创建 nsd 区域。';
     seatCreationSuccess.value = false;
     return;
   }
@@ -207,7 +202,8 @@ async function batchCreateSeats() {
   seatCreationSuccess.value = false;
 
   try {
-    const backendSeats = convertFrontendConfigToBackendSeats(areaIdMap.value);
+    const nsdAreaId = areaIdMap.value['nsd'];
+    const backendSeats = convertFrontendConfigToBackendSeats(nsdAreaId);
     
     const seatsData = {
       seats: backendSeats,

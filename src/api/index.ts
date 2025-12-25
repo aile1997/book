@@ -172,6 +172,21 @@ export async function getUserTransactions(): Promise<any> {
 }
 
 // -----------------------------------------------------------------------------
+// 用户信息相关 API
+// -----------------------------------------------------------------------------
+
+/**
+ * 搜索用户
+ * @param {string} query - 搜索关键词
+ * @param {number} [limit] - 限制返回数量
+ * @returns {Promise<object>} 用户列表
+ */
+export async function searchUsers(query: string, limit?: number): Promise<any> {
+  const params = { q: query, limit }
+  return apiClient.get('/api/v1/users/search', { params })
+}
+
+// -----------------------------------------------------------------------------
 // 管理员相关 API
 // -----------------------------------------------------------------------------
 
@@ -271,7 +286,7 @@ export async function getSeatMap(areaId?: number): Promise<any> {
 export async function getSeatAvailability(query: {
   bookingDate: string
   timeSlotId: number
-  areaId: number
+  areaId?: number // 设为可选
 }): Promise<any> {
   return apiClient.get('/api/v1/seats/availability', { params: query })
 }

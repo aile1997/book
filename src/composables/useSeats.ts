@@ -128,7 +128,7 @@ export function useSeats() {
       }
 
       // 只有当 targetAreaId 存在时才添加到参数中
-      if (targetAreaId) {
+      if (targetAreaId !== undefined) {
         params.areaId = targetAreaId
       }
       const data = await getSeatAvailability(params)
@@ -276,81 +276,4 @@ export function useSeats() {
   }
 }
 
-// 伙伴管理组合式函数
-export function usePartners() {
-  // 引入 useSeats 来获取 seatAvailability 和 seats
-  const { seatAvailability, seats } = useSeats()
 
-  // 计算属性：获取所有存在的桌子及其座位
-  const allTables = computed(() => {
-    const tables: { [key: string]: Seat[] } = {}
-    seats.value.forEach((seat) => {
-      const tableId = seat.table as string
-      if (!tables[tableId]) {
-        tables[tableId] = []
-      }
-      tables[tableId].push(seat)
-    })
-    // 对每个桌子的座位进行排序，确保渲染顺序正确
-    Object.values(tables).forEach((seatList) => {
-      seatList.sort((a, b) => {
-        if (a.position === b.position) {
-          return a.index - b.index
-        }
-        // 确保 left 在 right 之前
-        return a.position === 'left' ? -1 : 1
-      })
-    })
-    return tables
-  })
-
-  // 计算属性：从 seatAvailability 中提取已预订座位的人员信息
-  const bookedPartners = computed<Partner[]>(() => {
-    const partners: Partner[] = []
-
-    // 遍历 seatAvailability (后端返回的可用性数据，包含预订信息)
-    seatAvailability.value.forEach((seatStatus: any) => {
-      // 检查是否有预订信息，并且预订信息中包含用户信息
-      if (seatStatus.bookingUserInfo) {
-        // 找到对应的 Seat 对象，获取 table 和 seatNumber
-        const frontendSeat = seats.value.find((s) => s.backendSeatId === seatStatus.seatId)
-
-        if (frontendSeat) {
-          partners.push({
-            // 假设 bookingUserInfo 包含 name 和 id
-            id: String(seatStatus.bookingUserInfo.userId), // 使用 userId 作为 id
-            name: seatStatus.bookingUserInfo.userName, // 使用 userName 作为 name
-            table: frontendSeat.table, // 从前端座位数据获取 table
-            seat: frontendSeat.id, // 使用前端 seatNumber (例如 A-01) 作为 seat
-          })
-        }
-      }
-    })
-    return partners
-  })
-
-  // 搜索伙伴
-  const searchPartners = (query: string) => {
-    if (!query) return bookedPartners.value
-    const lowerQuery = query.toLowerCase()
-    return bookedPartners.value.filter((p) => p.name.toLowerCase().includes(lowerQuery))
-  }
-
-  // 根据桌子获取伙伴 (现在基于 bookedPartners)
-  const getPartnersByTable = (table: string) => {
-    return bookedPartners.value.filter((p) => p.table === table)
-  }
-
-  // 获取某个桌子的所有座位 (用于 FindPartnerModal 渲染)
-  const getSeatsForTable = (table: string) => {
-    return allTables.value[table] || []
-  }
-
-  return {
-    allPartners: bookedPartners, // 暴露已预订的伙伴列表
-    allTables, // 暴露所有桌子及其座位
-    getPartnersByTable,
-    getSeatsForTable, // 暴露获取某个桌子所有座位的函数
-    searchPartners,
-  }
-}

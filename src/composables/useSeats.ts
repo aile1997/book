@@ -83,63 +83,17 @@ export function useSeats() {
       // 使用用户指定的获取数据逻辑
       const data = response.data || response || []
       
-      // 适配后端数据结构到 BookingPage.vue 期望的 TimeSlot[] 结构
-      // 注意：BookingPage.vue 的 TimeSlot[] 结构是模拟的，需要后端返回的数据来填充
-      // 由于后端只返回时间段列表，我们只能模拟日期部分
-      
-      // 辅助函数：格式化日期为 11.20 这种格式
-      const formatDate = (date: Date) => {
-        const month = (date.getMonth() + 1).toString().padStart(2, '0')
-        const day = date.getDate().toString().padStart(2, '0')
-        return `${month}.${day}`
-      }
+      // 确保 timeSlots 变量是空的，避免类型冲突
+      timeSlots.value = []
+      selectedTimeSlotId.value = null
 
-      // 辅助函数：获取星期缩写
-      const getWeekday = (date: Date) => {
-        const weekdays = ['Sun.', 'Mon.', 'Tue.', 'Wed.', 'Thu.', 'Fri.', 'Sat.']
-        return weekdays[date.getDay()]
-      }
-      
-      const today = new Date()
-      const tomorrow = new Date()
-      tomorrow.setDate(today.getDate() + 1)
-      
-      const backendTimeSlots = data.map((slot: any) => ({
-        id: String(slot.id), // 确保是字符串
-        time: `${slot.startTime} - ${slot.endTime}`,
-      }))
-
-      // 模拟两天的 TimeSlot 结构
-      timeSlots.value = [
-        {
-          id: '1',
-          date: formatDate(today),
-          weekday: getWeekday(today),
-          dateISO: today.toISOString().split('T')[0],
-          times: backendTimeSlots.map((slot: any, index: number) => ({
-            ...slot,
-            selected: index === 0, // 默认选中第一个时间段
-          })),
-        },
-        {
-          id: '2',
-          date: formatDate(tomorrow),
-          weekday: getWeekday(tomorrow),
-          dateISO: tomorrow.toISOString().split('T')[0],
-          times: backendTimeSlots.map((slot: any) => ({
-            ...slot,
-            selected: false,
-          })),
-        },
-      ] || []
-
-      // 注意：由于 BookingPage.vue 的逻辑是自己管理 timeSlots 的选中状态，
-      // 这里的 selectedTimeSlotId 就不再需要，但为了不破坏 useSeats 的接口，我们保留它
-      // 并在 initialize 中移除 loadTimeSlots 的调用，让 BookingPage.vue 自己管理
+      // 返回原始数据，供 BookingPage.vue 自己处理
+      return data
       
     } catch (err: any) {
       error.value = '加载时间段失败: ' + (err.message || '未知错误')
       console.error(error.value, err)
+      return []
     } finally {
       isLoadingTimeSlots.value = false
     }

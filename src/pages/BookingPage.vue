@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useBooking } from '../composables/useBooking' // 导入 useBooking
 import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 import { useRouter } from 'vue-router'
@@ -23,7 +23,15 @@ const {
   isLoading: isLoadingSeats,
   error: seatError,
   querySeatAvailability, // 查询可用性函数
+  loadAreas, // 加载区域列表
+  loadSeatMap, // 加载座位图
 } = useSeats()
+
+// 初始化加载区域和座位图
+onMounted(async () => {
+  await loadAreas()
+  await loadSeatMap()
+})
 
 // 使用预订管理组合式函数
 const { makeBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
@@ -66,28 +74,51 @@ const today = new Date()
 const tomorrow = new Date()
 tomorrow.setDate(today.getDate() + 1)
 
-const timeSlots = ref<TimeSlot[]>([
-  {
-    id: '1',
-    date: formatDate(today),
-    weekday: getWeekday(today),
-    dateISO: today.toISOString().split('T')[0],
-    times: [
-      { id: '0', time: '09:00 - 12:00', selected: true }, // timeSlotId 0
-      { id: '1', time: '12:00 - 18:00', selected: false }, // timeSlotId 1
-    ],
-  },
-  {
-    id: '2',
-    date: formatDate(tomorrow),
-    weekday: getWeekday(tomorrow),
-    dateISO: tomorrow.toISOString().split('T')[0],
-    times: [
-      { id: '0', time: '09:00 - 12:00', selected: false },
-      { id: '1', time: '12:00 - 18:00', selected: false },
-    ],
-  },
-])
+const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
+
+// 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
+const adaptTimeSlots = (backendSlots: any[]) => {
+  const backendTimeSlots = backendSlots.map((slot: any) => ({
+    id: String(slot.id), // 确保是字符串
+    time: `${slot.startTime} - ${slot.endTime}`,
+  }))
+
+  // 模拟两天的 TimeSlot 结构
+  timeSlots.value = [
+    {
+      id: '1',
+      date: formatDate(today),
+      weekday: getWeekday(today),
+      dateISO: today.toISOString().split('T')[0],
+      times: backendTimeSlots.map((slot: any, index: number) => ({
+        ...slot,
+        selected: index === 0, // 默认选中第一个时间段
+      })),
+    },
+    {
+      id: '2',
+      date: formatDate(tomorrow),
+      weekday: getWeekday(tomorrow),
+      dateISO: tomorrow.toISOString().split('T')[0],
+      times: backendTimeSlots.map((slot: any) => ({
+        ...slot,
+        selected: false,
+      })),
+    },
+  ]
+}
+
+// 在 onMounted 中调用 loadTimeSlots 并适配数据
+onMounted(async () => {
+  await loadAreas()
+  await loadSeatMap()
+  
+  // 加载时间段数据
+  const backendSlots = await loadTimeSlots()
+  if (backendSlots && backendSlots.length > 0) {
+    adaptTimeSlots(backendSlots)
+  }
+})
 
 // 选中的时间段
 const selectedDateTime = computed(() => {

@@ -25,13 +25,8 @@ const {
   querySeatAvailability, // 查询可用性函数
   loadAreas, // 加载区域列表
   loadSeatMap, // 加载座位图
+  loadTimeSlots, // 导入 loadTimeSlots
 } = useSeats()
-
-// 初始化加载区域和座位图
-onMounted(async () => {
-  await loadAreas()
-  await loadSeatMap()
-})
 
 // 使用预订管理组合式函数
 const { makeBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
@@ -110,13 +105,25 @@ const adaptTimeSlots = (backendSlots: any[]) => {
 
 // 在 onMounted 中调用 loadTimeSlots 并适配数据
 onMounted(async () => {
+  // 1. 加载区域和座位图
   await loadAreas()
   await loadSeatMap()
   
-  // 加载时间段数据
+  // 2. 加载时间段数据
   const backendSlots = await loadTimeSlots()
   if (backendSlots && backendSlots.length > 0) {
     adaptTimeSlots(backendSlots)
+  }
+  
+  // 3. 默认查询一次可用性
+  // 延迟查询，确保 timeSlots.value 已经填充
+  if (timeSlots.value.length > 0) {
+    // 触发可用性查询
+    if (selectedDateTime.value) {
+      // 假设我们只查询 A 区域的可用性作为示例
+      // 实际应用中，需要知道所有区域的 ID 并循环查询
+      querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId), 1) // 假设区域 A 的 ID 是 1
+    }
   }
 })
 

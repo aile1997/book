@@ -238,7 +238,12 @@ export async function deleteSeat(seatId: number): Promise<any> {
  * @param {object} bookingData - 预订数据，包含座位 ID 和时间等
  * @returns {Promise<object>} 预订成功的响应
  */
-export async function createBooking(bookingData: any): Promise<any> {
+export async function createBooking(bookingData: {
+  seatId: number
+  bookingDate: string
+  timeSlotId: number
+  partnerSeatMap?: { [userId: string]: number }
+}): Promise<any> {
   return apiClient.post('/api/v1/bookings', bookingData)
 }
 

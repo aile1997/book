@@ -82,7 +82,9 @@ const adaptTimeSlots = (backendSlots: any[]) => {
     const endTimeInMinutes = endHour * 60 + endMinute
 
     // 判断今天的时间段是否已过期
-    const isExpiredToday = now.toISOString().split('T')[0] === today.toISOString().split('T')[0] && nowTime > endTimeInMinutes
+    const isExpiredToday =
+      now.toISOString().split('T')[0] === today.toISOString().split('T')[0] &&
+      nowTime > endTimeInMinutes
 
     return {
       id: String(slot.id), // 确保是字符串
@@ -137,7 +139,10 @@ onMounted(async () => {
     // 触发可用性查询
     if (selectedDateTime.value) {
       // 查询所有区域的可用性
-      querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId)) // 不传 areaId，查询所有区域
+      querySeatAvailability(
+        selectedDateTime.value.dateISO,
+        Number(selectedDateTime.value.timeSlotId),
+      ) // 不传 areaId，查询所有区域
     }
   }
 })
@@ -419,8 +424,8 @@ const backToHome = () => {
                   time.selected
                     ? 'bg-success text-white shadow-md border-success'
                     : time.disabled
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-100'
-                    : 'border-gray-light text-gray-dark hover:border-gray-dark',
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-100'
+                      : 'border-gray-light text-gray-dark hover:border-gray-dark',
                 ]"
               >
                 {{ time.time }}

@@ -79,8 +79,19 @@ export function useSeats() {
   async function loadTimeSlots() {
     isLoadingTimeSlots.value = true
     try {
-      const data = await getTimeSlots()
-      timeSlots.value = data || []
+      const response = await getTimeSlots()
+      const data = response.data || []
+      
+      // 适配后端数据结构
+      timeSlots.value = data.map((slot: any) => ({
+        id: slot.id,
+        time: `${slot.startTime} - ${slot.endTime}`, // 格式化为 "09:00 - 12:00"
+        name: slot.name,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        creditsRequired: slot.creditsRequired,
+      })) || []
+
       // 默认选中第一个时间段
       if (timeSlots.value.length > 0) {
         selectedTimeSlotId.value = timeSlots.value[0].id

@@ -116,11 +116,18 @@ export function useSeats() {
       console.error('查询座位可用性失败: 预订日期不能为空')
       return
     }
+    
+    // 默认使用第一个区域的 ID
+    const defaultAreaId = areas.value.length > 0 ? areas.value[0].id : undefined
+    const targetAreaId = areaId ?? defaultAreaId
+
     isLoadingAvailability.value = true
     try {
       const params: { bookingDate: string; timeSlotId: number; areaId?: number } = { bookingDate, timeSlotId }
-      if (areaId) {
-        params.areaId = areaId
+      
+      // 只有当 targetAreaId 存在时才添加到参数中
+      if (targetAreaId) {
+        params.areaId = targetAreaId
       }
       const data = await getSeatAvailability(params)
       // 使用数据适配器转换后端可用性数据

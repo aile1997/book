@@ -39,10 +39,10 @@ export interface TimeOption {
 
 // 伙伴接口
 export interface Partner {
-  id: string
-  name: string
-  table?: string // 伙伴所在的桌子
-  seat?: string // 伙伴的座位
+  id: number
+  username: string
+  fullName: string
+  email: string
 }
 
 // 后端返回的 Area 结构

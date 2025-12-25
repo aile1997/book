@@ -117,11 +117,15 @@ watch(
               :disabled="selectedPartners.includes(String(partner.id))"
               class="w-full text-left px-4 py-3 text-base font-medium hover:bg-purple-50 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
             >
-              <span class="text-black">{{ highlightMatch(partner.fullName, searchQuery).before }}</span>
+              <span class="text-black">{{
+                highlightMatch(partner.fullName, searchQuery).before
+              }}</span>
               <span class="text-[#784DC7] font-bold">{{
                 highlightMatch(partner.fullName, searchQuery).match
               }}</span>
-              <span class="text-black">{{ highlightMatch(partner.fullName, searchQuery).after }}</span>
+              <span class="text-black">{{
+                highlightMatch(partner.fullName, searchQuery).after
+              }}</span>
             </button>
           </div>
 

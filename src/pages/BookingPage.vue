@@ -124,13 +124,13 @@ onMounted(async () => {
   // 1. 加载区域和座位图
   await loadAreas()
   await loadSeatMap()
-  
+
   // 2. 加载时间段数据
   const backendSlots = await loadTimeSlots()
   if (backendSlots && backendSlots.length > 0) {
     adaptTimeSlots(backendSlots)
   }
-  
+
   // 3. 默认查询一次可用性
   // 延迟查询，确保 timeSlots.value 已经填充
   if (timeSlots.value.length > 0) {
@@ -281,14 +281,12 @@ const bookNow = async () => {
 
   // 构造 partnerSeatMap
   const partnerSeatMap: { [key: number]: number } = {}
-  // 假设 invitedPartners 存储的是用户 ID，这里需要一个映射关系
-  // 由于目前没有用户搜索和 ID 获取接口，我们暂时使用模拟数据
-  // 假设第一个伙伴的用户 ID 是 100，第二个是 101...
-  invitedPartners.value.forEach((partnerName, index) => {
+  // 使用 invitedPartners 中的真实用户 ID
+  invitedPartners.value.forEach((partnerId, index) => {
     const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
     if (assignedSeat && assignedSeat.backendSeatId) {
-      // 模拟用户 ID
-      const userId = 100 + index
+      // 使用真实用户 ID
+      const userId = Number(partnerId)
       partnerSeatMap[userId] = assignedSeat.backendSeatId
     }
   })

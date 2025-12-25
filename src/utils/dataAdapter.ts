@@ -147,7 +147,7 @@ export function convertBackendMapToFrontendSeats(backendData: { areas: Area[] })
       }
 
       frontendSeats.push({
-        id: String(seat.seatId),
+        id: seat.seatNumber, // 使用 seatNumber 作为前端 Seat ID (例如: A-01)
         table: seat.table || area.name, // 使用 table 字段或 area name
         position: seat.columnNum === 1 ? 'left' : 'right', // 假设 1 是 left, 2 是 right
         index: seat.rowNum || 0,

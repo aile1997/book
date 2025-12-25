@@ -167,7 +167,8 @@ const openSeatModal = () => {
 // 选择座位（从模态框）
 const handleSeatSelect = (seatId: string) => {
   selectSeat(seatId)
-  showSeatModal.value = false
+  // 保持模态框开启，支持用户换座
+  // showSeatModal.value = false
 }
 
 // 确认座位选择
@@ -361,7 +362,7 @@ const backToHome = () => {
           <div class="flex items-baseline gap-4">
             <span class="text-sm font-medium text-gray-400 tracking-tight">Your Seat</span>
             <span class="text-3xl font-bold text-gray-dark tracking-tighter">
-              {{ selectedSeat }}
+              {{ seats.find(s => s.id === selectedSeat)?.id || selectedSeat }}
             </span>
           </div>
 

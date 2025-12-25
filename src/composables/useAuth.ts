@@ -15,6 +15,9 @@ const user = ref<any>(null)
 const isLoading = ref(!!localStorage.getItem('authToken')) // 如果有token，初始就是加载中
 const authError = ref<string | null>(null)
 
+// 飞书静默登录状态
+const isSilentLogin = ref(false)
+
 /**
  * 检查本地是否有 Token，并尝试获取用户信息
  */
@@ -27,10 +30,9 @@ async function checkAuthStatus() {
       // 尝试获取用户信息，验证 Token 有效性
       user.value = await getCurrentUser()
     } catch (error: any) {
-      console.error('Token 无效或过期，请重新登录:', error)
-      removeAuthToken()
-      isAuthenticated.value = false
-      user.value = null
+      console.error('Token 无效或过期，尝试静默重新登录:', error)
+      // Token 无效或过期，尝试静默重新登录
+      await silentLoginWithFeishu()
     } finally {
       isLoading.value = false
     }
@@ -117,6 +119,43 @@ async function signInWithFeishu() {
 }
 
 /**
+ * 飞书静默登录操作
+ */
+async function silentLoginWithFeishu() {
+  if (isSilentLogin.value) return // 避免重复登录
+
+  isSilentLogin.value = true
+  authError.value = null
+  try {
+    // 1. 获取飞书临时 Code (假设 getLarkAuthCode 可以在非交互式环境下工作)
+    const code = await getLarkAuthCode()
+
+    // 2. 传给后端换取用户信息和 Token
+    const response = await loginWithFeishu(code)
+
+    // 3. 存储 Token (注意：后端返回字段可能是 token 或 data.token，根据实际调整)
+    const token = response.token || response.data?.token
+    if (token) {
+      setAuthToken(token)
+    }
+
+    isAuthenticated.value = true
+    user.value = response.userInfo || response.data?.userInfo || response
+    console.log('飞书静默登录成功。')
+    return response
+  } catch (error: any) {
+    authError.value = error.message || '飞书静默登录失败'
+    isAuthenticated.value = false
+    console.error('飞书静默登录失败:', error)
+    // 静默登录失败，清除 Token
+    removeAuthToken()
+    throw error
+  } finally {
+    isSilentLogin.value = false
+  }
+}
+
+/**
  * 认证状态管理 Composable
  */
 export function useAuth() {
@@ -129,10 +168,12 @@ export function useAuth() {
     isAuthenticated: computed(() => isAuthenticated.value),
     user: computed(() => user.value),
     isLoading: computed(() => isLoading.value),
+    isSilentLogin: computed(() => isSilentLogin.value), // 暴露静默登录状态
     authError: computed(() => authError.value),
     signIn,
     signInWithFeishu,
     signOut,
     checkAuthStatus,
+    silentLoginWithFeishu, // 暴露静默登录函数
   }
 }

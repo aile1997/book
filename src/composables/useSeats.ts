@@ -1,143 +1,230 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Seat, Partner } from '../types/booking'
-import { getSeatMap } from '../api' // 导入 API 客户端
+import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots } from '../api' // 导入 API 客户端和新 API
+import {
+  convertBackendMapToFrontendSeats,
+  convertBackendAvailabilityToFrontend,
+} from '../utils/dataAdapter' // 导入数据适配器
 
-// 座位管理组合式函数
-export function useSeats() {
+// 座位管理组合式函数 - 实现单例模式
+let seatsInstance: ReturnType<typeof createSeatsStore> | null = null
+
+function createSeatsStore() {
   // 所有座位数据 - 动态数据层
   const seats = ref<Seat[]>([])
+  const areas = ref<any[]>([]) // 区域列表
+  const timeSlots = ref<any[]>([]) // 时间段列表
+  const selectedTimeSlotId = ref<number | null>(null) // 默认选中的时间段 ID
+
+  const seatAvailability = ref<any[]>([]) // 新增：座位可用性数据
   const isLoading = ref(false)
+  const isLoadingTimeSlots = ref(false)
+  const isLoadingAreas = ref(false)
+
+  const isLoadingAvailability = ref(false) // 加载可用性状态
   const error = ref<string | null>(null)
 
   /**
    * 从后端 API 加载座位平面图数据
+   * @param {number} [areaId] - 可选的区域 ID
    */
-  async function loadSeatMap() {
+  async function loadSeatMap(areaId?: number) {
+    // 如果传入了 areaId，则只加载该区域的座位图。
+    // 如果没有传入 areaId，则加载所有区域的座位图。
+    const targetAreaId = areaId
+
     isLoading.value = true
     error.value = null
     try {
       // 调用 API 获取座位图数据
-      const data = await getSeatMap()
-      // 假设 API 返回的 data 结构可以直接映射到 Seat[]，或者需要进行转换
-      // 这里的逻辑需要根据实际 API 返回结构进行调整。
-      // 暂时使用一个简单的转换逻辑，假设 API 返回一个包含 seats 数组的对象
-      if (data && data.seats) {
-        seats.value = data.seats.map((seat: any) => ({
-          id: seat.seatId,
-          table: seat.areaId, // 假设 areaId 对应 table
-          position: seat.position, // 假设 API 返回 position
-          index: seat.index, // 假设 API 返回 index
-          status: seat.status, // 假设 API 返回 status: 'available', 'occupied', 'selected'
-          occupiedBy: seat.occupiedBy || '',
-        }))
+      // 如果 targetAreaId 为 undefined，getSeatMap 将不带参数调用，返回所有区域数据
+      const data = await getSeatMap(targetAreaId)
+
+      // 使用数据适配器转换后端数据到前端 Seat 结构
+      if (data && data.areas) {
+        seats.value = convertBackendMapToFrontendSeats(data)
       } else {
         // 如果 API 返回的不是预期的结构，使用默认数据（原文件中的数据）
         console.warn('API 返回结构不符合预期，使用默认座位数据。')
-        seats.value = [
-          // 桌子 A - 左侧座位 (6个)
-          { id: 'A1', table: 'A', position: 'left', index: 0, status: 'occupied', occupiedBy: '' },
-          { id: 'A2', table: 'A', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
-          { id: 'A3', table: 'A', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
-          { id: 'A4', table: 'A', position: 'left', index: 3, status: 'available' },
-          { id: 'A5', table: 'A', position: 'left', index: 4, status: 'available' },
-          { id: 'A6', table: 'A', position: 'left', index: 5, status: 'available' },
-
-          // 桌子 A - 右侧座位 (6个)
-          { id: 'A7', table: 'A', position: 'right', index: 0, status: 'available' },
-          { id: 'A8', table: 'A', position: 'right', index: 1, status: 'occupied', occupiedBy: '' },
-          { id: 'A9', table: 'A', position: 'right', index: 2, status: 'available' },
-          { id: 'A10', table: 'A', position: 'right', index: 3, status: 'available' },
-          { id: 'A11', table: 'A', position: 'right', index: 4, status: 'available' },
-          { id: 'A12', table: 'A', position: 'right', index: 5, status: 'occupied', occupiedBy: '' },
-
-          // 桌子 B - 左侧座位 (3个 - 上半部分)
-          { id: 'B1', table: 'B', position: 'left', index: 0, status: 'available' },
-          { id: 'B2', table: 'B', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
-          { id: 'B3', table: 'B', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
-
-          // 桌子 B - 右侧座位 (3个 - 上半部分)
-          { id: 'B4', table: 'B', position: 'right', index: 0, status: 'available' },
-          { id: 'B5', table: 'B', position: 'right', index: 1, status: 'available' },
-          { id: 'B6', table: 'B', position: 'right', index: 2, status: 'available' },
-
-          // 桌子 C - 左侧座位 (3个 - 下半部分)
-          {
-            id: 'C1',
-            table: 'C',
-            position: 'left',
-            index: 0,
-            status: 'occupied',
-            occupiedBy: 'Ethan Wei',
-          },
-          { id: 'C2', table: 'C', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
-          { id: 'C3', table: 'C', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
-
-          // 桌子 C - 右侧座位 (3个 - 下半部分)
-          { id: 'C4', table: 'C', position: 'right', index: 0, status: 'available' },
-          { id: 'C5', table: 'C', position: 'right', index: 1, status: 'available' },
-          { id: 'C6', table: 'C', position: 'right', index: 2, status: 'available' },
-        ]
+        // 为了简化，这里不再保留冗长的默认数据，而是清空，依赖用户初始化
+        seats.value = []
       }
     } catch (err: any) {
       error.value = '加载座位图失败: ' + (err.message || '未知错误')
       console.error(error.value, err)
-      // 失败时也使用默认数据，以防界面崩溃
-      seats.value = [
-        // 桌子 A - 左侧座位 (6个)
-        { id: 'A1', table: 'A', position: 'left', index: 0, status: 'occupied', occupiedBy: '' },
-        { id: 'A2', table: 'A', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
-        { id: 'A3', table: 'A', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
-        { id: 'A4', table: 'A', position: 'left', index: 3, status: 'available' },
-        { id: 'A5', table: 'A', position: 'left', index: 4, status: 'available' },
-        { id: 'A6', table: 'A', position: 'left', index: 5, status: 'available' },
-
-        // 桌子 A - 右侧座位 (6个)
-        { id: 'A7', table: 'A', position: 'right', index: 0, status: 'available' },
-        { id: 'A8', table: 'A', position: 'right', index: 1, status: 'occupied', occupiedBy: '' },
-        { id: 'A9', table: 'A', position: 'right', index: 2, status: 'available' },
-        { id: 'A10', table: 'A', position: 'right', index: 3, status: 'available' },
-        { id: 'A11', table: 'A', position: 'right', index: 4, status: 'available' },
-        { id: 'A12', table: 'A', position: 'right', index: 5, status: 'occupied', occupiedBy: '' },
-
-        // 桌子 B - 左侧座位 (3个 - 上半部分)
-        { id: 'B1', table: 'B', position: 'left', index: 0, status: 'available' },
-        { id: 'B2', table: 'B', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
-        { id: 'B3', table: 'B', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
-
-        // 桌子 B - 右侧座位 (3个 - 上半部分)
-        { id: 'B4', table: 'B', position: 'right', index: 0, status: 'available' },
-        { id: 'B5', table: 'B', position: 'right', index: 1, status: 'available' },
-        { id: 'B6', table: 'B', position: 'right', index: 2, status: 'available' },
-
-        // 桌子 C - 左侧座位 (3个 - 下半部分)
-        {
-          id: 'C1',
-          table: 'C',
-          position: 'left',
-          index: 0,
-          status: 'occupied',
-          occupiedBy: 'Ethan Wei',
-        },
-        { id: 'C2', table: 'C', position: 'left', index: 1, status: 'occupied', occupiedBy: '' },
-        { id: 'C3', table: 'C', position: 'left', index: 2, status: 'occupied', occupiedBy: '' },
-
-        // 桌子 C - 右侧座位 (3个 - 下半部分)
-        { id: 'C4', table: 'C', position: 'right', index: 0, status: 'available' },
-        { id: 'C5', table: 'C', position: 'right', index: 1, status: 'available' },
-        { id: 'C6', table: 'C', position: 'right', index: 2, status: 'available' },
-      ]
+      // 失败时清空数据
+      seats.value = []
     } finally {
       isLoading.value = false
     }
   }
 
+  /**
+   * 加载区域列表
+   */
+  async function loadAreas() {
+    isLoadingAreas.value = true
+    try {
+      const data = await getAreas()
+      areas.value = data || []
+    } catch (err: any) {
+      error.value = '加载区域列表失败: ' + (err.message || '未知错误')
+      console.error(error.value, err)
+    } finally {
+      isLoadingAreas.value = false
+    }
+  }
+
+  /**
+   * 加载时间段列表
+   */
+  async function loadTimeSlots() {
+    isLoadingTimeSlots.value = true
+    try {
+      const response = await getTimeSlots()
+      // 使用用户指定的获取数据逻辑
+      const data = response.data || response || []
+
+      // 确保 timeSlots 变量是空的，避免类型冲突
+      timeSlots.value = []
+      selectedTimeSlotId.value = null
+
+      // 返回原始数据，供 BookingPage.vue 自己处理
+      return data
+    } catch (err: any) {
+      error.value = '加载时间段失败: ' + (err.message || '未知错误')
+      console.error(error.value, err)
+      return []
+    } finally {
+      isLoadingTimeSlots.value = false
+    }
+  }
+
   // 首次加载时调用
-  if (seats.value.length === 0) {
-    loadSeatMap()
+  // 移除自动调用，让外部组件决定何时调用，特别是需要 areaId 时
+  // if (seats.value.length === 0) {
+  //   loadSeatMap()
+  // }
+
+  /**
+   * 查询座位可用性
+   * @param bookingDate 预订日期 (YYYY-MM-DD)
+   * @param timeSlotId 时间段 ID (0 或 1)
+   * @param areaId 区域 ID (可选，如果传入则只查询该区域)
+   */
+  async function querySeatAvailability(bookingDate: string, timeSlotId: number, areaId?: number) {
+    if (!bookingDate) {
+      console.error('查询座位可用性失败: 预订日期不能为空')
+      return
+    }
+
+    // 默认使用第一个区域的 ID
+    const defaultAreaId = areas.value.length > 0 ? areas.value[0].id : undefined
+    const targetAreaId = areaId ?? defaultAreaId
+
+    isLoadingAvailability.value = true
+    try {
+      const params: { bookingDate: string; timeSlotId: number; areaId?: number } = {
+        bookingDate,
+        timeSlotId,
+      }
+
+      // 只有当 targetAreaId 存在时才添加到参数中
+      if (targetAreaId) {
+        params.areaId = targetAreaId
+      }
+      
+      console.log('正在查询座位可用性，参数:', params)
+      const data = await getSeatAvailability(params)
+      console.log('查询到的座位可用性数据:', data)
+      
+      // 使用数据适配器转换后端可用性数据
+      if (data && Array.isArray(data)) {
+        // 确保每次都更新seatAvailability，即使数据相同
+        seatAvailability.value = [...convertBackendAvailabilityToFrontend(data)]
+        console.log('转换后的座位可用性数据:', seatAvailability.value)
+      } else {
+        // 如果没有数据，清空现有的可用性数据
+        seatAvailability.value = []
+        console.log('没有查询到座位可用性数据，已清空现有数据')
+      }
+    } catch (err: any) {
+      console.error('查询座位可用性失败:', err)
+      // 出错时清空数据，防止旧数据影响
+      seatAvailability.value = []
+    } finally {
+      isLoadingAvailability.value = false
+    }
   }
 
   // 当前选中的座位
   const selectedSeat = ref<string | null>(null)
+
+  // 监听 seatAvailability 变化，更新 seats 状态
+  watch(
+    seatAvailability, 
+    (newAvailability) => {
+      // 创建一个 Map，方便查找
+      const availabilityMap = new Map(newAvailability.map((item: any) => [item.seatId, item]))
+      console.log('Availability data:', newAvailability)
+      
+      // 通过创建新数组来触发响应式更新
+      seats.value = seats.value.map(seat => {
+        const availability = availabilityMap.get(seat.backendSeatId)
+        console.log(`Seat ${seat.id} availability:`, availability)
+
+        if (availability) {
+          // 状态同步
+          if (availability.isAvailable) {
+            return { ...seat, status: 'available', occupiedBy: '' }
+          } else {
+            // 如果不可用，检查是否被预订 (bookingUserInfo 存在)
+            if (availability.bookingUserInfo) {
+              // 确保 seat.status 不被 'selected' 状态覆盖
+              if (seat.status === 'selected') {
+                return { ...seat, occupiedBy: availability.bookingUserInfo.fullName || availability.bookingUserInfo.username || '已预订' }
+              } else {
+                return { 
+                  ...seat, 
+                  status: 'occupied', 
+                  occupiedBy: availability.bookingUserInfo.fullName || 
+                            availability.bookingUserInfo.username || 
+                            '已预订' 
+                }
+              }
+            } else {
+              // 如果不可用但没有预订信息，可能是被管理员锁定或其他原因
+              // 确保 seat.status 不被 'selected' 状态覆盖
+              if (seat.status === 'selected') {
+                return { ...seat, occupiedBy: '不可用' }
+              } else {
+                return { ...seat, status: 'occupied', occupiedBy: '不可用' }
+              }
+            }
+          }
+        } else {
+          // 如果没有可用性信息，保持原有状态但检查座位本身是否包含预订信息
+          // 这是为了处理后端在座位数据中直接包含预订信息的情况
+          // 例如，在 getSeatMap 的响应中可能已经包含了预订用户信息
+          if (seat.occupiedBy && seat.occupiedBy !== '') {
+            // 如果座位已经有占用者信息，确保状态为 occupied（除非是选中状态）
+            if (seat.status === 'selected') {
+              return seat // 保持原样
+            } else {
+              return { ...seat, status: 'occupied' }
+            }
+          } else {
+            // 如果没有可用性信息且没有预订信息，设置为可用
+            if (seat.status === 'selected') {
+              return seat // 保持原样
+            } else {
+              return { ...seat, status: 'available', occupiedBy: '' }
+            }
+          }
+        }
+      })
+    }
+  )
 
   // 根据桌子和位置获取座位
   const getSeatsByTable = (table: 'A' | 'B' | 'C', position: 'left' | 'right') => {
@@ -190,13 +277,41 @@ export function useSeats() {
     return seats.value.filter((s) => s.status === 'available').length
   })
 
+  /**
+   * 初始化函数：加载区域、时间段和默认座位图
+   */
+  async function initialize() {
+    // 1. 加载区域列表
+    await loadAreas()
+
+    // 2. 加载时间段列表
+    // 移除 loadTimeSlots 的调用，让 BookingPage.vue 自己管理时间段数据
+    // await loadTimeSlots()
+
+    // 3. 加载所有区域的座位图 (不传 areaId)
+    await loadSeatMap()
+  }
+
   return {
     seats,
+    areas, // 暴露区域列表
+    timeSlots, // 暴露时间段列表
+    selectedTimeSlotId, // 暴露选中的时间段 ID
+    initialize, // 暴露初始化函数
+
+    seatAvailability, // 暴露可用性数据
     selectedSeat,
     availableSeatsCount,
     isLoading,
+    isLoadingAreas, // 暴露区域加载状态
+    isLoadingTimeSlots, // 暴露时间段加载状态
+    isLoadingAvailability, // 暴露可用性加载状态
     error,
-    loadSeatMap, // 暴露加载函数
+    loadSeatMap, // 暴露加载座位图函数
+    loadAreas, // 暴露加载区域函数
+    loadTimeSlots, // 暴露加载时间段函数
+
+    querySeatAvailability, // 暴露查询可用性函数
     getSeatsByTable,
     selectSeat,
     clearSelection,
@@ -204,41 +319,10 @@ export function useSeats() {
   }
 }
 
-// 伙伴管理组合式函数
-export function usePartners() {
-  // 伙伴数据暂时保留为本地模拟数据，因为 API 文档中没有直接获取所有伙伴的接口
-  const allPartners = ref<Partner[]>([
-    // Table A 伙伴
-    { id: '1', name: 'Mike Liao', table: 'A', seat: 'A1' },
-    { id: '2', name: 'Eric Feng', table: 'A', seat: 'A4' },
-    { id: '3', name: 'Sally Zhang', table: 'A', seat: 'A5' },
-    { id: '4', name: 'Tom Li', table: 'A', seat: 'A6' },
-    { id: '5', name: 'Oliver Huang', table: 'A', seat: 'A8' },
-    { id: '6', name: 'Kong Lijun', table: 'A', seat: 'A12' },
-    // Table B 伙伴
-    { id: '7', name: 'Elsa Li', table: 'B', seat: 'B2' },
-    { id: '8', name: 'Elsa Xu', table: 'B', seat: 'B3' },
-    // Table C 伙伴
-    { id: '9', name: 'Ethan Wei', table: 'C', seat: 'C1' },
-    { id: '10', name: 'Eric Young Jung', table: 'C', seat: 'C2' },
-    { id: '11', name: 'Elena Zhang', table: 'C', seat: 'C3' },
-  ])
-
-  // 根据桌子获取伙伴
-  const getPartnersByTable = (table: 'A' | 'B' | 'C') => {
-    return allPartners.value.filter((p) => p.table === table)
+// 座位管理组合式函数
+export function useSeats() {
+  if (!seatsInstance) {
+    seatsInstance = createSeatsStore()
   }
-
-  // 搜索伙伴
-  const searchPartners = (query: string) => {
-    if (!query) return []
-    const lowerQuery = query.toLowerCase()
-    return allPartners.value.filter((p) => p.name.toLowerCase().includes(lowerQuery))
-  }
-
-  return {
-    allPartners,
-    getPartnersByTable,
-    searchPartners,
-  }
+  return seatsInstance
 }

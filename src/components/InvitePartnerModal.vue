@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { usePartners } from '../composables/useSeats' // 复用相同的伙伴管理逻辑
+import { usePartners } from '../composables/usePartners' // 使用新的伙伴管理逻辑
 import type { Partner } from '../types/booking'
 
 interface Props {
   visible: boolean
-  selectedPartners: string[]
+  selectedPartners: Partner[]
 }
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
-  (e: 'update:selectedPartners', value: string[]): void
+  (e: 'update:selectedPartners', value: Partner[]): void
   (e: 'confirm'): void
 }
 
@@ -19,13 +19,18 @@ const emit = defineEmits<Emits>()
 
 // ========== 数据与逻辑层 (参照 FindPartnerModal) ==========
 
-const { searchPartners } = usePartners()
+const { searchResults, searchUsersForInvite } = usePartners()
 const searchQuery = ref('')
 
-// 1. 统一搜索逻辑：匹配并截取前 5 条
+// 1. 统一搜索逻辑：直接使用 API 搜索结果
 const filteredPartners = computed(() => {
-  if (!searchQuery.value) return []
-  return searchPartners(searchQuery.value).slice(0, 5)
+  // API 搜索结果已经限制了数量
+  return searchResults.value
+})
+
+// 2. 监听搜索框变化，触发 API 搜索 (已防抖)
+watch(searchQuery, (newQuery) => {
+  searchUsersForInvite(newQuery)
 })
 
 // 2. 统一高亮函数：支持文字任意位置匹配
@@ -44,8 +49,9 @@ const highlightMatch = (text: string, query: string) => {
 // 选择伙伴
 const selectPartner = (partner: Partner) => {
   const selected = [...props.selectedPartners]
-  if (!selected.includes(partner.name)) {
-    selected.push(partner.name)
+  // 确保将完整的 Partner 对象添加到列表中，并检查是否已存在
+  if (!selected.some(p => p.id === partner.id)) {
+    selected.push(partner)
     emit('update:selectedPartners', selected)
   }
   searchQuery.value = '' // 选择后清空
@@ -64,7 +70,11 @@ const confirm = () => {
 watch(
   () => props.visible,
   (newVal) => {
-    if (!newVal) searchQuery.value = ''
+    if (!newVal) {
+      searchQuery.value = ''
+      // 确保在关闭时取消任何正在进行的防抖调用
+      searchUsersForInvite.cancel()
+    }
   },
 )
 </script>
@@ -103,13 +113,18 @@ watch(
               v-for="partner in filteredPartners"
               :key="partner.id"
               @click="selectPartner(partner)"
+              :disabled="selectedPartners.includes(String(partner.id))"
               class="w-full text-left px-4 py-3 text-base font-medium hover:bg-purple-50 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
             >
-              <span class="text-black">{{ highlightMatch(partner.name, searchQuery).before }}</span>
-              <span class="text-[#784DC7] font-bold">{{
-                highlightMatch(partner.name, searchQuery).match
+              <span class="text-black">{{
+                highlightMatch(partner.fullName, searchQuery).before
               }}</span>
-              <span class="text-black">{{ highlightMatch(partner.name, searchQuery).after }}</span>
+              <span class="text-[#784DC7] font-bold">{{
+                highlightMatch(partner.fullName, searchQuery).match
+              }}</span>
+              <span class="text-black">{{
+                highlightMatch(partner.fullName, searchQuery).after
+              }}</span>
             </button>
           </div>
 

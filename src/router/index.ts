@@ -3,6 +3,7 @@ import HomePage from '../pages/HomePage.vue'
 import BookingPage from '../pages/BookingPage.vue'
 import AccountPage from '../pages/AccountPage.vue'
 import CoinStorePage from '../pages/CoinStorePage.vue'
+import AdminPage from '../pages/AdminPage.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -26,6 +27,11 @@ const router = createRouter({
       path: '/coin-store',
       name: 'coin-store',
       component: CoinStorePage,
+    },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: AdminPage,
     },
   ],
 })

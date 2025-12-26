@@ -15,6 +15,9 @@ const user = ref<any>(null)
 const isLoading = ref(!!localStorage.getItem('authToken')) // 如果有token，初始就是加载中
 const authError = ref<string | null>(null)
 
+// 飞书静默登录状态
+const isSilentLogin = ref(false)
+
 /**
  * 检查本地是否有 Token，并尝试获取用户信息
  */
@@ -27,10 +30,9 @@ async function checkAuthStatus() {
       // 尝试获取用户信息，验证 Token 有效性
       user.value = await getCurrentUser()
     } catch (error: any) {
-      console.error('Token 无效或过期，请重新登录:', error)
-      removeAuthToken()
-      isAuthenticated.value = false
-      user.value = null
+      console.error('Token 无效或过期，尝试静默重新登录:', error)
+      // Token 无效或过期，尝试静默重新登录
+      await silentLoginWithFeishu()
     } finally {
       isLoading.value = false
     }
@@ -85,20 +87,27 @@ async function signOut() {
 }
 
 /**
- * 飞书免登操作
+ * 飞书登录核心逻辑
+ * @param isSilent - 是否为静默登录
  */
-async function signInWithFeishu() {
-  isLoading.value = true
+async function feishuLoginCore(isSilent: boolean) {
+  const loginType = isSilent ? '静默登录' : '免登'
+  const loadingRef = isSilent ? isSilentLogin : isLoading
+
+  if (isSilent && loadingRef.value) return // 避免重复静默登录
+
+  loadingRef.value = true
   authError.value = null
+
   try {
     // 1. 获取飞书临时 Code
     const code = await getLarkAuthCode()
 
     // 2. 传给后端换取用户信息和 Token
     const response = await loginWithFeishu(code)
-    console.log(response)
+    if (!isSilent) console.log(response) // 仅在非静默登录时打印
 
-    // 3. 存储 Token (注意：后端返回字段可能是 token 或 data.token，根据实际调整)
+    // 3. 存储 Token
     const token = response.token || response.data?.token
     if (token) {
       setAuthToken(token)
@@ -106,14 +115,35 @@ async function signInWithFeishu() {
 
     isAuthenticated.value = true
     user.value = response.userInfo || response.data?.userInfo || response
+    console.log(`飞书${loginType}成功。`)
     return response
   } catch (error: any) {
-    authError.value = error.message || '飞书登录失败'
+    authError.value = error.message || `飞书${loginType}失败`
     isAuthenticated.value = false
+    console.error(`飞书${loginType}失败:`, error)
+
+    if (isSilent) {
+      // 静默登录失败，清除 Token
+      removeAuthToken()
+    }
     throw error
   } finally {
-    isLoading.value = false
+    loadingRef.value = false
   }
+}
+
+/**
+ * 飞书免登操作
+ */
+async function signInWithFeishu() {
+  return feishuLoginCore(false)
+}
+
+/**
+ * 飞书静默登录操作
+ */
+async function silentLoginWithFeishu() {
+  return feishuLoginCore(true)
 }
 
 /**
@@ -129,10 +159,12 @@ export function useAuth() {
     isAuthenticated: computed(() => isAuthenticated.value),
     user: computed(() => user.value),
     isLoading: computed(() => isLoading.value),
+    isSilentLogin: computed(() => isSilentLogin.value), // 暴露静默登录状态
     authError: computed(() => authError.value),
     signIn,
     signInWithFeishu,
     signOut,
     checkAuthStatus,
+    silentLoginWithFeishu, // 暴露静默登录函数
   }
 }

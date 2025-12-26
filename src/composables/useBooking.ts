@@ -1,16 +1,18 @@
 import { ref } from 'vue';
-import { createBooking, getUserBookings, cancelBooking } from '../api';
+import { createBooking, getUserBookings, cancelBooking, getUserCredits, getUserTransactions } from '../api';
 import type { Booking } from '../types/booking';
 
 // 预订管理组合式函数
 export function useBooking() {
   const bookings = ref<Booking[]>([]);
+  const transactions = ref<any[]>([]); // 新增：交易记录
+  const coins = ref(0); // 新增：积分余额
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 
   /**
    * 创建新的预订
-   * @param {object} bookingData - 预订数据 (e.g., { seatId: 'A1', startTime: '...', endTime: '...' })
+   * @param {object} bookingData - 预订数据 (e.g., { seatId: 1, bookingDate: '2025-12-23', timeSlotId: 0, partnerSeatMap: {} })
    */
   async function makeBooking(bookingData: any) {
     isLoading.value = true;
@@ -38,11 +40,26 @@ export function useBooking() {
     try {
       // 假设 API 返回一个包含 bookings 数组的对象
       const data = await getUserBookings();
-      if (data && data.bookings) {
-        bookings.value = data.bookings;
-      } else {
-        bookings.value = [];
-      }
+      const rawBookings = data.bookings || data || [];
+      
+      // 适配数据结构
+      const adaptedBookings = rawBookings.map((b: any) => ({
+        id: b.id,
+        bookingDate: b.bookingDate,
+        timeSlot: {
+          time: `${b.startTime.hour}:${String(b.startTime.minute).padStart(2, '0')} - ${b.endTime.hour}:${String(b.endTime.minute).padStart(2, '0')}`,
+        },
+        seat: {
+          seatNumber: b.seatNumber,
+        },
+        partners: b.partners.map((p: any) => ({
+          fullName: p.partnerName,
+          status: p.invitationStatus,
+        })),
+      }));
+
+      // 限制最多展示两条预订记录
+      bookings.value = adaptedBookings.slice(0, 2);
     } catch (err: any) {
       error.value = '加载预订列表失败: ' + (err.message || '未知错误');
       console.error(error.value, err);
@@ -71,12 +88,41 @@ export function useBooking() {
     }
   }
 
+  /**
+   * 加载当前用户的积分余额
+   */
+  async function loadUserCredits() {
+    try {
+      const data = await getUserCredits();
+      coins.value = data.balance || 0;
+    } catch (err) {
+      console.error('加载积分余额失败:', err);
+    }
+  }
+
+  /**
+   * 加载当前用户的交易记录
+   */
+  async function loadUserTransactions() {
+    try {
+      const data = await getUserTransactions();
+      // 假设 API 返回一个包含 transactions 数组的对象
+      transactions.value = data.transactions || data || [];
+    } catch (err) {
+      console.error('加载交易记录失败:', err);
+    }
+  }
+
   return {
     bookings,
+    transactions,
+    coins,
     isLoading,
     error,
     makeBooking,
     loadBookings,
     removeBooking,
+    loadUserCredits,
+    loadUserTransactions,
   };
 }

@@ -7,7 +7,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), vueDevTools()],
-
+  base: '/book/', // 必须以斜杠开头和结尾
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -16,6 +16,11 @@ export default defineConfig({
   server: {
     // 支持HTTPS开发服务器
     host: '0.0.0.0',
+    allowedHosts: [
+      '5174-i7748nih6rz8vss6c2dq7-a9053546.manusvm.computer',
+      '127.0.0.1',
+      'localhost',
+    ],
     proxy: {
       '/api': {
         target: 'https://111.229.50.3/',

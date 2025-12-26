@@ -123,9 +123,11 @@ const adaptTimeSlots = (backendSlots: any[]) => {
 
 // 在 onMounted 中调用 loadTimeSlots 并适配数据
 onMounted(async () => {
-  // 1. 加载区域和座位图
-  await loadAreas()
-  await loadSeatMap()
+  // 1. 确保 loadAreas 和 loadSeatMap 只在 seats.value 为空时加载一次
+  if (seats.value.length === 0) {
+    await loadAreas()
+    await loadSeatMap()
+  }
 
   // 2. 加载时间段数据
   const backendSlots = await loadTimeSlots()

@@ -7,7 +7,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), vueDevTools()],
-
+  base: '/book/', // 必须以斜杠开头和结尾
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

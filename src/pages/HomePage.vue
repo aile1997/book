@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 import FeatureCard from '../components/FeatureCard.vue'
@@ -10,10 +10,14 @@ import Group54 from '@/assets/images/home/Group 54.svg'
 import Escultures from '@/assets/images/home/Escultures.png'
 import Group55 from '@/assets/images/home/Group 55.svg'
 
-import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
+import { useAuth } from '../composables/useAuth'
+import { useBooking } from '../composables/useBooking'
+import { useInvitations } from '../composables/useInvitations'
 
 const router = useRouter()
 const { user } = useAuth()
+const { bookings, loadBookings } = useBooking()
+const { upcomingInvitations, startPolling, stopPolling } = useInvitations()
 
 const userData = computed(() => {
   const hour = new Date().getHours()
@@ -42,30 +46,49 @@ interface FeatureCardData {
   enabled: boolean
 }
 
-const featureCards = ref<FeatureCardData[]>([
-  {
-    id: 'booking',
-    title: 'Booking Seats',
-    status: 'Open now',
-    subtitle: 'Tomorrow : 10 seats left',
-    imageUrl: Photo,
-    imageStyle: '',
-    iconSvg: Group54,
-    route: '/booking',
-    enabled: true,
-  },
-  {
-    id: 'admin',
-    title: 'Coin Store',
-    status: 'New arrival',
-    subtitle: 'Coming soon',
-    imageUrl: Escultures,
-    imageStyle: '',
-    iconSvg: Group55,
-    route: '/admin',
-    enabled: true,
-  },
-])
+// 计算属性：根据预订和邀请状态动态生成卡片数据
+const featureCards = computed<FeatureCardData[]>(() => {
+  // 计算 Booking Seats 卡片的状态和副标题
+  let bookingStatus = 'Open now'
+  let bookingSubtitle = 'Tomorrow : 10 seats left'
+
+  // 检查是否有待处理的邀请
+  const pendingInvitations = upcomingInvitations.value.filter(inv => inv.status === 'PENDING')
+  if (pendingInvitations.length > 0) {
+    bookingStatus = 'New Invitation'
+    bookingSubtitle = `${pendingInvitations.length} invitation${pendingInvitations.length > 1 ? 's' : ''} pending`
+  } else if (bookings.value.length > 0) {
+    // 如果有预订，显示最近的预订信息
+    const latestBooking = bookings.value[0]
+    bookingStatus = 'Booked'
+    bookingSubtitle = `${latestBooking.seat.seatNumber} - ${latestBooking.bookingDate}`
+  }
+
+  return [
+    {
+      id: 'booking',
+      title: 'Booking Seats',
+      status: bookingStatus,
+      subtitle: bookingSubtitle,
+      imageUrl: Photo,
+      imageStyle: '',
+      iconSvg: Group54,
+      route: '/booking',
+      enabled: true,
+    },
+    {
+      id: 'admin',
+      title: 'Coin Store',
+      status: 'New arrival',
+      subtitle: 'Coming soon',
+      imageUrl: Escultures,
+      imageStyle: '',
+      iconSvg: Group55,
+      route: '/admin',
+      enabled: true,
+    },
+  ]
+})
 
 // ========== 事件处理层 ==========
 
@@ -82,6 +105,17 @@ const handleCardClick = (card: FeatureCardData) => {
 const navigateToAccount = () => {
   router.push('/account')
 }
+
+// 组件加载时获取预订和邀请数据
+onMounted(async () => {
+  await loadBookings()
+  startPolling() // 开始轮询邀请列表
+})
+
+// 组件卸载时停止轮询
+onUnmounted(() => {
+  stopPolling()
+})
 </script>
 
 <template>

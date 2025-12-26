@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API 基础 URL，根据用户提供的 Swagger 文档地址
-const BASE_URL = import.meta.env.DEV ? '' : 'http://你的生产环境域名'
+const BASE_URL = import.meta.env.DEV ? '' : 'https://111.229.50.3/'
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -71,20 +71,20 @@ apiClient.interceptors.response.use(
     // 检查是否是 401 错误且不是重试请求
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true // 标记为重试请求
-      
+
       // 动态导入 useAuth 模块，避免循环依赖
       const { silentLoginWithFeishu } = await import('../composables/useAuth')
-      
+
       try {
         // 尝试静默登录获取新 Token
         await silentLoginWithFeishu()
-        
+
         // 重新设置 Authorization header
         const token = localStorage.getItem('authToken')
         if (token) {
           originalRequest.headers.Authorization = `Bearer ${token}`
         }
-        
+
         // 使用新的 Token 重新发送请求
         return apiClient(originalRequest)
       } catch (e) {

@@ -333,7 +333,7 @@ const bookNow = async () => {
   try {
     await makeBooking(bookingData)
     // 预订成功
-    // showSuccessModal.value = true
+    showSuccessModal.value = true
 
     // 1. 先刷新服务器数据，确保获取最新的座位状态
     if (selectedDateTime.value) {
@@ -357,11 +357,7 @@ const goBack = () => {
   router.back()
 }
 
-// 从成功页返回首页
-const backToHome = () => {
-  showSuccessModal.value = false
-  router.push('/')
-}
+
 </script>
 
 <template>
@@ -642,7 +638,7 @@ const backToHome = () => {
     />
 
     <!-- 成功模态框 -->
-    <SuccessModal v-model:visible="showSuccessModal" @back="backToHome" />
+    <SuccessModal v-model:visible="showSuccessModal" />
   </div>
 </template>
 

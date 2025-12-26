@@ -123,6 +123,9 @@ const adaptTimeSlots = (backendSlots: any[]) => {
 
 // 在 onMounted 中调用 loadTimeSlots 并适配数据
 onMounted(async () => {
+  // 0. 清除上一次的选择状态，确保数据状态一致性
+  clearSelection()
+
   // 1. 确保 loadAreas 和 loadSeatMap 只在 seats.value 为空时加载一次
   if (seats.value.length === 0) {
     await loadAreas()

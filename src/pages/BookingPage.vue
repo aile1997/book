@@ -294,24 +294,28 @@ const bookNow = async () => {
   // 自动分配邻座给伙伴
   const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
 
-  // 构造 partnerSeatMap
-  const partnerSeatMap: { [key: number]: number } = {}
-  // 使用 invitedPartners 中的真实用户 ID
-  invitedPartners.value.forEach((partner, index) => {
+  // 构造 invitePartners 数组
+  const invitePartners = invitedPartners.value.map((partner, index) => {
     const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
+    
+    // 确保分配了座位，否则不邀请
     if (assignedSeat && assignedSeat.backendSeatId) {
-      // 使用真实用户 ID (Partner.id)
-      const userId = partner.id
-      partnerSeatMap[userId] = assignedSeat.backendSeatId
+      return {
+        userId: partner.id, // 维护前端 Partner.id 字段
+        unionId: partner.unionId || '', // 维护 unionId 字段
+        username: partner.username || partner.fullName, // 维护 username 字段
+        seatId: assignedSeat.backendSeatId, // 分配的座位后端 ID
+      }
     }
-  })
+    return null
+  }).filter(p => p !== null) // 过滤掉未分配座位的伙伴
 
   // 构造预订数据
   const bookingData = {
     seatId: seat.backendSeatId, // 后端座位 ID
     bookingDate: selectedTimeSlot.dateISO, // 日期
     timeSlotId: Number(selectedTimeSlot.timeSlotId), // 时间段 ID
-    partnerSeatMap: partnerSeatMap,
+    invitePartners: invitePartners,
   }
 
   try {

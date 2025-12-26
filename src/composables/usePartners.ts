@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { useSeats } from './useSeats'
-import { searchUsers } from '../api'
+import { searchUsers, getLarkAuthCode } from '../api' // 导入 getLarkAuthCode
 import type { Seat, Partner } from '../types/booking'
 import { debounce } from '../utils/debounce'
 
@@ -88,8 +88,8 @@ export function usePartners() {
 
   /**
    * 搜索用户 (Invite Partner) - 实际执行函数
-   * @param query 搜索关键词
-   */
+ * @param query 搜索关键词
+ */
   async function searchUsersForInvite(query: string) {
     if (!query) {
       searchResults.value = []
@@ -99,9 +99,22 @@ export function usePartners() {
     isSearching.value = true
     searchError.value = null
     try {
-      // 调用新增的 searchUsers API
-      const data = await searchUsers(query, 10) // 限制返回 10 个结果
-      searchResults.value = data || []
+      // 1. 获取飞书认证 Code
+      const code = await getLarkAuthCode()
+
+      // 2. 调用 searchUsers API
+      // 注意：searchUsers API 已经修改为接收 code 和 query
+      const data = await searchUsers(code, query, 10) // 限制返回 10 个结果
+      
+      // 3. 适配返回数据结构
+      // 后端返回: { userId: "string", unionId: "string", username: "string" }
+      // 前端需要: { id: string, fullName: string, ... }
+      searchResults.value = data.map((user: any) => ({
+        id: user.userId, // 使用 userId 作为前端 ID
+        unionId: user.unionId,
+        username: user.username,
+        fullName: user.username, // 假设 username 即为展示的 fullName
+      })) || []
   
       
     } catch (err: any) {

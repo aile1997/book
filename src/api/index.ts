@@ -180,12 +180,13 @@ export async function getUserTransactions(): Promise<any> {
 
 /**
  * 搜索用户
+ * @param {string} code - 飞书认证 Code
  * @param {string} query - 搜索关键词
  * @param {number} [limit] - 限制返回数量
  * @returns {Promise<object>} 用户列表
  */
-export async function searchUsers(query: string, limit?: number): Promise<any> {
-  const params = { q: query, limit }
+export async function searchUsers(code: string, query: string, limit?: number): Promise<any> {
+  const params = { code, q: query, limit }
   return apiClient.get('/api/v1/users/search', { params })
 }
 
@@ -242,7 +243,12 @@ export async function createBooking(bookingData: {
   seatId: number
   bookingDate: string
   timeSlotId: number
-  partnerSeatMap?: { [userId: string]: number }
+  invitePartners?: {
+    userId: string
+    unionId: string
+    username: string
+    seatId: number
+  }[]
 }): Promise<any> {
   return apiClient.post('/api/v1/bookings', bookingData)
 }

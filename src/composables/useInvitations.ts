@@ -1,7 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import { getUpcomingInvitations, acceptInvitation, declineInvitation } from '../api'
 
-// 定义邀请的类型
+// 定义邀请的类型 (使用 useInvitations.ts 的更详细类型)
 export interface Invitation {
   id: number
   inviter: {
@@ -23,6 +23,7 @@ export interface Invitation {
 // 轮询间隔（例如 30 秒）
 const POLLING_INTERVAL = 30000
 
+// 模块级状态，实现单例
 const upcomingInvitations = ref<Invitation[]>([])
 const isLoadingInvitations = ref(false)
 let pollingTimer: number | null = null
@@ -35,7 +36,31 @@ async function fetchInvitations() {
   try {
     const response = await getUpcomingInvitations()
     // 假设后端返回的数据结构与 Invitation 接口兼容
-    upcomingInvitations.value = response.data || response || []
+    // 注意：这里需要根据实际 API 返回结构进行适配，但为了重构，我们假设 API 返回的是 Invitation[]
+    // 兼容 useInvitation.ts 中的数据转换逻辑，但使用 useInvitations.ts 的类型
+    const rawData = response.data || response || []
+    
+    // 检查 rawData 是否包含 invitations 字段 (兼容 useInvitation.ts 的逻辑)
+    const invitations = rawData.invitations || rawData
+
+    upcomingInvitations.value = invitations.map((inv: any) => ({
+      id: inv.invitationId || inv.id,
+      inviter: {
+        userId: inv.sender?.userId || inv.sender?.id || 0,
+        fullName: inv.sender?.fullName || inv.sender?.userName || inv.senderName || '未知发送者',
+      },
+      seat: {
+        seatNumber: inv.booking?.seatNumber || inv.seatNumber || '未知座位',
+        areaName: inv.booking?.areaName || inv.areaName || '未知区域',
+      },
+      bookingDate: inv.booking?.bookingDate || inv.bookingDate || '未知日期',
+      timeSlot: {
+        id: inv.booking?.timeSlotId || inv.timeSlotId || 0,
+        time: inv.booking?.timeSlot || inv.timeSlot || '未知时间段',
+      },
+      status: inv.status || 'PENDING',
+    }))
+    
   } catch (error) {
     console.error('获取邀请列表失败:', error)
   } finally {
@@ -51,7 +76,9 @@ function startPolling() {
   fetchInvitations()
 
   // 设置轮询
-  pollingTimer = setInterval(fetchInvitations, POLLING_INTERVAL) as unknown as number
+  if (pollingTimer === null) {
+    pollingTimer = setInterval(fetchInvitations, POLLING_INTERVAL) as unknown as number
+  }
 }
 
 /**

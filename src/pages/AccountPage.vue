@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useInvitation } from '../composables/useInvitation' // 导入 useInvitation
+import { useInvitations } from '../composables/useInvitations' // 导入 useInvitations
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 
@@ -57,24 +57,35 @@ const logout = () => {
 // const rejectInvitation = () => (invitation.value.show = false)
 
 // 使用邀请管理组合式函数
-const { upcomingInvitations, isLoading: isLoadingInvitations, accept, decline } = useInvitation()
+const {
+  upcomingInvitations,
+  isLoadingInvitations,
+  startPolling,
+  stopPolling,
+  accept,
+  decline,
+} = useInvitations()
+
+// 启动邀请轮询
+startPolling()
 
 // 处理接受邀请
+// 处理接受邀请
 const handleAccept = async (invitationId: number) => {
-  const success = await accept(invitationId)
-  if (success) {
+  try {
+    await accept(invitationId)
     alert('已接受邀请！')
-  } else {
+  } catch (error) {
     alert('接受邀请失败，请重试。')
   }
 }
 
 // 处理拒绝邀请
 const handleDecline = async (invitationId: number) => {
-  const success = await decline(invitationId)
-  if (success) {
+  try {
+    await decline(invitationId)
     alert('已拒绝邀请！')
-  } else {
+  } catch (error) {
     alert('拒绝邀请失败，请重试。')
   }
 }
@@ -128,10 +139,10 @@ const handleDecline = async (invitationId: number) => {
           >
             <div>
               <p class="text-sm font-medium text-gray-dark">
-                <span class="font-bold text-primary">{{ invitation.senderName }}</span> 邀请您加入预订
+                <span class="font-bold text-primary">{{ invitation.inviter.fullName }}</span> 邀请您加入预订
               </p>
               <p class="text-xs text-gray mt-1">
-                {{ invitation.bookingDate }} {{ invitation.timeSlot }} ({{ invitation.seatNumber }})
+                {{ invitation.bookingDate }} {{ invitation.timeSlot.time }} ({{ invitation.seat.seatNumber }})
               </p>
             </div>
             <div class="flex space-x-2">

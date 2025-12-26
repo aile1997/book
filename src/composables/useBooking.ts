@@ -1,10 +1,12 @@
 import { ref } from 'vue';
-import { createBooking, getUserBookings, cancelBooking } from '../api';
+import { createBooking, getUserBookings, cancelBooking, getUserCredits, getUserTransactions } from '../api';
 import type { Booking } from '../types/booking';
 
 // 预订管理组合式函数
 export function useBooking() {
   const bookings = ref<Booking[]>([]);
+  const transactions = ref<any[]>([]); // 新增：交易记录
+  const coins = ref(0); // 新增：积分余额
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 
@@ -71,12 +73,41 @@ export function useBooking() {
     }
   }
 
+  /**
+   * 加载当前用户的积分余额
+   */
+  async function loadUserCredits() {
+    try {
+      const data = await getUserCredits();
+      coins.value = data.balance || 0;
+    } catch (err) {
+      console.error('加载积分余额失败:', err);
+    }
+  }
+
+  /**
+   * 加载当前用户的交易记录
+   */
+  async function loadUserTransactions() {
+    try {
+      const data = await getUserTransactions();
+      // 假设 API 返回一个包含 transactions 数组的对象
+      transactions.value = data.transactions || data || [];
+    } catch (err) {
+      console.error('加载交易记录失败:', err);
+    }
+  }
+
   return {
     bookings,
+    transactions,
+    coins,
     isLoading,
     error,
     makeBooking,
     loadBookings,
     removeBooking,
+    loadUserCredits,
+    loadUserTransactions,
   };
 }

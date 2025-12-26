@@ -1,79 +1,105 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useInvitations } from '../composables/useInvitations' // 导入 useInvitations
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
+import { useAuth } from '../composables/useAuth'
+import { useBooking } from '../composables/useBooking'
+import { useInvitations } from '../composables/useInvitations'
+import type { Invitation } from '../composables/useInvitations'
 
 const router = useRouter()
 
 // --- 1. 数据层抽取 ---
-const userProfile = ref({
-  name: 'Alex Zhou',
-  coins: 1200,
-})
-
-// 移除旧的模拟邀请数据，使用 useInvitation
-// const invitation = ref(...)
-
-const currentBooking = ref({
-  date: '2025.11.20',
-  time: '09:00 - 12:00',
-  seat: 'A6',
-  partners: [
-    { name: 'Sally Feng', status: 'Confirmed' },
-    { name: 'Eric Zhang', status: 'Pending' },
-  ],
-})
-
-const transactions = ref([
-  {
-    date: '2025.11.19',
-    items: [
-      { desc: 'Transaction', amount: -200 },
-      { desc: 'Transfer (to Elena Zhang)', amount: -300 },
-    ],
-  },
-  {
-    date: '2025.11.18',
-    items: [
-      { desc: 'Transaction', amount: -1500 },
-      { desc: 'Redeem Coupon', amount: -200 },
-      { desc: 'Transfer (from Tom Li)', amount: 200 },
-    ],
-  },
-])
-
-// --- 2. 状态控制 ---
-const showPayModal = ref(false)
-const showHistoryModal = ref(false)
-
-const goBack = () => router.push('/')
-const logout = () => {
-  alert('Logged out')
-  router.push('/')
-}
-// 移除旧的邀请处理函数
-// const confirmInvitation = () => (invitation.value.show = false)
-// const rejectInvitation = () => (invitation.value.show = false)
-
-// 使用邀请管理组合式函数
+const { user, signOut } = useAuth()
+const {
+  bookings,
+  transactions,
+  coins,
+  loadBookings,
+  loadUserCredits,
+  loadUserTransactions,
+  removeBooking,
+} = useBooking()
 const {
   upcomingInvitations,
   isLoadingInvitations,
   startPolling,
-  stopPolling,
   accept,
   decline,
 } = useInvitations()
 
-// 启动邀请轮询
-startPolling()
+// 状态控制
+const showPayModal = ref(false)
+const showHistoryModal = ref(false)
+const isCancelling = ref(false)
+
+// 当前预订：取第一个预订作为当前预订
+const currentBooking = computed(() => {
+  if (bookings.value.length === 0) return null
+  const booking = bookings.value[0]
+  
+  // 适配数据结构到旧的 UI 模板
+  return {
+    id: booking.id,
+    date: booking.bookingDate, // 假设 bookingDate 是 YYYY-MM-DD
+    time: booking.timeSlot.time, // 假设 timeSlot.time 是 'HH:MM - HH:MM'
+    seat: booking.seat.seatNumber, // 假设 seat.seatNumber 是 'A6'
+    partners: booking.partners.map(p => ({
+      name: p.fullName,
+      status: p.status, // 假设有 status 字段
+    })),
+  }
+})
+
+// 交易记录：适配数据结构到旧的 UI 模板
+const adaptedTransactions = computed(() => {
+  // 假设 transactions.value 是一个扁平的交易列表
+  // 需要将其按日期分组
+  const groups: { [date: string]: any[] } = {}
+  
+  transactions.value.forEach(t => {
+    const date = t.transactionDate || '未知日期' // 假设有 transactionDate 字段
+    if (!groups[date]) {
+      groups[date] = []
+    }
+    groups[date].push({
+      desc: t.description || '交易',
+      amount: t.amount || 0,
+    })
+  })
+  
+  // 转换为数组并按日期降序排序
+  return Object.keys(groups).sort().reverse().map(date => ({
+    date: date,
+    items: groups[date],
+  }))
+})
+
+// --- 生命周期和数据加载 ---
+onMounted(() => {
+  // 加载用户数据
+  // user 数据在 useAuth 中已加载
+  
+  // 加载预订和交易数据
+  loadBookings()
+  loadUserCredits()
+  loadUserTransactions()
+  
+  // 启动邀请轮询
+  startPolling()
+})
+
+// --- 事件处理 ---
+const goBack = () => router.push('/')
+const logout = () => {
+  signOut()
+  router.push('/')
+}
 
 // 处理接受邀请
-// 处理接受邀请
-const handleAccept = async (invitationId: number) => {
+const handleAccept = async (invitation: Invitation) => {
   try {
-    await accept(invitationId)
+    await accept(invitation.id)
     alert('已接受邀请！')
   } catch (error) {
     alert('接受邀请失败，请重试。')
@@ -81,14 +107,41 @@ const handleAccept = async (invitationId: number) => {
 }
 
 // 处理拒绝邀请
-const handleDecline = async (invitationId: number) => {
+const handleDecline = async (invitation: Invitation) => {
   try {
-    await decline(invitationId)
+    await decline(invitation.id)
     alert('已拒绝邀请！')
   } catch (error) {
     alert('拒绝邀请失败，请重试。')
   }
 }
+
+// 取消当前预订
+const handleCancelBooking = async () => {
+  if (!currentBooking.value || isCancelling.value) return
+  
+  if (!confirm('确定要取消当前预订吗？')) return
+  
+  isCancelling.value = true
+  try {
+    await removeBooking(currentBooking.value.id)
+    alert('预订已成功取消！')
+  } catch (error) {
+    alert('取消预订失败，请重试。')
+  } finally {
+    isCancelling.value = false
+  }
+}
+
+// 兼容旧的邀请处理函数 (现在使用 useInvitations)
+const confirmInvitation = (invitation: Invitation) => handleAccept(invitation)
+const rejectInvitation = (invitation: Invitation) => handleDecline(invitation)
+
+// 获取第一个待处理的邀请（用于旧的 UI 模板）
+const firstPendingInvitation = computed(() => {
+  return upcomingInvitations.value.find(inv => inv.status === 'PENDING')
+})
+
 </script>
 
 <template>
@@ -116,54 +169,58 @@ const handleDecline = async (invitationId: number) => {
 
       <div class="mb-12 text-white">
         <div class="text-base font-medium mb-2 opacity-80">Morning,</div>
-        <h1 class="text-[32px] font-semibold leading-none">{{ userProfile.name }}</h1>
+        <h1 class="text-[32px] font-semibold leading-none">{{ user?.fullName || user?.username || 'User' }}</h1>
       </div>
 
-      <!-- 伙伴邀请列表 -->
+      <!-- 伙伴邀请列表 (兼容旧的单个邀请 UI) -->
       <div
-        v-if="isLoadingInvitations || upcomingInvitations.length > 0"
+        v-if="firstPendingInvitation"
         class="bg-white rounded-[10px] shadow-card p-5 mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
       >
-        <h2 class="text-base font-semibold text-gray-dark mb-4">伙伴邀请</h2>
-        <div v-if="isLoadingInvitations" class="text-center py-4 text-gray-500">
-          加载邀请中...
-        </div>
-        <div v-else-if="upcomingInvitations.length === 0" class="text-center py-4 text-gray-500">
-          暂无新的伙伴邀请。
-        </div>
-        <div v-else class="space-y-4">
-          <div
-            v-for="invitation in upcomingInvitations"
-            :key="invitation.id"
-            class="p-4 bg-white rounded-xl shadow-md flex items-center justify-between"
-          >
-            <div>
-              <p class="text-sm font-medium text-gray-dark">
-                <span class="font-bold text-primary">{{ invitation.inviter.fullName }}</span> 邀请您加入预订
-              </p>
-              <p class="text-xs text-gray mt-1">
-                {{ invitation.bookingDate }} {{ invitation.timeSlot.time }} ({{ invitation.seat.seatNumber }})
-              </p>
-            </div>
-            <div class="flex space-x-2">
-              <button
-                @click="handleAccept(invitation.id)"
-                class="px-3 py-1 text-sm font-medium text-white bg-success rounded-lg hover:bg-success-dark transition-colors"
-              >
-                接受
-              </button>
-              <button
-                @click="handleDecline(invitation.id)"
-                class="px-3 py-1 text-sm font-medium text-gray-dark bg-gray-light rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                拒绝
-              </button>
+        <h2 class="text-base font-semibold text-gray-dark mb-4">New Invitation</h2>
+        <div class="space-y-3 mb-5">
+          <div class="flex items-start gap-3">
+            <div class="w-4 h-4 rounded-full bg-warning mt-1"></div>
+            <div class="flex-1 space-y-2">
+              <div class="flex items-center gap-2 text-xs text-gray-400">
+                <span>Date</span
+                ><span class="text-sm font-medium text-gray-dark">{{ firstPendingInvitation.bookingDate }}</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-400">
+                <span>Time</span
+                ><span class="text-sm font-medium text-gray-dark">{{ firstPendingInvitation.timeSlot.time }}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-400">Seat</span>
+                <span class="text-2xl font-bold text-gray-dark leading-none">{{
+                  firstPendingInvitation.seat.seatNumber
+                }}</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-400 pt-1">
+                <span>with</span
+                ><span class="text-sm font-medium text-gray-dark">{{ firstPendingInvitation.inviter.fullName }}</span>
+              </div>
             </div>
           </div>
         </div>
+        <div class="flex gap-2">
+          <button
+            @click="rejectInvitation(firstPendingInvitation)"
+            class="flex-1 py-2.5 rounded-lg border border-gray-100 text-sm font-medium text-gray-600"
+          >
+            Reject
+          </button>
+          <button
+            @click="confirmInvitation(firstPendingInvitation)"
+            class="flex-1 py-2.5 rounded-lg bg-success text-sm font-medium text-white shadow-sm"
+          >
+            Confirm
+          </button>
+        </div>
       </div>
 
-      <div class="bg-white rounded-[10px] shadow-card p-5 mb-4">
+      <!-- 当前预订 -->
+      <div v-if="currentBooking" class="bg-white rounded-[10px] shadow-card p-5 mb-4">
         <h2 class="text-base font-semibold text-gray-dark mb-4">My Bookings</h2>
         <div class="flex items-start gap-3 mb-5">
           <div class="w-4 h-4 rounded-full bg-success mt-1 flex items-center justify-center">
@@ -197,13 +254,16 @@ const handleDecline = async (invitationId: number) => {
         </div>
         <div class="flex justify-end">
           <button
+            @click="handleCancelBooking"
+            :disabled="isCancelling"
             class="px-6 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-500"
           >
-            Cancel
+            {{ isCancelling ? 'Cancelling...' : 'Cancel' }}
           </button>
         </div>
       </div>
 
+      <!-- 积分和历史记录 -->
       <div class="bg-cyan rounded-[10px] p-5 mb-8 shadow-lg shadow-cyan/20">
         <h2 class="text-base font-semibold text-white mb-3">My Coins</h2>
         <div class="flex items-center gap-2 mb-6">
@@ -212,7 +272,7 @@ const handleDecline = async (invitationId: number) => {
               d="M13.1 0C5.8 0 0 5.8 0 13.1s5.8 13.1 13.1 13.1 13.1-5.8 13.1-13.1S20.3 0 13.1 0zm4.9 12.1H8.5v.3c0 1.6 1.3 2.9 2.9 2.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-2.7 0-4.9-2.2-4.9-4.9v-2.6c0-2.7 2.2-4.9 4.9-4.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-1.6 0-2.9 1.3-2.9 2.9v.3h9.5c.5 0 .9.4.9.9s-.4.9-.9.9z"
             />
           </svg>
-          <span class="text-2xl font-bold text-white">{{ userProfile.coins }}</span>
+          <span class="text-2xl font-bold text-white">{{ coins }}</span>
         </div>
         <div class="flex gap-2">
           <button
@@ -276,7 +336,7 @@ const handleDecline = async (invitationId: number) => {
           <h3 class="text-white text-xl font-medium text-center mb-6">Account History</h3>
 
           <div class="overflow-y-auto flex-1 px-2 space-y-8">
-            <div v-for="group in transactions" :key="group.date">
+            <div v-for="group in adaptedTransactions" :key="group.date">
               <div class="text-white/40 text-[10px] uppercase tracking-widest text-right mb-4">
                 {{ group.date }}
               </div>

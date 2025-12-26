@@ -37,7 +37,7 @@ const { isAuthenticated, signIn } = useAuth()
 // ========== 状态管理 ==========
 
 // 邀请的伙伴列表
-const invitedPartners = ref<string[]>([])
+const invitedPartners = ref<Partner[]>([])
 
 // Coins 消耗
 const coinCost = ref(10)
@@ -209,8 +209,8 @@ const reselectSeat = () => {
 }
 
 // 移除邀请伙伴
-const removePartner = (partner: string) => {
-  invitedPartners.value = invitedPartners.value.filter((p) => p !== partner)
+const removePartner = (partner: Partner) => {
+  invitedPartners.value = invitedPartners.value.filter((p) => p.id !== partner.id)
 }
 
 // 打开查找伙伴模态框（从座位选择模态框）
@@ -287,11 +287,11 @@ const bookNow = async () => {
   // 构造 partnerSeatMap
   const partnerSeatMap: { [key: number]: number } = {}
   // 使用 invitedPartners 中的真实用户 ID
-  invitedPartners.value.forEach((partnerId, index) => {
+  invitedPartners.value.forEach((partner, index) => {
     const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
     if (assignedSeat && assignedSeat.backendSeatId) {
-      // 使用真实用户 ID
-      const userId = Number(partnerId)
+      // 使用真实用户 ID (Partner.id)
+      const userId = partner.id
       partnerSeatMap[userId] = assignedSeat.backendSeatId
     }
   })
@@ -446,11 +446,11 @@ const backToHome = () => {
           <!-- 已邀请的伙伴标签 -->
           <button
             v-for="partner in invitedPartners"
-            :key="partner"
+            :key="partner.id"
             @click="removePartner(partner)"
-            class="inline-flex items-center gap-2 px-3 py-2 bg-primary-light rounded-full border border-primary hover:bg-primary/10 transition-colors group"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-gray-light rounded-full text-sm font-medium text-gray-dark hover:bg-gray-200 transition-colors"
           >
-            <span class="text-sm font-medium text-primary-dark">{{ partner }}</span>
+            {{ partner.fullName }}
             <svg
               width="16"
               height="16"

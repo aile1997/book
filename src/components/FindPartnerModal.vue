@@ -7,12 +7,12 @@ import type { Partner } from '../types/booking'
 
 interface Props {
   visible: boolean
-  selectedPartners: string[]
+  selectedPartners: Partner[]
 }
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
-  (e: 'update:selectedPartners', value: string[]): void
+  (e: 'update:selectedPartners', value: Partner[]): void
   (e: 'confirm'): void
   (e: 'select-partner', partner: Partner): void
 }
@@ -43,7 +43,30 @@ const selectedPartnerForHighlight = ref<Partner | null>(null)
 // 过滤后的伙伴列表（基于搜索）
 const filteredPartners = computed(() => {
   if (!searchQuery.value) return []
-  return searchPartners(searchQuery.value).slice(0, 5)
+  const lowerQuery = searchQuery.value.toLowerCase()
+
+  // 1. 从 seats.value 中提取已预订的伙伴信息
+  const occupiedPartners: Partner[] = seats.value
+    .filter(s => s.occupiedBy && s.bookingUserInfo) // 筛选出已预订的座位
+    .map(s => ({
+      id: s.bookingUserInfo!.userId, // 使用 bookingUserInfo 中的 userId 作为 Partner.id
+      username: s.bookingUserInfo!.userName, // 使用 bookingUserInfo 中的 userName
+      fullName: s.occupiedBy!, // 使用 occupiedBy 作为 fullName
+      email: '', // 无法从座位信息中获取，暂时留空
+    }))
+
+  // 2. 去重并过滤
+  const uniquePartners = occupiedPartners.reduce((acc, current) => {
+    if (!acc.some(p => p.id === current.id)) {
+      acc.push(current)
+    }
+    return acc
+  }, [] as Partner[])
+
+  // 3. 搜索过滤
+  return uniquePartners
+    .filter(p => p.fullName.toLowerCase().includes(lowerQuery))
+    .slice(0, 5)
 })
 
 // 根据桌子获取座位布局，并关联伙伴数据
@@ -87,8 +110,8 @@ const currentTableSeats = computed(() => {
 // 选择伙伴（从搜索）
 const selectPartnerFromSearch = (partner: Partner) => {
   const selected = [...props.selectedPartners]
-  if (!selected.includes(partner.name)) {
-    selected.push(partner.name)
+  if (!selected.some(p => p.id === partner.id)) {
+    selected.push(partner)
     emit('update:selectedPartners', selected)
   }
   // 发送选中的伙伴用于在地图上高亮
@@ -198,13 +221,13 @@ watch(
                 class="w-full text-left px-4 py-3 text-base font-medium hover:bg-success/10 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
               >
                 <span class="text-black">{{
-                  highlightMatch(partner.name, searchQuery).before
+                  highlightMatch(partner.fullName, searchQuery).before
                 }}</span>
                 <span class="text-success font-semibold">{{
-                  highlightMatch(partner.name, searchQuery).match
+                  highlightMatch(partner.fullName, searchQuery).match
                 }}</span>
                 <span class="text-black">{{
-                  highlightMatch(partner.name, searchQuery).after
+                  highlightMatch(partner.fullName, searchQuery).after
                 }}</span>
               </button>
             </div>

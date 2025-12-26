@@ -5,12 +5,12 @@ import type { Partner } from '../types/booking'
 
 interface Props {
   visible: boolean
-  selectedPartners: string[]
+  selectedPartners: Partner[]
 }
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
-  (e: 'update:selectedPartners', value: string[]): void
+  (e: 'update:selectedPartners', value: Partner[]): void
   (e: 'confirm'): void
 }
 
@@ -49,10 +49,9 @@ const highlightMatch = (text: string, query: string) => {
 // 选择伙伴
 const selectPartner = (partner: Partner) => {
   const selected = [...props.selectedPartners]
-  // Invite Partner 应该使用用户的 ID (id) 而不是 name 来进行预订
-  // 假设 partner 对象包含 id 字段
-  if (!selected.includes(String(partner.id))) {
-    selected.push(String(partner.id))
+  // 确保将完整的 Partner 对象添加到列表中，并检查是否已存在
+  if (!selected.some(p => p.id === partner.id)) {
+    selected.push(partner)
     emit('update:selectedPartners', selected)
   }
   searchQuery.value = '' // 选择后清空

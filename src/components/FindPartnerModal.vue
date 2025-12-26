@@ -111,10 +111,6 @@ const rightSeats = computed(() => {
 })
 
 const currentTableSeats = computed(() => {
-  // 确保 seats.value 不为空，否则返回空数组
-  if (!seats.value || seats.value.length === 0) {
-    return []
-  }
   return seats.value.filter((s) => s.table === selectedTable.value)
 })
 

@@ -103,15 +103,30 @@ apiClient.interceptors.response.use(
 // --- 新增：飞书 JS-SDK 获取 Code ---
 export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      return reject(new Error('非飞书环境或 SDK 未加载'))
+      console.warn('非飞书环境，尝试使用缓存的 code')
+      const cachedCode = localStorage.getItem('debug_lark_code')
+      if (cachedCode) {
+        console.log('使用缓存的 code:', cachedCode)
+        return resolve(cachedCode)
+      } else {
+        return reject(new Error('非飞书环境且未找到缓存的 code，请先在飞书中登录一次'))
+      }
     }
+    
+    // 飞书环境：正常获取 code
     window.h5sdk.ready(() => {
       // 注意：飞书 SDK 全局变量是 tt
       tt.requestAuthCode({
         appId: import.meta.env.VITE_LARK_APP_ID,
         scopeList: [],
-        success: (res) => resolve(res.code),
+        success: (res) => {
+          // 缓存 code 供本地调试使用
+          localStorage.setItem('debug_lark_code', res.code)
+          console.log('飞书 code 已缓存:', res.code)
+          resolve(res.code)
+        },
         fail: (err) => {
           console.error('Code 获取失败:', err)
           reject(err)

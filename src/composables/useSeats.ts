@@ -164,7 +164,10 @@ function createSeatsStore() {
         } else {
           // 如果不可用，检查是否被预订 (bookingUserInfo 存在)
           if (availability.bookingUserInfo) {
-            seat.status = 'occupied'
+            // 确保 seat.status 不被 'selected' 状态覆盖
+            if (seat.status !== 'selected') {
+              seat.status = 'occupied'
+            }
             // 使用 fullName 或 userName，这里使用 UserName
             seat.occupiedBy =
               availability.bookingUserInfo.fullName ||
@@ -172,7 +175,10 @@ function createSeatsStore() {
               '已预订'
           } else {
             // 如果不可用但没有预订信息，可能是被管理员锁定或其他原因
-            seat.status = 'occupied' // 统一显示为 occupied
+            // 确保 seat.status 不被 'selected' 状态覆盖
+            if (seat.status !== 'selected') {
+              seat.status = 'occupied' // 统一显示为 occupied
+            }
             seat.occupiedBy = '不可用' // 明确显示为不可用
           }
         }

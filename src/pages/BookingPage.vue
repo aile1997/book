@@ -330,6 +330,14 @@ const bookNow = async () => {
     // 清除选择状态
     clearSelection()
     invitedPartners.value = []
+
+    // !!! 关键修复：刷新座位可用性状态 !!!
+    if (selectedDateTime.value) {
+      querySeatAvailability(
+        selectedDateTime.value.dateISO,
+        Number(selectedDateTime.value.timeSlotId),
+      )
+    }
   } catch (error) {
     alert('预订失败: ' + (bookingError.value || '请检查网络或登录状态'))
     console.error('预订失败:', error)

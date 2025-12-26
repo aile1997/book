@@ -16,7 +16,6 @@ const router = useRouter()
 // 使用座位管理组合式函数
 const {
   seats,
-  seatAvailability, // 可用性数据
   selectedSeat,
   selectSeat,
   clearSelection,
@@ -32,7 +31,7 @@ const {
 const { makeBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
 
 // 使用认证组合式函数
-const { isAuthenticated, signIn } = useAuth()
+const { isAuthenticated } = useAuth()
 
 // ========== 状态管理 ==========
 
@@ -51,11 +50,19 @@ const showSuccessModal = ref(false)
 const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
 
 // ========== 时间段数据 ==========
+
 // 辅助函数：格式化日期为 11.20 这种格式
 const formatDate = (date: Date) => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
   return `${month}.${day}`
+}
+// 辅助函数：格式化日期为 YYYY-MM-DD 格式
+const formatDateISO = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 // 辅助函数：获取星期缩写
@@ -86,8 +93,7 @@ const adaptTimeSlots = (backendSlots: any[]) => {
 
     // 判断今天的时间段是否已过期 (超过开始时间即过期)
     const isExpiredToday =
-      now.toISOString().split('T')[0] === today.value.toISOString().split('T')[0] &&
-      nowTime >= startTimeInMinutes
+      formatDateISO(now) === formatDateISO(today.value) && nowTime >= startTimeInMinutes
 
     return {
       id: String(slot.id), // 确保是字符串
@@ -103,8 +109,8 @@ const adaptTimeSlots = (backendSlots: any[]) => {
       id: '1',
       date: formatDate(today.value),
       weekday: getWeekday(today.value),
-      dateISO: today.value.toISOString().split('T')[0],
-      times: backendTimeSlots.map((slot: any, index: number) => ({
+      dateISO: formatDateISO(today.value),
+      times: backendTimeSlots.map((slot: any) => ({
         ...slot,
         selected: false, // 初始都不选中，稍后统一处理
         disabled: slot.isExpiredToday, // 今天已过期的时间段禁用
@@ -114,7 +120,7 @@ const adaptTimeSlots = (backendSlots: any[]) => {
       id: '2',
       date: formatDate(tomorrow.value),
       weekday: getWeekday(tomorrow.value),
-      dateISO: tomorrow.value.toISOString().split('T')[0],
+      dateISO: formatDateISO(tomorrow.value),
       times: backendTimeSlots.map((slot: any) => ({
         ...slot,
         selected: false,
@@ -146,7 +152,7 @@ onMounted(async () => {
     // 查找第一个可用的时间段
     let firstAvailableTimeSlot = null
     for (const dateSlot of timeSlots.value) {
-      firstAvailableTimeSlot = dateSlot.times.find(time => !time.disabled)
+      firstAvailableTimeSlot = dateSlot.times.find((time) => !time.disabled)
       if (firstAvailableTimeSlot) {
         // 选中它
         firstAvailableTimeSlot.selected = true
@@ -221,10 +227,6 @@ const confirmSeatSelection = () => {
 }
 
 // 重新选择座位
-const reselectSeat = () => {
-  clearSelection()
-  openSeatModal()
-}
 
 // 移除邀请伙伴
 const removePartner = (partner: Partner) => {
@@ -250,7 +252,7 @@ const confirmPartnerInvite = () => {
 const handlePartnerSelect = (partner: Partner) => {
   if (partner.seat) {
     highlightedPartner.value = {
-      name: partner.name,
+      name: partner.fullName,
       seat: partner.seat,
     }
   }
@@ -303,20 +305,22 @@ const bookNow = async () => {
   const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
 
   // 构造 invitePartners 数组
-  const invitePartners = invitedPartners.value.map((partner, index) => {
-    const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
-    
-    // 确保分配了座位，否则不邀请
-    if (assignedSeat && assignedSeat.backendSeatId) {
-      return {
-        userId: partner.id, // 维护前端 Partner.id 字段
-        unionId: partner.unionId || '', // 维护 unionId 字段
-        username: partner.username || partner.fullName, // 维护 username 字段
-        seatId: assignedSeat.backendSeatId, // 分配的座位后端 ID
+  const invitePartners = invitedPartners.value
+    .map((partner, index) => {
+      const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
+
+      // 确保分配了座位，否则不邀请
+      if (assignedSeat && assignedSeat.backendSeatId) {
+        return {
+          userId: partner.id, // 维护前端 Partner.id 字段
+          unionId: partner.unionId || '', // 维护 unionId 字段
+          username: partner.username || partner.fullName, // 维护 username 字段
+          seatId: assignedSeat.backendSeatId, // 分配的座位后端 ID
+        }
       }
-    }
-    return null
-  }).filter(p => p !== null) // 过滤掉未分配座位的伙伴
+      return null
+    })
+    .filter((p) => p !== null) // 过滤掉未分配座位的伙伴
 
   // 构造预订数据
   const bookingData = {
@@ -329,7 +333,7 @@ const bookNow = async () => {
   try {
     await makeBooking(bookingData)
     // 预订成功
-    showSuccessModal.value = true
+    // showSuccessModal.value = true
 
     // 1. 先刷新服务器数据，确保获取最新的座位状态
     if (selectedDateTime.value) {

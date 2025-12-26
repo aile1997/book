@@ -7,7 +7,6 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), vueDevTools()],
-  base: '/book/', // 必须以斜杠开头和结尾
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -23,7 +22,7 @@ export default defineConfig({
     ],
     proxy: {
       '/api': {
-        target: 'https://111.229.50.3/',
+        target: 'http://111.229.50.3:8080/',
         changeOrigin: true,
         secure: false, // 对于自签名证书的开发环境设为false
         rewrite: (path) => path,

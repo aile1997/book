@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API 基础 URL，根据用户提供的 Swagger 文档地址
-const BASE_URL = import.meta.env.DEV ? '' : 'https://111.229.50.3/'
+const BASE_URL = ''
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -105,16 +105,9 @@ export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      console.warn('非飞书环境，尝试使用缓存的 code')
-      const cachedCode = localStorage.getItem('debug_lark_code')
-      if (cachedCode) {
-        console.log('使用缓存的 code:', cachedCode)
-        return resolve(cachedCode)
-      } else {
-        return reject(new Error('非飞书环境且未找到缓存的 code，请先在飞书中登录一次'))
-      }
+      return resolve('aLRkBd2xcFedAEwaGz482Kx2GccxfwB1')
     }
-    
+
     // 飞书环境：正常获取 code
     window.h5sdk.ready(() => {
       // 注意：飞书 SDK 全局变量是 tt

@@ -103,7 +103,7 @@ const adaptTimeSlots = (backendSlots: any[]) => {
       dateISO: today.toISOString().split('T')[0],
       times: backendTimeSlots.map((slot: any, index: number) => ({
         ...slot,
-        selected: index === 0 && !slot.isExpiredToday, // 默认选中第一个未过期的时间段
+        selected: false, // 初始都不选中，稍后统一处理
         disabled: slot.isExpiredToday, // 今天已过期的时间段禁用
       })),
     },
@@ -133,9 +133,19 @@ onMounted(async () => {
     adaptTimeSlots(backendSlots)
   }
 
-  // 3. 默认查询一次可用性
-  // 延迟查询，确保 timeSlots.value 已经填充
+  // 3. 默认选中第一个可用的时间段，并查询可用性
   if (timeSlots.value.length > 0) {
+    // 查找第一个可用的时间段
+    let firstAvailableTimeSlot = null
+    for (const dateSlot of timeSlots.value) {
+      firstAvailableTimeSlot = dateSlot.times.find(time => !time.disabled)
+      if (firstAvailableTimeSlot) {
+        // 选中它
+        firstAvailableTimeSlot.selected = true
+        break
+      }
+    }
+
     // 触发可用性查询
     if (selectedDateTime.value) {
       // 查询所有区域的可用性

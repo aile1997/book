@@ -27,6 +27,7 @@ export interface TimeSlot {
   id: string
   date: string // 日期 (例如: 11.20)
   weekday: string // 星期 (例如: Wed.)
+  dateISO: string // ISO格式日期 (例如: 2024-12-27)
   times: TimeOption[]
 }
 
@@ -35,6 +36,7 @@ export interface TimeOption {
   id: string
   time: string // 时间段 (例如: 09:00 - 12:00)
   selected: boolean
+  disabled: boolean
 }
 
 // 伙伴接口
@@ -43,6 +45,9 @@ export interface Partner {
   username: string
   fullName: string
   email: string
+  unionId?: string
+  seat?: string
+  name?: string
 }
 
 // 后端返回的 Area 结构

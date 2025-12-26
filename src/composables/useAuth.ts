@@ -102,9 +102,11 @@ async function feishuLoginCore(isSilent: boolean) {
   try {
     // 1. 获取飞书临时 Code
     const code = await getLarkAuthCode()
-
+    const codeTest = await getLarkAuthCode()
+    console.log(codeTest)
     // 2. 传给后端换取用户信息和 Token
     const response = await loginWithFeishu(code)
+
     if (!isSilent) console.log(response) // 仅在非静默登录时打印
 
     // 3. 存储 Token

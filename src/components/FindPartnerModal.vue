@@ -71,22 +71,25 @@ const filteredPartners = computed(() => {
 
 // 根据桌子获取座位布局，并关联伙伴数据
 const tableSeatMap = computed(() => {
-  // 获取该桌子的所有座位（完整布局）
-  const tableSeats = getSeatsForTable(selectedTable.value)
-  const partners = allPartners.value // 所有已预订的伙伴
+  // 用户的要求是：桌子和座位的布局渲染是通过之前的 /api/v1/seats/map 这个接口获取的。
+  // useSeats.seats.value 已经包含了完整的座位布局和当前的可用性状态。
+  // 因此，我们应该直接从 useSeats.seats.value 中过滤出当前桌子的座位。
+  
+  // 1. 过滤出当前桌子的座位
+  const currentTableSeats = seats.value.filter(s => s.table === selectedTable.value)
 
-  // 创建座位 ID 到伙伴的映射，方便查找
-  const partnerMap = new Map(partners.map((p) => [p.seat, p]))
-
-  return tableSeats.map((seat) => {
-    const partner = partnerMap.get(seat.id) || null
-    return {
+  // 2. 映射为 FindPartnerModal 所需的结构
+  return currentTableSeats.map(seat => ({
+    seat: seat.id,
+    // 伙伴信息应该从 seat.occupiedBy 和 seat.bookingUserInfo 中提取
+    partner: seat.occupiedBy ? {
+      id: seat.backendSeatId, // 临时使用 backendSeatId 作为 id
+      name: seat.occupiedBy, // occupiedBy 存储的是 fullName
       seat: seat.id,
-      partner: partner,
-      // 状态基于是否有伙伴预订
-      status: partner ? 'occupied' : 'available',
-    }
-  })
+    } as Partner : null,
+    // 状态直接使用 seat.status
+    status: seat.status === 'available' ? 'available' : 'occupied',
+  }))
 })
 
 // 左侧座位

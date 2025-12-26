@@ -160,7 +160,7 @@ export function convertBackendMapToFrontendSeats(backendData: { areas: Area[] })
         position: seat.columnNum === 1 ? 'left' : 'right', // 假设 1 是 left, 2 是 right
         index: seat.rowNum || 0,
         status: status,
-        occupiedBy: seat.bookingUserInfo ? seat.bookingUserInfo.userName : '',
+        occupiedBy: seat.bookingUserInfo ? seat.bookingUserInfo.fullName : '',
         // 将渲染信息合并到 Seat 对象中，以便 SeatMap 组件使用
         ...renderInfo,
         // 原始后端 ID

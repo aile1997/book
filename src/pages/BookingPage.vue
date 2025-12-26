@@ -77,14 +77,14 @@ const adaptTimeSlots = (backendSlots: any[]) => {
   const nowTime = now.getHours() * 60 + now.getMinutes() // 当前时间（分钟）
 
   const backendTimeSlots = backendSlots.map((slot: any) => {
-    // 解析结束时间为分钟
-    const [endHour, endMinute] = slot.endTime.split(':').map(Number)
-    const endTimeInMinutes = endHour * 60 + endMinute
+    // 解析开始时间为分钟
+    const [startHour, startMinute] = slot.startTime.split(':').map(Number)
+    const startTimeInMinutes = startHour * 60 + startMinute
 
-    // 判断今天的时间段是否已过期
+    // 判断今天的时间段是否已过期 (超过开始时间即过期)
     const isExpiredToday =
       now.toISOString().split('T')[0] === today.toISOString().split('T')[0] &&
-      nowTime > endTimeInMinutes
+      nowTime >= startTimeInMinutes
 
     return {
       id: String(slot.id), // 确保是字符串

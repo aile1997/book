@@ -40,11 +40,26 @@ export function useBooking() {
     try {
       // 假设 API 返回一个包含 bookings 数组的对象
       const data = await getUserBookings();
-      if (data && data.bookings) {
-        bookings.value = data.bookings;
-      } else {
-        bookings.value = [];
-      }
+      const rawBookings = data.bookings || data || [];
+      
+      // 适配数据结构
+      const adaptedBookings = rawBookings.map((b: any) => ({
+        id: b.id,
+        bookingDate: b.bookingDate,
+        timeSlot: {
+          time: `${b.startTime.hour}:${String(b.startTime.minute).padStart(2, '0')} - ${b.endTime.hour}:${String(b.endTime.minute).padStart(2, '0')}`,
+        },
+        seat: {
+          seatNumber: b.seatNumber,
+        },
+        partners: b.partners.map((p: any) => ({
+          fullName: p.partnerName,
+          status: p.invitationStatus,
+        })),
+      }));
+
+      // 限制最多展示两条预订记录
+      bookings.value = adaptedBookings.slice(0, 2);
     } catch (err: any) {
       error.value = '加载预订列表失败: ' + (err.message || '未知错误');
       console.error(error.value, err);

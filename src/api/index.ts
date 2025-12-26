@@ -53,7 +53,7 @@ apiClient.interceptors.request.use(
 // 响应拦截器：处理全局错误，例如 401 未授权
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(response)
+    // console.log(response) // 移除不必要的日志
     // 正确处理响应数据，兼容不同格式
     if (response.data?.result !== undefined) {
       return response.data.result
@@ -66,19 +66,37 @@ apiClient.interceptors.response.use(
     }
     return response.data
   },
-  (error) => {
-    if (error.response) {
-      const status = error.response.status
-      if (status === 401) {
-        // Token 过期或无效，清除本地 Token 并重定向到登录页
+  async (error) => {
+    const originalRequest = error.config
+    // 检查是否是 401 错误且不是重试请求
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true // 标记为重试请求
+      
+      // 动态导入 useAuth 模块，避免循环依赖
+      const { silentLoginWithFeishu } = await import('../composables/useAuth')
+      
+      try {
+        // 尝试静默登录获取新 Token
+        await silentLoginWithFeishu()
+        
+        // 重新设置 Authorization header
+        const token = localStorage.getItem('authToken')
+        if (token) {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+        }
+        
+        // 使用新的 Token 重新发送请求
+        return apiClient(originalRequest)
+      } catch (e) {
+        // 静默登录失败，清除 Token 并抛出错误
         removeAuthToken()
-        // 实际应用中应进行路由跳转，这里仅清除 Token
-        console.error('认证失败，请重新登录。')
+        console.error('静默登录失败，请重新登录。')
+        return Promise.reject(error)
       }
-      // 抛出包含后端错误信息的 Promise
-      return Promise.reject(error.response.data || error.response)
     }
-    return Promise.reject(error)
+
+    // 抛出包含后端错误信息的 Promise
+    return Promise.reject(error.response?.data || error)
   },
 )
 

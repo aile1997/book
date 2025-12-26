@@ -37,28 +37,27 @@ async function fetchInvitations() {
     const response = await getUpcomingInvitations()
     // 假设后端返回的数据结构与 Invitation 接口兼容
     // 注意：这里需要根据实际 API 返回结构进行适配，但为了重构，我们假设 API 返回的是 Invitation[]
-    // 兼容 useInvitation.ts 中的数据转换逻辑，但使用 useInvitations.ts 的类型
+    // 适配新的 API 返回结构
+    // 后端返回: { id, inviterName, seatNumber, areaName, bookingDate, timeRange, invitationStatus }
     const rawData = response.data || response || []
-    
-    // 检查 rawData 是否包含 invitations 字段 (兼容 useInvitation.ts 的逻辑)
-    const invitations = rawData.invitations || rawData
+    const invitations = rawData.invitations || rawData // 假设 response.data.invitations 或 response 是数组
 
     upcomingInvitations.value = invitations.map((inv: any) => ({
-      id: inv.invitationId || inv.id,
+      id: inv.id,
       inviter: {
-        userId: inv.sender?.userId || inv.sender?.id || 0,
-        fullName: inv.sender?.fullName || inv.sender?.userName || inv.senderName || '未知发送者',
+        userId: inv.inviterUserId, // 使用 inviterUserId
+        fullName: inv.inviterName, // 使用 inviterName
       },
       seat: {
-        seatNumber: inv.booking?.seatNumber || inv.seatNumber || '未知座位',
-        areaName: inv.booking?.areaName || inv.areaName || '未知区域',
+        seatNumber: inv.seatNumber, // 使用 seatNumber
+        areaName: inv.areaName, // 使用 areaName
       },
-      bookingDate: inv.booking?.bookingDate || inv.bookingDate || '未知日期',
+      bookingDate: inv.bookingDate, // 使用 bookingDate
       timeSlot: {
-        id: inv.booking?.timeSlotId || inv.timeSlotId || 0,
-        time: inv.booking?.timeSlot || inv.timeSlot || '未知时间段',
+        id: 0, // 新 API 结构中没有 timeSlotId，使用默认值
+        time: inv.timeRange, // 使用 timeRange
       },
-      status: inv.status || 'PENDING',
+      status: inv.invitationStatus || 'PENDING', // 使用 invitationStatus
     }))
     
   } catch (error) {

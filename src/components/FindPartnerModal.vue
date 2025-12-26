@@ -126,21 +126,25 @@ const rightSeats = computed(() => {
 
 // 选择伙伴（从搜索）
 const selectPartnerFromSearch = (partner: Partner) => {
-  const selected = [...props.selectedPartners]
-  if (!selected.some((p) => p.id === partner.id)) {
-    selected.push(partner)
-    emit('update:selectedPartners', selected)
-  }
-  // 发送选中的伙伴用于在地图上高亮
+  // 修复问题2: 查找伙伴座位时，点击名称不应记录到邀请伙伴列表
+  // 查找伙伴座位的目的是在座位图上高亮显示该伙伴的位置
+  
   // 查找该伙伴预订的座位信息，以确保 partner.seat 字段存在
+  // 注意：这里的 partner.id 应该对应 bookingUserInfo.userId
   const seatInfo = seats.value.find(s => s.bookingUserInfo?.userId === partner.id)
+  
   if (seatInfo) {
+    // 修复问题1: 点击名称后，并未在座位上显示对应的 Tooltip
+    // 确保传递给父组件的 partner 对象包含 seat 字段 (前端座位号)
     emit('select-partner', { ...partner, seat: seatInfo.id })
   } else {
     // 如果没有找到座位信息，仍然发送 partner，但 seat 字段可能为空
     emit('select-partner', partner)
   }
+  
+  // 清空搜索框并关闭模态框
   searchQuery.value = ''
+  close() // 立即关闭模态框，因为点击的目的是查看位置，而不是邀请
 }
 
 // 切换到桌子视图

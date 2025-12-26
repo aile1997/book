@@ -46,6 +46,9 @@ const filteredPartners = computed(() => {
   const lowerQuery = searchQuery.value.toLowerCase()
 
   // 1. 从 seats.value 中提取已预订的伙伴信息
+  if (!seats.value || seats.value.length === 0) {
+    return []
+  }
   const occupiedPartners: Partner[] = seats.value
     .filter(s => s.occupiedBy && s.bookingUserInfo) // 筛选出已预订的座位
     .map(s => ({
@@ -76,6 +79,9 @@ const tableSeatMap = computed(() => {
   // 因此，我们应该直接从 useSeats.seats.value 中过滤出当前桌子的座位。
   
   // 1. 过滤出当前桌子的座位
+  if (!seats.value || seats.value.length === 0) {
+    return []
+  }
   const currentTableSeats = seats.value.filter(s => s.table === selectedTable.value)
 
   // 2. 映射为 FindPartnerModal 所需的结构
@@ -105,6 +111,10 @@ const rightSeats = computed(() => {
 })
 
 const currentTableSeats = computed(() => {
+  // 确保 seats.value 不为空，否则返回空数组
+  if (!seats.value || seats.value.length === 0) {
+    return []
+  }
   return seats.value.filter((s) => s.table === selectedTable.value)
 })
 

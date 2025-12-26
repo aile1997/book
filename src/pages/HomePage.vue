@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 import FeatureCard from '../components/FeatureCard.vue'
 
@@ -114,6 +114,11 @@ onMounted(async () => {
 
 // 组件卸载时停止轮询
 onUnmounted(() => {
+  stopPolling()
+})
+
+// 路由切换时停止轮询，避免与其他页面的请求冲突
+onBeforeRouteLeave(() => {
   stopPolling()
 })
 </script>

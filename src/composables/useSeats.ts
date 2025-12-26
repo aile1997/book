@@ -23,6 +23,9 @@ function createSeatsStore() {
 
   const isLoadingAvailability = ref(false) // 加载可用性状态
   const error = ref<string | null>(null)
+  
+  // 请求时间戳，用于防止旧请求覆盖新请求的结果
+  let lastAvailabilityRequestTime = 0
 
   /**
    * 从后端 API 加载座位平面图数据
@@ -118,6 +121,10 @@ function createSeatsStore() {
       return
     }
 
+    // 记录本次请求的时间戳
+    const requestTime = Date.now()
+    lastAvailabilityRequestTime = requestTime
+
     // 默认使用第一个区域的 ID
     const defaultAreaId = areas.value.length > 0 ? areas.value[0].id : undefined
     const targetAreaId = areaId ?? defaultAreaId
@@ -134,8 +141,15 @@ function createSeatsStore() {
         params.areaId = targetAreaId
       }
       
-      console.log('正在查询座位可用性，参数:', params)
+      console.log('正在查询座位可用性，参数:', params, '请求时间:', requestTime)
       const data = await getSeatAvailability(params)
+      
+      // 检查是否有更新的请求，如果有则丢弃当前结果
+      if (requestTime < lastAvailabilityRequestTime) {
+        console.log('检测到更新的请求，丢弃旧请求结果', { requestTime, lastAvailabilityRequestTime })
+        return
+      }
+      
       console.log('查询到的座位可用性数据:', data)
       
       // 使用数据适配器转换后端可用性数据
@@ -149,11 +163,19 @@ function createSeatsStore() {
         console.log('没有查询到座位可用性数据，已清空现有数据')
       }
     } catch (err: any) {
+      // 同样检查是否有更新的请求
+      if (requestTime < lastAvailabilityRequestTime) {
+        console.log('检测到更新的请求，忽略旧请求的错误')
+        return
+      }
       console.error('查询座位可用性失败:', err)
       // 出错时清空数据，防止旧数据影响
       seatAvailability.value = []
     } finally {
-      isLoadingAvailability.value = false
+      // 只有当前请求是最新的请求时才更新 loading 状态
+      if (requestTime === lastAvailabilityRequestTime) {
+        isLoadingAvailability.value = false
+      }
     }
   }
 

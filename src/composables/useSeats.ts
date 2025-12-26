@@ -173,57 +173,36 @@ function createSeatsStore() {
         const availability = availabilityMap.get(seat.backendSeatId)
         console.log(`Seat ${seat.id} availability:`, availability)
 
-        if (availability) {
-          // 状态同步
-          if (availability.isAvailable) {
-            return { ...seat, status: 'available', occupiedBy: '' }
-          } else {
-            // 如果不可用，检查是否被预订 (bookingUserInfo 存在)
-            if (availability.bookingUserInfo) {
-              // 确保 seat.status 不被 'selected' 状态覆盖
-              if (seat.status === 'selected') {
-                return { ...seat, occupiedBy: availability.bookingUserInfo.fullName || availability.bookingUserInfo.username || '已预订' }
-              } else {
-                return { 
-                  ...seat, 
-                  status: 'occupied', 
-                  occupiedBy: availability.bookingUserInfo.fullName || 
-                            availability.bookingUserInfo.username || 
-                            '已预订' 
-                }
-              }
-            } else {
-              // 如果不可用但没有预订信息，可能是被管理员锁定或其他原因
-              // 确保 seat.status 不被 'selected' 状态覆盖
-              if (seat.status === 'selected') {
-                return { ...seat, occupiedBy: '不可用' }
-              } else {
-                return { ...seat, status: 'occupied', occupiedBy: '不可用' }
-              }
-            }
-          }
-        } else {
-          // 如果没有可用性信息，保持原有状态但检查座位本身是否包含预订信息
-          // 这是为了处理后端在座位数据中直接包含预订信息的情况
-          // 例如，在 getSeatMap 的响应中可能已经包含了预订用户信息
-          if (seat.occupiedBy && seat.occupiedBy !== '') {
-            // 如果座位已经有占用者信息，确保状态为 occupied（除非是选中状态）
-            if (seat.status === 'selected') {
-              return seat // 保持原样
-            } else {
-              return { ...seat, status: 'occupied' }
-            }
-          } else {
-            // 如果没有可用性信息且没有预订信息，设置为可用
-            if (seat.status === 'selected') {
-              return seat // 保持原样
-            } else {
-              return { ...seat, status: 'available', occupiedBy: '' }
-            }
+        // 如果没有可用性信息，默认该座位为可用（除非它当前被选中）
+        if (!availability) {
+          return {
+            ...seat,
+            status: seat.status === 'selected' ? 'selected' : 'available',
+            occupiedBy: '',
           }
         }
+
+        // 如果座位可用
+        if (availability.isAvailable) {
+          // 如果当前座位是被选中的，保持选中状态，否则设为可用
+          return {
+            ...seat,
+            status: seat.status === 'selected' && seat.id === selectedSeat.value ? 'selected' : 'available',
+            occupiedBy: '',
+          }
+        }
+        
+        // 如果座位不可用（已被预订或锁定）
+        return {
+          ...seat,
+          status: 'occupied', // 直接设置为 'occupied'
+          occupiedBy: availability.bookingUserInfo?.fullName || 
+                      availability.bookingUserInfo?.username || 
+                      '已预订',
+        }
       })
-    }
+    },
+    { deep: true } // 添加深层监听，确保能检测到数组内对象的变化
   )
 
   // 根据桌子和位置获取座位

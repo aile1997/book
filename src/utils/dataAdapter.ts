@@ -183,7 +183,10 @@ export function convertBackendMapToFrontendSeats(backendData: { areas: Area[] })
  */
 export function convertBackendAvailabilityToFrontend(backendData: any): any[] {
   // 后端返回的是一个包含所有座位可用性信息的扁平数组
-  // 我们直接返回原始数据，因为 useSeats.ts 中的逻辑需要遍历这个扁平数组
-  // 确保数据结构中包含 seatId, isAvailable, bookingUserInfo 等关键字段
-  return backendData;
+  // 使用 map 创建新数组，确保 Vue 响应式系统能检测到变化
+  if (!Array.isArray(backendData)) {
+    return [];
+  }
+  // 每个元素都创建新对象，确保引用改变
+  return backendData.map(item => ({ ...item }));
 }

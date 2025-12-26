@@ -132,7 +132,14 @@ const selectPartnerFromSearch = (partner: Partner) => {
     emit('update:selectedPartners', selected)
   }
   // 发送选中的伙伴用于在地图上高亮
-  emit('select-partner', partner)
+  // 查找该伙伴预订的座位信息，以确保 partner.seat 字段存在
+  const seatInfo = seats.value.find(s => s.bookingUserInfo?.userId === partner.id)
+  if (seatInfo) {
+    emit('select-partner', { ...partner, seat: seatInfo.id })
+  } else {
+    // 如果没有找到座位信息，仍然发送 partner，但 seat 字段可能为空
+    emit('select-partner', partner)
+  }
   searchQuery.value = ''
 }
 

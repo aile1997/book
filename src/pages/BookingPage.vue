@@ -4,6 +4,7 @@ import { useBooking } from '../composables/useBooking' // 导入 useBooking
 import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 import { useRouter } from 'vue-router'
 import { useSeats } from '../composables/useSeats'
+import { useToast } from '../composables/useToast'
 import SeatMap from '../components/SeatMap.vue'
 import InvitePartnerModal from '../components/InvitePartnerModal.vue'
 import FindPartnerModal from '../components/FindPartnerModal.vue'
@@ -12,6 +13,7 @@ import SuccessModal from '../components/SuccessModal.vue'
 import type { TimeSlot, Partner } from '../types/booking'
 
 const router = useRouter()
+const { error: showError } = useToast()
 
 // 使用座位管理组合式函数
 const {
@@ -290,16 +292,21 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
 // 修改预订执行函数
 const bookNow = async () => {
   if (!isAuthenticated.value) {
-    alert('请先登录才能进行预订操作。')
-    // 实际应用中应跳转到登录页
+    showError('请先登录才能进行预订操作')
     return
   }
 
   const seat = seats.value.find((s) => s.id === selectedSeat.value)
-  if (!seat || !seat.backendSeatId) return alert('请先选择有效的座位')
+  if (!seat || !seat.backendSeatId) {
+    showError('请先选择有效的座位')
+    return
+  }
 
   const selectedTimeSlot = selectedDateTime.value
-  if (!selectedTimeSlot) return alert('请先选择预订时间段')
+  if (!selectedTimeSlot) {
+    showError('请先选择预订时间段')
+    return
+  }
 
   // 自动分配邻座给伙伴
   const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
@@ -347,7 +354,7 @@ const bookNow = async () => {
     clearSelection()
     invitedPartners.value = []
   } catch (error) {
-    alert('预订失败: ' + (bookingError.value || '请检查网络或登录状态'))
+    showError('预订失败: ' + (bookingError.value || '请检查网络或登录状态'))
     console.error('预订失败:', error)
   }
 }

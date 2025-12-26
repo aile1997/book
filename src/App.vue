@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useAuth } from './composables/useAuth'
+import ToastContainer from './components/ToastContainer.vue'
 
 const { isLoading, authError, signInWithFeishu, checkAuthStatus, user } = useAuth()
 
@@ -26,6 +27,7 @@ onMounted(async () => {
 
   <div id="app" v-else-if="!authError">
     <router-view />
+    <ToastContainer />
   </div>
 
   <div v-else class="p-10 text-center text-red-500">

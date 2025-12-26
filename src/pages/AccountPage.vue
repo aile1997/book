@@ -5,9 +5,11 @@ import RockBundLogo from '../components/RockBundLogo.vue'
 import { useAuth } from '../composables/useAuth'
 import { useBooking } from '../composables/useBooking'
 import { useInvitations } from '../composables/useInvitations'
+import { useToast } from '../composables/useToast'
 import type { Invitation } from '../composables/useInvitations'
 
 const router = useRouter()
+const { success, error: showError } = useToast()
 
 // --- 1. 数据层抽取 ---
 const { user, signOut } = useAuth()
@@ -100,9 +102,9 @@ const logout = () => {
 const handleAccept = async (invitation: Invitation) => {
   try {
     await accept(invitation.id)
-    alert('已接受邀请！')
+    success('已接受邀请！')
   } catch (error) {
-    alert('接受邀请失败，请重试。')
+    showError('接受邀请失败，请重试')
   }
 }
 
@@ -110,9 +112,9 @@ const handleAccept = async (invitation: Invitation) => {
 const handleDecline = async (invitation: Invitation) => {
   try {
     await decline(invitation.id)
-    alert('已拒绝邀请！')
+    success('已拒绝邀请！')
   } catch (error) {
-    alert('拒绝邀请失败，请重试。')
+    showError('拒绝邀请失败，请重试')
   }
 }
 
@@ -125,9 +127,9 @@ const handleCancelBooking = async () => {
   isCancelling.value = true
   try {
     await removeBooking(currentBooking.value.id)
-    alert('预订已成功取消！')
+    success('预订已成功取消！')
   } catch (error) {
-    alert('取消预订失败，请重试。')
+    showError('取消预订失败，请重试')
   } finally {
     isCancelling.value = false
   }

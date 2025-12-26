@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 import FeatureCard from '../components/FeatureCard.vue'
+import { useToast } from '../composables/useToast'
 
 import Photo from '@/assets/images/home/Photo.png'
 import Group54 from '@/assets/images/home/Group 54.svg'
@@ -15,6 +16,7 @@ import { useBooking } from '../composables/useBooking'
 import { useInvitations } from '../composables/useInvitations'
 
 const router = useRouter()
+const { info } = useToast()
 const { user } = useAuth()
 const { bookings, loadBookings } = useBooking()
 const { upcomingInvitations, startPolling, stopPolling } = useInvitations()
@@ -97,7 +99,7 @@ const handleCardClick = (card: FeatureCardData) => {
   if (card.enabled) {
     router.push(card.route)
   } else {
-    alert('Coming soon!')
+    info('Coming soon!')
   }
 }
 

@@ -64,10 +64,13 @@ const getWeekday = (date: Date) => {
   return weekdays[date.getDay()]
 }
 
-// 获取今天和明天的 Date 对象
-const today = new Date()
-const tomorrow = new Date()
-tomorrow.setDate(today.getDate() + 1)
+// 获取今天和明天的 Date 对象，使用计算属性确保始终是最新的
+const today = computed(() => new Date())
+const tomorrow = computed(() => {
+  const date = new Date()
+  date.setDate(date.getDate() + 1)
+  return date
+})
 
 const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
@@ -83,7 +86,7 @@ const adaptTimeSlots = (backendSlots: any[]) => {
 
     // 判断今天的时间段是否已过期 (超过开始时间即过期)
     const isExpiredToday =
-      now.toISOString().split('T')[0] === today.toISOString().split('T')[0] &&
+      now.toISOString().split('T')[0] === today.value.toISOString().split('T')[0] &&
       nowTime >= startTimeInMinutes
 
     return {
@@ -98,9 +101,9 @@ const adaptTimeSlots = (backendSlots: any[]) => {
   timeSlots.value = [
     {
       id: '1',
-      date: formatDate(today),
-      weekday: getWeekday(today),
-      dateISO: today.toISOString().split('T')[0],
+      date: formatDate(today.value),
+      weekday: getWeekday(today.value),
+      dateISO: today.value.toISOString().split('T')[0],
       times: backendTimeSlots.map((slot: any, index: number) => ({
         ...slot,
         selected: false, // 初始都不选中，稍后统一处理
@@ -109,9 +112,9 @@ const adaptTimeSlots = (backendSlots: any[]) => {
     },
     {
       id: '2',
-      date: formatDate(tomorrow),
-      weekday: getWeekday(tomorrow),
-      dateISO: tomorrow.toISOString().split('T')[0],
+      date: formatDate(tomorrow.value),
+      weekday: getWeekday(tomorrow.value),
+      dateISO: tomorrow.value.toISOString().split('T')[0],
       times: backendTimeSlots.map((slot: any) => ({
         ...slot,
         selected: false,

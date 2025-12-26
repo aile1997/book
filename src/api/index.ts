@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { parseApiError } from '../utils/errorHandler'
 
 // API 基础 URL，根据用户提供的 Swagger 文档地址
 const BASE_URL = ''
@@ -68,6 +69,11 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config
+    
+    // 添加用户友好的错误消息
+    const errorMessage = parseApiError(error)
+    error.userMessage = errorMessage
+    
     // 检查是否是 401 错误且不是重试请求
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true // 标记为重试请求

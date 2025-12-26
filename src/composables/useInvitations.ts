@@ -27,6 +27,7 @@ const POLLING_INTERVAL = 30000
 const upcomingInvitations = ref<Invitation[]>([])
 const isLoadingInvitations = ref(false)
 let pollingTimer: number | null = null
+let isPollingActive = false // 轮询是否激活
 
 /**
  * 获取未来邀请列表
@@ -71,22 +72,49 @@ async function fetchInvitations() {
  * 开始轮询邀请列表
  */
 function startPolling() {
+  if (isPollingActive) return // 防止重复启动
+  
+  isPollingActive = true
+  
   // 立即执行一次
   fetchInvitations()
 
   // 设置轮询
   if (pollingTimer === null) {
-    pollingTimer = setInterval(fetchInvitations, POLLING_INTERVAL) as unknown as number
+    pollingTimer = setInterval(() => {
+      // 只有在页面可见时才轮询
+      if (!document.hidden) {
+        fetchInvitations()
+      }
+    }, POLLING_INTERVAL) as unknown as number
   }
+  
+  // 监听页面可见性变化
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 }
 
 /**
  * 停止轮询
  */
 function stopPolling() {
+  isPollingActive = false
+  
   if (pollingTimer !== null) {
     clearInterval(pollingTimer)
     pollingTimer = null
+  }
+  
+  // 移除页面可见性监听
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+}
+
+/**
+ * 处理页面可见性变化
+ */
+function handleVisibilityChange() {
+  if (!document.hidden && isPollingActive) {
+    // 页面变为可见时，立即刷新一次数据
+    fetchInvitations()
   }
 }
 

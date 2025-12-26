@@ -6,8 +6,10 @@ import {
   convertBackendAvailabilityToFrontend,
 } from '../utils/dataAdapter' // 导入数据适配器
 
-// 座位管理组合式函数
-export function useSeats() {
+// 座位管理组合式函数 - 实现单例模式
+let seatsInstance: ReturnType<typeof createSeatsStore> | null = null
+
+function createSeatsStore() {
   // 所有座位数据 - 动态数据层
   const seats = ref<Seat[]>([])
   const areas = ref<any[]>([]) // 区域列表
@@ -163,7 +165,7 @@ export function useSeats() {
           // 如果不可用，检查是否被预订 (bookingUserInfo 存在)
           if (availability.bookingUserInfo) {
             seat.status = 'occupied'
-            // 使用 fullName 或 userName，这里使用 userName
+            // 使用 fullName 或 userName，这里使用 UserName
             seat.occupiedBy =
               availability.bookingUserInfo.fullName ||
               availability.bookingUserInfo.username ||
@@ -274,4 +276,12 @@ export function useSeats() {
     clearSelection,
     getSeatColor,
   }
+}
+
+// 座位管理组合式函数
+export function useSeats() {
+  if (!seatsInstance) {
+    seatsInstance = createSeatsStore()
+  }
+  return seatsInstance
 }

@@ -52,11 +52,13 @@ function createSeatsStore() {
         // 为了简化，这里不再保留冗长的默认数据，而是清空，依赖用户初始化
         seats.value = []
       }
+      return data // 返回数据以便缓存
     } catch (err: any) {
       error.value = '加载座位图失败: ' + (err.message || '未知错误')
       console.error(error.value, err)
       // 失败时清空数据
       seats.value = []
+      return null
     } finally {
       isLoading.value = false
     }
@@ -70,9 +72,11 @@ function createSeatsStore() {
     try {
       const data = await getAreas()
       areas.value = data || []
+      return data // 返回数据以便缓存
     } catch (err: any) {
       error.value = '加载区域列表失败: ' + (err.message || '未知错误')
       console.error(error.value, err)
+      return []
     } finally {
       isLoadingAreas.value = false
     }

@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useAuth } from './composables/useAuth'
 import ToastContainer from './components/ToastContainer.vue'
+import LoadingScreen from './components/LoadingScreen.vue'
 
 const { isLoading, authError, signInWithFeishu, checkAuthStatus, user } = useAuth()
 
@@ -21,9 +22,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="isLoading" class="flex items-center justify-center h-screen">
-    <div class="text-gray-500">正在进入飞书办公系统...</div>
-  </div>
+  <LoadingScreen v-if="isLoading" />
 
   <div id="app" v-else-if="!authError">
     <router-view />

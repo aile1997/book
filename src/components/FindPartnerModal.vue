@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useSeats } from '../composables/useSeats'
 import { usePartners } from '../composables/usePartners'
+import { debounce } from '../utils/debounce'
 import type { Partner } from '../types/booking'
 
 interface Props {
@@ -46,13 +47,36 @@ const selectedTable = ref<'A' | 'B' | 'C'>('A')
 
 // 搜索关键词
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('') // 防抖后的搜索关键词
+const isSearching = ref(false) // 搜索加载状态
+
+// 为搜索添加防抖（300ms）
+const updateSearch = debounce((value: string) => {
+  isSearching.value = true
+  // 模拟搜索延迟，给用户明确的加载反馈
+  setTimeout(() => {
+    debouncedSearchQuery.value = value
+    isSearching.value = false
+  }, 100)
+}, 300)
+
+// 监听 searchQuery 变化，触发防抖更新
+watch(searchQuery, (newValue) => {
+  if (newValue) {
+    updateSearch(newValue)
+  } else {
+    // 如果搜索框为空，立即清空结果
+    debouncedSearchQuery.value = ''
+    isSearching.value = false
+  }
+})
 
 // ========== 计算属性 ==========
 
 // 过滤后的伙伴列表（基于搜索）
 const filteredPartners = computed(() => {
-  if (!searchQuery.value) return []
-  const lowerQuery = searchQuery.value.toLowerCase()
+  if (!debouncedSearchQuery.value) return []
+  const lowerQuery = debouncedSearchQuery.value.toLowerCase()
 
   // 1. 从 seats.value 中提取已预订的伙伴信息
   if (!seats.value || seats.value.length === 0) {
@@ -241,8 +265,13 @@ watch(
               />
             </div>
 
+            <!-- 搜索加载状态 -->
+            <div v-if="isSearching" class="bg-white rounded-lg p-4 text-center">
+              <div class="text-gray-500 text-sm">搜索中...</div>
+            </div>
+
             <!-- 搜索结果列表 -->
-            <div v-if="filteredPartners.length > 0" class="bg-white rounded-lg overflow-hidden">
+            <div v-else-if="filteredPartners.length > 0" class="bg-white rounded-lg overflow-hidden">
               <button
                 v-for="partner in filteredPartners"
                 :key="partner.id"

@@ -103,6 +103,8 @@ const handleAccept = async (invitation: Invitation) => {
   try {
     await accept(invitation.id)
     success('已接受邀请！')
+    // 刷新预订列表
+    await loadBookings()
   } catch (error) {
     showError('接受邀请失败，请重试')
   }
@@ -113,6 +115,7 @@ const handleDecline = async (invitation: Invitation) => {
   try {
     await decline(invitation.id)
     success('已拒绝邀请！')
+    // 不需要刷新预订列表
   } catch (error) {
     showError('拒绝邀请失败，请重试')
   }
@@ -139,9 +142,16 @@ const handleCancelBooking = async () => {
 const confirmInvitation = (invitation: Invitation) => handleAccept(invitation)
 const rejectInvitation = (invitation: Invitation) => handleDecline(invitation)
 
-// 获取第一个待处理的邀请（用于旧的 UI 模板）
-const firstPendingInvitation = computed(() => {
-  return upcomingInvitations.value.find(inv => inv.status === 'PENDING')
+// 获取待处理的邀请（最多2个）
+const pendingInvitations = computed(() => {
+  return upcomingInvitations.value
+    .filter(inv => inv.status === 'PENDING')
+    .slice(0, 2) // 最多显示2个
+})
+
+// 获取有效的预订（最多2个）
+const validBookings = computed(() => {
+  return bookings.value.slice(0, 2) // 最多显示2个
 })
 
 </script>
@@ -174,9 +184,10 @@ const firstPendingInvitation = computed(() => {
         <h1 class="text-[32px] font-semibold leading-none">{{ user?.fullName || user?.username || 'User' }}</h1>
       </div>
 
-      <!-- 伙伴邀请列表 (兼容旧的单个邀请 UI) -->
+      <!-- 伙伴邀请列表（最多2个） -->
       <div
-        v-if="firstPendingInvitation"
+        v-for="invitation in pendingInvitations"
+        :key="invitation.id"
         class="bg-white rounded-[10px] shadow-card p-5 mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
       >
         <h2 class="text-base font-semibold text-gray-dark mb-4">New Invitation</h2>
@@ -186,34 +197,34 @@ const firstPendingInvitation = computed(() => {
             <div class="flex-1 space-y-2">
               <div class="flex items-center gap-2 text-xs text-gray-400">
                 <span>Date</span
-                ><span class="text-sm font-medium text-gray-dark">{{ firstPendingInvitation.bookingDate }}</span>
+                ><span class="text-sm font-medium text-gray-dark">{{ invitation.bookingDate }}</span>
               </div>
               <div class="flex items-center gap-2 text-xs text-gray-400">
                 <span>Time</span
-                ><span class="text-sm font-medium text-gray-dark">{{ firstPendingInvitation.timeSlot.time }}</span>
+                ><span class="text-sm font-medium text-gray-dark">{{ invitation.timeSlot.time }}</span>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs text-gray-400">Seat</span>
                 <span class="text-2xl font-bold text-gray-dark leading-none">{{
-                  firstPendingInvitation.seat.seatNumber
+                  invitation.seat.seatNumber
                 }}</span>
               </div>
               <div class="flex items-center gap-2 text-xs text-gray-400 pt-1">
                 <span>with</span
-                ><span class="text-sm font-medium text-gray-dark">{{ firstPendingInvitation.inviter.fullName }}</span>
+                ><span class="text-sm font-medium text-gray-dark">{{ invitation.inviter.fullName }}</span>
               </div>
             </div>
           </div>
         </div>
         <div class="flex gap-2">
           <button
-            @click="rejectInvitation(firstPendingInvitation)"
+            @click="rejectInvitation(invitation)"
             class="flex-1 py-2.5 rounded-lg border border-gray-100 text-sm font-medium text-gray-600"
           >
             Reject
           </button>
           <button
-            @click="confirmInvitation(firstPendingInvitation)"
+            @click="confirmInvitation(invitation)"
             class="flex-1 py-2.5 rounded-lg bg-success text-sm font-medium text-white shadow-sm"
           >
             Confirm
@@ -221,8 +232,12 @@ const firstPendingInvitation = computed(() => {
         </div>
       </div>
 
-      <!-- 当前预订 -->
-      <div v-if="currentBooking" class="bg-white rounded-[10px] shadow-card p-5 mb-4">
+      <!-- 我的预订（最多2个） -->
+      <div
+        v-for="booking in validBookings"
+        :key="booking.id"
+        class="bg-white rounded-[10px] shadow-card p-5 mb-4"
+      >
         <h2 class="text-base font-semibold text-gray-dark mb-4">My Bookings</h2>
         <div class="flex items-start gap-3 mb-5">
           <div class="w-4 h-4 rounded-full bg-success mt-1 flex items-center justify-center">
@@ -233,30 +248,32 @@ const firstPendingInvitation = computed(() => {
           <div class="flex-1 space-y-2">
             <div class="flex items-center gap-2 text-xs text-gray-400">
               <span>Date</span
-              ><span class="text-sm font-medium text-gray-dark">{{ currentBooking.date }}</span>
+              ><span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
             </div>
             <div class="flex items-center gap-2 text-xs text-gray-400">
               <span>Time</span
-              ><span class="text-sm font-medium text-gray-dark">{{ currentBooking.time }}</span>
+              ><span class="text-sm font-medium text-gray-dark">{{ booking.timeSlot.time }}</span>
             </div>
             <div class="flex items-center gap-3">
               <span class="text-xs text-gray-400">Seat</span>
               <span class="text-2xl font-bold text-gray-dark leading-none">{{
-                currentBooking.seat
+                booking.seat.seatNumber
               }}</span>
             </div>
-            <div class="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-1">
+            <div v-if="booking.partners && booking.partners.length > 0" class="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-1">
               <span>with</span>
-              <template v-for="(p, i) in currentBooking.partners" :key="i">
-                <span class="text-sm font-medium text-gray-dark">{{ p.name }}</span>
-                <span v-if="p.status === 'Pending'" class="text-xs text-gray-300">(Pending)</span>
+              <template v-for="(p, i) in booking.partners" :key="i">
+                <span class="text-sm font-medium text-gray-dark">{{ p.fullName }}</span>
+                <span v-if="p.bookingStatus === 'PENDING'" class="text-xs text-gray-300">(Pending)</span>
+                <span v-else-if="p.bookingStatus === 'ACCEPTED'" class="text-xs text-success">(Accepted)</span>
+                <span v-else-if="p.bookingStatus === 'DECLINED'" class="text-xs text-red-500">(Declined)</span>
               </template>
             </div>
           </div>
         </div>
         <div class="flex justify-end">
           <button
-            @click="handleCancelBooking"
+            @click="() => removeBooking(booking.id)"
             :disabled="isCancelling"
             class="px-6 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-500"
           >

@@ -22,21 +22,30 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* 滚动条样式 */
+  /* 滚动条样式（细且优美） */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-gray-lighter rounded-lg;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray rounded-lg;
-    &:hover {
-      @apply bg-gray-dark;
-    }
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 10px;
+    transition: background 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  /* Firefox 滚动条样式 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
   }
 }
 

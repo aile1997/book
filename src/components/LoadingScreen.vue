@@ -6,9 +6,7 @@ import RockBundLogo from './RockBundLogo.vue'
   <div class="fixed inset-0 bg-white flex items-center justify-center overflow-hidden">
     <div
       class="absolute inset-0 opacity-30"
-      style="
-        background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 50%, #f5f5f5 100%);
-      "
+      style="background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 50%, #f5f5f5 100%)"
     />
 
     <div class="relative z-10 flex flex-col items-center justify-center gap-12">

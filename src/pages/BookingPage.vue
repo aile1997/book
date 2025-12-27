@@ -5,6 +5,7 @@ import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录�
 import { useRouter } from 'vue-router'
 import { useSeats } from '../composables/useSeats'
 import { useToast } from '../composables/useToast'
+import { cache, CacheKeys, CacheTTL } from '../utils/cache'
 import SeatMap from '../components/SeatMap.vue'
 import InvitePartnerModal from '../components/InvitePartnerModal.vue'
 import FindPartnerModal from '../components/FindPartnerModal.vue'
@@ -137,10 +138,12 @@ onMounted(async () => {
   // 0. 清除上一次的选择状态，确保数据状态一致性
   clearSelection()
 
-  // 1. 确保 loadAreas 和 loadSeatMap 只在 seats.value 为空时加载一次
+  // 1. 使用缓存加载区域和座位数据（缓存 30 分钟）
   if (seats.value.length === 0) {
-    await loadAreas()
-    await loadSeatMap()
+    await Promise.all([
+      cache.getOrFetch(CacheKeys.SEAT_AREAS, () => loadAreas(), CacheTTL.LONG),
+      cache.getOrFetch(CacheKeys.SEAT_MAP(), () => loadSeatMap(), CacheTTL.LONG),
+    ])
   }
 
   // 2. 加载时间段数据

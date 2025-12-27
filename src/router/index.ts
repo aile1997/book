@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { nextTick } from 'vue'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 import '../assets/styles/nprogress-custom.css'
@@ -61,8 +62,13 @@ router.beforeEach((to, from, next) => {
 
 // 路由全局后置守卫
 router.afterEach(() => {
-  // 完成加载条
-  NProgress.done()
+  // 等待 DOM 渲染完成后才完成加载条
+  nextTick(() => {
+    // 稍微延迟一下，确保页面数据加载完成
+    setTimeout(() => {
+      NProgress.done()
+    }, 300)
+  })
 })
 
 export default router

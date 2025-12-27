@@ -23,7 +23,7 @@ function createSeatsStore() {
 
   const isLoadingAvailability = ref(false) // 加载可用性状态
   const error = ref<string | null>(null)
-  
+
   // 请求时间戳，用于防止旧请求覆盖新请求的结果
   let lastAvailabilityRequestTime = 0
 
@@ -140,23 +140,27 @@ function createSeatsStore() {
       if (targetAreaId) {
         params.areaId = targetAreaId
       }
-      
+
       console.log('正在查询座位可用性，参数:', params, '请求时间:', requestTime)
       const data = await getSeatAvailability(params)
-      
+
       // 检查是否有更新的请求，如果有则丢弃当前结果
       if (requestTime < lastAvailabilityRequestTime) {
-        console.log('检测到更新的请求，丢弃旧请求结果', { requestTime, lastAvailabilityRequestTime })
+        console.log('检测到更新的请求，丢弃旧请求结果', {
+          requestTime,
+          lastAvailabilityRequestTime,
+        })
         return
       }
-      
+
       console.log('查询到的座位可用性数据:', data)
-      
+
       // 使用数据适配器转换后端可用性数据
       if (data && Array.isArray(data)) {
         // 确保每次都更新seatAvailability，即使数据相同
         seatAvailability.value = [...convertBackendAvailabilityToFrontend(data)]
         console.log('转换后的座位可用性数据:', seatAvailability.value)
+        seatAvailabilityChange(seatAvailability.value)
       } else {
         // 如果没有数据，清空现有的可用性数据
         seatAvailability.value = []
@@ -182,50 +186,47 @@ function createSeatsStore() {
   // 当前选中的座位
   const selectedSeat = ref<string | null>(null)
 
-  // 监听 seatAvailability 变化，更新 seats 状态
-  watch(
-    seatAvailability, 
-    (newAvailability) => {
-      // 创建一个 Map，方便查找
-      const availabilityMap = new Map(newAvailability.map((item: any) => [item.seatId, item]))
-      console.log('Availability data:', newAvailability)
-      
-      // 通过创建新数组来触发响应式更新
-      seats.value = seats.value.map(seat => {
-        const availability = availabilityMap.get(seat.backendSeatId)
-        console.log(`Seat ${seat.id} availability:`, availability)
+  const seatAvailabilityChange = (newAvailability) => {
+    // 创建一个 Map，方便查找
+    const availabilityMap = new Map(newAvailability.map((item: any) => [item.seatId, item]))
+    console.log('Availability data:', newAvailability)
 
-        // 如果没有可用性信息，默认该座位为可用（除非它当前被选中）
-        if (!availability) {
-          return {
-            ...seat,
-            status: seat.status === 'selected' ? 'selected' : 'available',
-            occupiedBy: '',
-          }
-        }
+    // 通过创建新数组来触发响应式更新
+    seats.value = seats.value.map((seat) => {
+      const availability = availabilityMap.get(seat.backendSeatId)
+      console.log(`Seat ${seat.id} availability:`, availability)
 
-        // 如果座位可用
-        if (availability.isAvailable) {
-          // 如果当前座位是被选中的，保持选中状态，否则设为可用
-          return {
-            ...seat,
-            status: seat.status === 'selected' && seat.id === selectedSeat.value ? 'selected' : 'available',
-            occupiedBy: '',
-          }
-        }
-        
-        // 如果座位不可用（已被预订或锁定）
+      // 如果没有可用性信息，默认该座位为可用（除非它当前被选中）
+      if (!availability) {
         return {
           ...seat,
-          status: 'occupied', // 直接设置为 'occupied'
-          occupiedBy: availability.bookingUserInfo?.fullName || 
-                      availability.bookingUserInfo?.username || 
-                      '已预订',
+          status: seat.status === 'selected' ? 'selected' : 'available',
+          occupiedBy: '',
         }
-      })
-    },
-    { deep: true } // 添加深层监听，确保能检测到数组内对象的变化
-  )
+      }
+
+      // 如果座位可用
+      if (availability.isAvailable) {
+        // 如果当前座位是被选中的，保持选中状态，否则设为可用
+        return {
+          ...seat,
+          status:
+            seat.status === 'selected' && seat.id === selectedSeat.value ? 'selected' : 'available',
+          occupiedBy: '',
+        }
+      }
+
+      // 如果座位不可用（已被预订或锁定）
+      return {
+        ...seat,
+        status: 'occupied', // 直接设置为 'occupied'
+        occupiedBy:
+          availability.bookingUserInfo?.fullName ||
+          availability.bookingUserInfo?.username ||
+          '已预订',
+      }
+    })
+  }
 
   // 根据桌子和位置获取座位
   const getSeatsByTable = (table: 'A' | 'B' | 'C', position: 'left' | 'right') => {

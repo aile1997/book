@@ -69,11 +69,11 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config
-    
+
     // 添加用户友好的错误消息
     const errorMessage = parseApiError(error)
     error.userMessage = errorMessage
-    
+
     // 检查是否是 401 错误且不是重试请求
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true // 标记为重试请求
@@ -111,7 +111,7 @@ export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      return resolve('aLRkBd2xcFedAEwaGz482Kx2GccxfwB1')
+      return resolve('dIVhC2dCbLa7ADIfGG0KbBFLIe7efc6z')
     }
 
     // 飞书环境：正常获取 code

@@ -60,7 +60,6 @@ async function fetchInvitations() {
       },
       status: inv.invitationStatus || 'PENDING', // 使用 invitationStatus
     }))
-    
   } catch (error) {
     console.error('获取邀请列表失败:', error)
   } finally {
@@ -73,9 +72,9 @@ async function fetchInvitations() {
  */
 function startPolling() {
   if (isPollingActive) return // 防止重复启动
-  
+
   isPollingActive = true
-  
+
   // 立即执行一次
   fetchInvitations()
 
@@ -88,7 +87,7 @@ function startPolling() {
       }
     }, POLLING_INTERVAL) as unknown as number
   }
-  
+
   // 监听页面可见性变化
   document.addEventListener('visibilitychange', handleVisibilityChange)
 }
@@ -98,12 +97,12 @@ function startPolling() {
  */
 function stopPolling() {
   isPollingActive = false
-  
+
   if (pollingTimer !== null) {
     clearInterval(pollingTimer)
     pollingTimer = null
   }
-  
+
   // 移除页面可见性监听
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 }

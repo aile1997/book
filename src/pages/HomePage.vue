@@ -108,6 +108,11 @@ const navigateToAccount = () => {
   router.push('/account')
 }
 
+// 导航到展示页面
+const navigateToPresentation = () => {
+  router.push('/presentation')
+}
+
 // 组件加载时获取预订和邀请数据
 onMounted(async () => {
   await loadBookings()
@@ -140,7 +145,15 @@ onBeforeRouteLeave(() => {
     <div class="relative z-10 min-h-screen flex flex-col">
       <!-- 顶部导航 -->
       <div class="flex items-start justify-between px-[33px] pt-[65px] mb-[90px]">
-        <RockBundLogo color="#292929" />
+        <div class="flex items-center gap-3">
+          <RockBundLogo color="#292929" />
+          <button
+            @click="navigateToPresentation"
+            class="px-3 py-1.5 bg-success/10 text-success text-xs font-medium rounded-lg border border-success/20 hover:bg-success/20 transition-all"
+          >
+            🎯 项目展示
+          </button>
+        </div>
 
         <button
           @click="navigateToAccount"

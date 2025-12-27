@@ -64,12 +64,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <LoadingScreen v-if="isLoading" />
-
-  <!-- 预加载状态 -->
-  <div v-else-if="isPreloading" class="flex items-center justify-center h-screen">
-    <div class="text-gray-500">加载中...</div>
-  </div>
+  <!-- 登录和预加载状态共用LoadingScreen -->
+  <LoadingScreen v-if="isLoading || isPreloading" />
 
   <!-- 主应用 -->
   <div id="app" v-else-if="!authError">

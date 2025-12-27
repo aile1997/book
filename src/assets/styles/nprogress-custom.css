@@ -1,0 +1,26 @@
+/* NProgress 自定义样式 - 匹配产品 UI */
+
+/* 进度条 */
+#nprogress .bar {
+  background: #50C878 !important; /* 使用产品的 success 颜色 */
+  height: 3px !important; /* 更细的进度条 */
+}
+
+/* 进度条发光效果 */
+#nprogress .peg {
+  box-shadow: 0 0 10px #50C878, 0 0 5px #50C878 !important;
+}
+
+/* 确保进度条在最顶层 */
+#nprogress {
+  pointer-events: none;
+  z-index: 9999 !important;
+}
+
+#nprogress .bar {
+  position: fixed;
+  z-index: 9999 !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+}

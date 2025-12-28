@@ -51,6 +51,26 @@ apiClient.interceptors.request.use(
   },
 )
 
+// 全局401重登录锁，防止多个401同时触发重登录
+let isRefreshing = false
+let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void; config: any }> = []
+
+const processQueue = (error: any = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      // 重新发送请求
+      const token = localStorage.getItem('authToken')
+      if (token) {
+        prom.config.headers.Authorization = `Bearer ${token}`
+      }
+      apiClient(prom.config).then(prom.resolve).catch(prom.reject)
+    }
+  })
+  failedQueue = []
+}
+
 // 响应拦截器：处理全局错误，例如 401 未授权
 apiClient.interceptors.response.use(
   (response) => {
@@ -73,10 +93,18 @@ apiClient.interceptors.response.use(
     // 添加用户友好的错误消息
     const errorMessage = parseApiError(error)
     error.userMessage = errorMessage
-    // 检查是否是 401 错误且不是重试请求
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      // window.location.reload()
-      originalRequest._retry = true // 标记为重试请求
+    
+    // 检查是否是 401 错误
+    if (error.response && error.response.status === 401) {
+      // 如果已经在重登录，将当前请求加入队列
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject, config: originalRequest })
+        })
+      }
+
+      // 标记为正在重登录
+      isRefreshing = true
 
       // 动态导入 useAuth 模块，避免循环依赖
       const { silentLoginWithFeishu } = await import('../composables/useAuth')
@@ -85,16 +113,22 @@ apiClient.interceptors.response.use(
         // 尝试静默登录获取新 Token
         await silentLoginWithFeishu()
 
+        // 重登录成功，处理队列中的请求
+        processQueue()
+        isRefreshing = false
+
         // 重新设置 Authorization header
         const token = localStorage.getItem('authToken')
         if (token) {
           originalRequest.headers.Authorization = `Bearer ${token}`
         }
 
-        // 使用新的 Token 重新发送请求
+        // 使用新的 Token 重新发送当前请求
         return apiClient(originalRequest)
       } catch (e) {
-        // 静默登录失败，清除 Token 并抛出错误
+        // 静默登录失败，处理队列中的请求
+        processQueue(e)
+        isRefreshing = false
         removeAuthToken()
         console.error('静默登录失败，请重新登录。')
         return Promise.reject(error)

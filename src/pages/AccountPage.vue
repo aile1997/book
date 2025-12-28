@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import NProgress from 'nprogress'
-import { ref, computed, onMounted, onBeforeMount } from 'vue'
+import { ref, computed, onMounted, onBeforeMount, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 import { useAuth } from '../composables/useAuth'
@@ -149,6 +149,8 @@ const handleCancelBooking = async (bookingId: number) => {
   try {
     await removeBooking(bookingId)
     success('预订已成功取消！')
+    // 刷新积分
+    await loadUserCredits()
   } catch (error) {
     showError('取消预订失败，请重试')
   } finally {

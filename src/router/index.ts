@@ -27,13 +27,13 @@ const router = createRouter({
     {
       path: '/booking',
       name: 'booking',
-      meta: { manualNProgress: false },
+      meta: { manualNProgress: true },
       component: BookingPage,
     },
     {
       path: '/account',
       name: 'account',
-      meta: { manualNProgress: false },
+      meta: { manualNProgress: true },
       component: AccountPage,
     },
     {
@@ -57,10 +57,8 @@ const router = createRouter({
 // 路由全局前置守卫
 router.beforeEach((to, from, next) => {
   // 开始加载条
-  if (!to.meta.manualNProgress) {
-    NProgress.start()
-    next()
-  }
+  NProgress.start()
+  next()
 })
 
 // 路由全局后置守卫

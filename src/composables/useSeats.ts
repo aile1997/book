@@ -72,18 +72,26 @@ function createSeatsStore() {
     const cacheKey = CacheKeys.SEAT_MAP()
     const cached = cache.get(cacheKey)
 
-    // 如果缓存存在，直接更新响应式数据
-    if (cached && typeof cached === 'object' && 'areas' in cached) {
+    // 如枟缓存存在且有效，直接更新响应式数据
+    if (cached && typeof cached === 'object' && 'areas' in cached && Array.isArray(cached.areas) && cached.areas.length > 0) {
+      console.log('使用缓存的座位图数据')
       seats.value = convertBackendMapToFrontendSeats(cached as { areas: any[] })
       return cached
-    } else {
-      // 如果缓存不存在，从API加载并缓存
-      const data = await loadSeatMap()
-      if (data) {
-        cache.set(cacheKey, data, CacheTTL.LONG)
-      }
+    }
+    
+    // 缓存不存在或无效，从API加载
+    console.log('从API加载座位图数据')
+    const data = await loadSeatMap()
+    
+    // 只有当数据有效时才缓存
+    if (data && typeof data === 'object' && 'areas' in data && Array.isArray(data.areas) && data.areas.length > 0) {
+      cache.set(cacheKey, data, CacheTTL.LONG)
       return data
     }
+    
+    // 数据无效，返回null但不缓存
+    console.warn('加载的座位图数据无效，不进行缓存')
+    return null
   }
 
   /**
@@ -111,23 +119,27 @@ function createSeatsStore() {
     const cacheKey = CacheKeys.SEAT_AREAS
     const cached = cache.get(cacheKey)
 
+    // 如枟缓存存在且有效，直接更新响应式数据
     if (cached && Array.isArray(cached) && cached.length > 0) {
-      // 如果缓存存在，直接更新响应式数据
-      areas.value = Array.isArray(cached) ? cached : []
+      console.log('使用缓存的区域数据')
+      areas.value = cached
       return cached
-    } else {
-      // 如果缓存不存在，从API加载并缓存
-      const data = await loadAreas()
+    }
+    
+    // 缓存不存在或无效，从API加载
+    console.log('从API加载区域数据')
+    const data = await loadAreas()
+    
+    // 只有当数据有效时才缓存
+    if (data && Array.isArray(data) && data.length > 0) {
       cache.set(cacheKey, data, CacheTTL.LONG)
       return data
     }
-  }
-
-  /**
-   * 加载时间段列表
-   */
-  async function loadTimeSlots() {
-    isLoadingTimeSlots.value = true
+    
+    // 数据无效，返回空数组但不缓存
+    console.warn('加载的区域数据无效，不进行缓存')
+    return []
+  }adingTimeSlots.value = true
     try {
       const response = await getTimeSlots()
       // 使用用户指定的获取数据逻辑

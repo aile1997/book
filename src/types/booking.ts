@@ -45,7 +45,7 @@ export interface Partner {
   username: string
   fullName: string
   email: string
-  unionId?: string
+  openId?: string
   seat?: string
   name?: string
 }
@@ -80,21 +80,34 @@ export interface BackendSeat {
   description: string | null
 }
 
-// 预订接口
-export interface Booking {
-  id: string
-  selectedSeat: string | null
-  selectedDate: string | null
-  selectedTime: string | null
-  invitedPartners: string[]
-  coinCost: number
+export interface Partner {
+  id: number
+  bookingId: number
+  partnerUserId: number
+  inviterUserId: number
+  partnerName: string // 对应后端返回的 partnerName
+  invitationStatus: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null // 对应后端逻辑
+  invitedAt: string
+  respondedAt: string | null
 }
 
-// 预订数据接口
-export interface BookingData {
-  selectedSeat: string | null
-  selectedDate: string | null
-  selectedTime: string | null
-  invitedPartners: string[]
-  coinCost: number
+export interface Booking {
+  id: number // 后端返回的是 number
+  userId: number
+  seatId: number
+  seatNumber: string
+  areaName: string
+  bookingDate: string
+  timeSlotId: number
+  timeSlotName: string
+  startTime: string
+  endTime: string
+  status: string | null
+  creditsUsed: number // 对应后端的 creditsUsed
+  checkInTime: string | null
+  checkOutTime: string | null
+  cancellationReason: string | null
+  createdAt: string
+  updatedAt: string
+  partners: Partner[] // 嵌套的伙伴数组
 }

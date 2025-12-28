@@ -73,9 +73,9 @@ apiClient.interceptors.response.use(
     // 添加用户友好的错误消息
     const errorMessage = parseApiError(error)
     error.userMessage = errorMessage
-
     // 检查是否是 401 错误且不是重试请求
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      // window.location.reload()
       originalRequest._retry = true // 标记为重试请求
 
       // 动态导入 useAuth 模块，避免循环依赖
@@ -111,7 +111,7 @@ export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      return resolve('dIVhC2dCbLa7ADIfGG0KbBFLIe7efc6z')
+      return resolve('2IOnH07y9FdF4bdd9deDxe9Kcab6c827')
     }
 
     // 飞书环境：正常获取 code
@@ -277,7 +277,7 @@ export async function createBooking(bookingData: {
   timeSlotId: number
   invitePartners?: {
     userId: string
-    unionId: string
+    openId: string
     username: string
     seatId: number
   }[]
@@ -295,10 +295,10 @@ export async function getUserBookings(): Promise<any> {
 
 /**
  * 取消预订
- * @param {string} bookingId - 预订 ID
+ * @param {number} bookingId - 预订 ID
  * @returns {Promise<object>} 取消成功的响应
  */
-export async function cancelBooking(bookingId: string): Promise<any> {
+export async function cancelBooking(bookingId: number): Promise<any> {
   return apiClient.delete(`/api/v1/bookings/${bookingId}`)
 }
 

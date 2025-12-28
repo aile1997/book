@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Seat } from '../types/booking'
 import { useSeatConfig } from '../composables/useSeatConfig'
 
@@ -45,10 +45,9 @@ const getAdjustedCheckmarkPath = (
   tableId: string,
 ) => {
   const { cx, cy } = calculateCheckmarkPosition(config, index)
-
   // 计算“向内靠”的偏移量
   // 标准座位偏移 1.5，C区异形座位偏移量加大（约 3.5）以适应其形状
-  const innerOffset = tableId === 'C' ? 17 : -3
+  const innerOffset = tableId === 'C' ? (side === 'left' ? -2 : 17) : -3
   const dx = side === 'left' ? innerOffset : -innerOffset
 
   const adjCx = cx + dx
@@ -101,6 +100,26 @@ const tooltipPosition = computed(() => {
   const checkmarkPos = calculateCheckmarkPosition(groupConfig, seat.index)
   return { x: checkmarkPos.cx, y: checkmarkPos.cy }
 })
+
+// 1. 定义本地显隐控制
+const isTooltipVisible = ref(false)
+
+// 2. 监听外部传入的伙伴数据变化
+// 当父组件修改了 highlightedPartner（比如换了个人看），我们自动显示 Tooltip
+watch(
+  () => props.highlightedPartner,
+  (newVal) => {
+    if (newVal) {
+      isTooltipVisible.value = true
+    }
+  },
+  { immediate: true },
+)
+
+// 3. 内部关闭逻辑
+const handleTooltipClick = () => {
+  isTooltipVisible.value = false
+}
 </script>
 
 <template>
@@ -117,7 +136,7 @@ const tooltipPosition = computed(() => {
       </div>
 
       <!-- 座位层 (覆盖在背景上) -->
-      <div class="relative" :style="{ paddingTop: (Number(viewport.aspectRatio) * scale) + '%' }">
+      <div class="relative" :style="{ paddingTop: Number(viewport.aspectRatio) * scale + '%' }">
         <svg
           :viewBox="`0 0 ${viewport.width} ${viewport.height}`"
           class="absolute inset-0 w-full h-full"
@@ -245,7 +264,11 @@ const tooltipPosition = computed(() => {
           </g>
 
           <!-- Tooltip显示伙伴位置 -->
-          <g v-if="tooltipPosition && highlightedPartner">
+          <g
+            v-if="isTooltipVisible && tooltipPosition && highlightedPartner"
+            class="cursor-pointer"
+            @click.stop="handleTooltipClick"
+          >
             <!-- Tooltip背景 -->
             <rect
               :x="tooltipPosition.x - 40"
@@ -274,7 +297,7 @@ const tooltipPosition = computed(() => {
               text-anchor="middle"
               dominant-baseline="middle"
             >
-              {{ highlightedPartner.name }}
+              {{ `${highlightedPartner.name}-${highlightedPartner.seat}` }}
             </text>
           </g>
         </svg>

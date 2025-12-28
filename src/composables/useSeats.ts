@@ -1,10 +1,11 @@
-import { ref, computed, watch } from 'vue'
-import type { Seat, Partner } from '../types/booking'
+import { ref, computed } from 'vue'
+import type { Seat } from '../types/booking'
 import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots } from '../api' // 导入 API 客户端和新 API
 import {
   convertBackendMapToFrontendSeats,
   convertBackendAvailabilityToFrontend,
 } from '../utils/dataAdapter' // 导入数据适配器
+import { cache, CacheKeys, CacheTTL } from '../utils/cache' // 导入缓存工具
 
 // 座位管理组合式函数 - 实现单例模式
 let seatsInstance: ReturnType<typeof createSeatsStore> | null = null
@@ -65,6 +66,27 @@ function createSeatsStore() {
   }
 
   /**
+   * 从缓存或API加载座位平面图数据
+   */
+  async function loadSeatMapWithCache() {
+    const cacheKey = CacheKeys.SEAT_MAP()
+    const cached = cache.get(cacheKey)
+
+    // 如果缓存存在，直接更新响应式数据
+    if (cached && typeof cached === 'object' && 'areas' in cached) {
+      seats.value = convertBackendMapToFrontendSeats(cached as { areas: any[] })
+      return cached
+    } else {
+      // 如果缓存不存在，从API加载并缓存
+      const data = await loadSeatMap()
+      if (data) {
+        cache.set(cacheKey, data, CacheTTL.LONG)
+      }
+      return data
+    }
+  }
+
+  /**
    * 加载区域列表
    */
   async function loadAreas() {
@@ -79,6 +101,25 @@ function createSeatsStore() {
       return []
     } finally {
       isLoadingAreas.value = false
+    }
+  }
+
+  /**
+   * 从缓存或API加载区域列表
+   */
+  async function loadAreasWithCache() {
+    const cacheKey = CacheKeys.SEAT_AREAS
+    const cached = cache.get(cacheKey)
+
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      // 如果缓存存在，直接更新响应式数据
+      areas.value = Array.isArray(cached) ? cached : []
+      return cached
+    } else {
+      // 如果缓存不存在，从API加载并缓存
+      const data = await loadAreas()
+      cache.set(cacheKey, data, CacheTTL.LONG)
+      return data
     }
   }
 
@@ -190,9 +231,13 @@ function createSeatsStore() {
   // 当前选中的座位
   const selectedSeat = ref<string | null>(null)
 
-  const seatAvailabilityChange = (newAvailability) => {
+  const seatAvailabilityChange = (newAvailability: any[]) => {
     // 创建一个 Map，方便查找
-    const availabilityMap = new Map(newAvailability.map((item: any) => [item.seatId, item]))
+    const availabilityMap = new Map(
+      newAvailability
+        .filter((item) => typeof item === 'object')
+        .map((item: any) => [item.seatId, item]),
+    )
     console.log('Availability data:', newAvailability)
 
     // 通过创建新数组来触发响应式更新
@@ -209,8 +254,8 @@ function createSeatsStore() {
         }
       }
 
-      // 如果座位可用
-      if (availability.isAvailable) {
+      // 检查availability是否具有expected属性
+      if (typeof availability === 'object' && availability.isAvailable) {
         // 如果当前座位是被选中的，保持选中状态，否则设为可用
         return {
           ...seat,
@@ -225,9 +270,11 @@ function createSeatsStore() {
         ...seat,
         status: 'occupied', // 直接设置为 'occupied'
         occupiedBy:
-          availability.bookingUserInfo?.fullName ||
-          availability.bookingUserInfo?.username ||
-          '已预订',
+          typeof availability === 'object' && availability.bookingUserInfo
+            ? availability.bookingUserInfo.fullName ||
+              availability.bookingUserInfo.username ||
+              '已预订'
+            : '已预订',
       }
     })
   }
@@ -298,6 +345,24 @@ function createSeatsStore() {
     await loadSeatMap()
   }
 
+  /**
+   * 直接设置区域数据（用于从缓存更新）
+   */
+  function setAreasData(data: any[]) {
+    areas.value = data || []
+  }
+
+  /**
+   * 直接设置座位数据（用于从缓存更新）
+   */
+  function setSeatsData(data: any) {
+    if (data && data.areas) {
+      seats.value = convertBackendMapToFrontendSeats(data)
+    } else {
+      seats.value = []
+    }
+  }
+
   return {
     seats,
     areas, // 暴露区域列表
@@ -315,7 +380,11 @@ function createSeatsStore() {
     error,
     loadSeatMap, // 暴露加载座位图函数
     loadAreas, // 暴露加载区域函数
+    loadAreasWithCache, // 暴露带缓存的加载区域函数
+    loadSeatMapWithCache, // 暴露带缓存的加载座位图函数
     loadTimeSlots, // 暴露加载时间段函数
+    setAreasData, // 暴露设置区域数据函数
+    setSeatsData, // 暴露设置座位数据函数
 
     querySeatAvailability, // 暴露查询可用性函数
     getSeatsByTable,

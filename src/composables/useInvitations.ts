@@ -1,5 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { getUpcomingInvitations, acceptInvitation, declineInvitation } from '../api'
+import { useBooking } from './useBooking'
 
 // 定义邀请的类型 (使用 useInvitations.ts 的更详细类型)
 export interface Invitation {
@@ -19,6 +20,8 @@ export interface Invitation {
   }
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED'
 }
+
+const { loadBookings } = useBooking()
 
 // 轮询间隔（例如 30 秒）
 const POLLING_INTERVAL = 30000
@@ -75,9 +78,6 @@ function startPolling() {
 
   isPollingActive = true
 
-  // 立即执行一次
-  fetchInvitations()
-
   // 设置轮询
   if (pollingTimer === null) {
     pollingTimer = setInterval(() => {
@@ -126,6 +126,7 @@ async function accept(invitationId: number) {
     await acceptInvitation(invitationId)
     // 成功后刷新列表
     await fetchInvitations()
+    await loadBookings()
   } catch (error) {
     console.error('接受邀请失败:', error)
     throw error

@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { nextTick } from 'vue'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 import '../assets/styles/nprogress-custom.css'
@@ -28,11 +27,13 @@ const router = createRouter({
     {
       path: '/booking',
       name: 'booking',
+      meta: { manualNProgress: false },
       component: BookingPage,
     },
     {
       path: '/account',
       name: 'account',
+      meta: { manualNProgress: false },
       component: AccountPage,
     },
     {
@@ -56,19 +57,18 @@ const router = createRouter({
 // 路由全局前置守卫
 router.beforeEach((to, from, next) => {
   // 开始加载条
-  NProgress.start()
-  next()
+  if (!to.meta.manualNProgress) {
+    NProgress.start()
+    next()
+  }
 })
 
 // 路由全局后置守卫
-router.afterEach(() => {
-  // 等待 DOM 渲染完成后才完成加载条
-  nextTick(() => {
-    // 稍微延迟一下，确保页面数据加载完成
-    setTimeout(() => {
-      NProgress.done()
-    }, 300)
-  })
+router.afterEach((to) => {
+  // 如果页面 meta 明确标注了需要“手动控制结束”，则路由守卫不关闭进度条
+  if (!to.meta.manualNProgress) {
+    NProgress.done()
+  }
 })
 
 export default router

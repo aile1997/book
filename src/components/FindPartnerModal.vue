@@ -23,21 +23,8 @@ const emit = defineEmits<Emits>()
 // ========== 数据层 ==========
 
 // 使用伙伴管理组合式函数
-const { } = usePartners()
-const { seats } = useSeats()
-
-// 添加调试日志来跟踪 seats 的状态
-onMounted(() => {
-  console.log('FindPartnerModal mounted, seats length:', seats.value?.length || 0)
-  console.log('FindPartnerModal mounted, seats content:', seats.value)
-})
-
-// 监听 seats 变化
-watch(seats, (newSeats, oldSeats) => {
-  console.log('Seats changed in FindPartnerModal:')
-  console.log('Previous seats length:', oldSeats?.length || 0)
-  console.log('Current seats length:', newSeats?.length || 0)
-}, { deep: true })
+const {} = usePartners()
+const { seatAvailability } = useSeats()
 
 // 视图模式: 'search' | 'table'
 const viewMode = ref<'search' | 'table'>('search')
@@ -54,10 +41,8 @@ const isSearching = ref(false) // 搜索加载状态
 const updateSearch = debounce((value: string) => {
   isSearching.value = true
   // 模拟搜索延迟，给用户明确的加载反馈
-  setTimeout(() => {
-    debouncedSearchQuery.value = value
-    isSearching.value = false
-  }, 100)
+  debouncedSearchQuery.value = value
+  isSearching.value = false
 }, 300)
 
 // 监听 searchQuery 变化，触发防抖更新
@@ -78,18 +63,18 @@ const filteredPartners = computed(() => {
   if (!debouncedSearchQuery.value) return []
   const lowerQuery = debouncedSearchQuery.value.toLowerCase()
 
-  // 1. 从 seats.value 中提取已预订的伙伴信息
-  if (!seats.value || seats.value.length === 0) {
+  // 1. 从 seatAvailability.value 中提取已预订的伙伴信息
+  if (!seatAvailability.value || seatAvailability.value.length === 0) {
     console.warn('Seats array is empty, cannot search for partners')
     return []
   }
-  const occupiedPartners: Partner[] = seats.value
-    .filter((s) => s.occupiedBy) // 筛选出已预订的座位
+  const occupiedPartners: Partner[] = seatAvailability.value
+    .filter((s) => s.bookingUserInfo) // 筛选出已预订的座位
     .map((s) => ({
-      id: s.backendSeatId, // 使用 backendSeatId 作为 id
-      username: s.occupiedBy || `User ${s.id}`, // 使用 occupiedBy 作为用户名
-      fullName: s.occupiedBy || s.id, // 使用 occupiedBy 作为全名
-      email: '', // 无法从座位信息中获取，暂时留空
+      id: s.bookingUserInfo.userId,
+      username: s.bookingUserInfo.username,
+      fullName: s.bookingUserInfo.fullName,
+      email: '',
     }))
 
   // 2. 去重并过滤
@@ -101,36 +86,31 @@ const filteredPartners = computed(() => {
   }, [] as Partner[])
 
   // 3. 搜索过滤
-  return uniquePartners.filter((p) => p.fullName.toLowerCase().includes(lowerQuery)).slice(0, 5)
+  return uniquePartners.filter((p) => p.fullName.toLowerCase().includes(lowerQuery))
 })
 
 // 根据桌子获取座位布局，并关联伙伴数据
 const tableSeatMap = computed(() => {
-  // 用户的要求是：桌子和座位的布局渲染是通过之前的 /api/v1/seats/map 这个接口获取的。
-  // useSeats.seats.value 已经包含了完整的座位布局和当前的可用性状态。
-  // 因此，我们应该直接从 useSeats.seats.value 中过滤出当前桌子的座位。
-
   // 1. 过滤出当前桌子的座位
-  if (!seats.value || seats.value.length === 0) {
-    console.warn('Seats array is empty, cannot map table seats')
+  if (!seatAvailability.value || seatAvailability.value.length === 0) {
+    console.warn('Seats array is empty, cannot map table seatAvailability')
     return []
   }
-  const currentTableSeats = seats.value.filter((s) => s.table === selectedTable.value)
+  const currentTableSeats = seatAvailability.value.filter((s) => s.table === selectedTable.value)
 
   // 2. 映射为 FindPartnerModal 所需的结构
   return currentTableSeats.map((seat) => ({
-    seat: seat.id,
-    // 伙伴信息应该从 seat.occupiedBy 中提取
-    partner: seat.occupiedBy
+    seat: seat.seatNumber,
+    partner: seat.bookingUserInfo
       ? {
-          id: seat.backendSeatId, // 使用 backendSeatId 作为 id
-          username: seat.occupiedBy, // 使用 occupiedBy 作为用户名
-          fullName: seat.occupiedBy, // 使用 occupiedBy 作为全名
+          id: seat.bookingUserInfo.userId,
+          username: seat.bookingUserInfo.username,
+          fullName: seat.bookingUserInfo.fullName,
           email: '', // 暂时留空
         }
       : null,
-    // 状态直接使用 seat.status
-    status: seat.status === 'available' ? 'available' : 'occupied',
+    // 状态直接使用 seat.isAvailable
+    isAvailable: seat.isAvailable,
   }))
 })
 
@@ -152,20 +132,20 @@ const rightSeats = computed(() => {
 const selectPartnerFromSearch = (partner: Partner) => {
   // 修复问题2: 查找伙伴座位时，点击名称不应记录到邀请伙伴列表
   // 查找伙伴座位的目的是在座位图上高亮显示该伙伴的位置
-  
+
   // 查找该伙伴预订的座位信息，以确保 partner.seat 字段存在
   // 注意：这里的 partner.id 应该对应 bookingUserInfo.userId
-  const seatInfo = seats.value.find(s => s.bookingUserInfo?.userId === partner.id)
-  
+  const seatInfo = seatAvailability.value.find((s) => s.bookingUserInfo?.userId === partner.id)
+
   if (seatInfo) {
     // 修复问题1: 点击名称后，并未在座位上显示对应的 Tooltip
     // 确保传递给父组件的 partner 对象包含 seat 字段 (前端座位号)
-    emit('select-partner', { ...partner, seat: seatInfo.id })
+    emit('select-partner', { ...partner, seat: seatInfo.seatNumber })
   } else {
     // 如果没有找到座位信息，仍然发送 partner，但 seat 字段可能为空
     emit('select-partner', partner)
   }
-  
+
   // 清空搜索框并关闭模态框
   searchQuery.value = ''
   close() // 立即关闭模态框，因为点击的目的是查看位置，而不是邀请
@@ -271,7 +251,10 @@ watch(
             </div>
 
             <!-- 搜索结果列表 -->
-            <div v-else-if="filteredPartners.length > 0" class="bg-white rounded-lg overflow-hidden">
+            <div
+              v-else-if="filteredPartners.length > 0"
+              class="bg-white rounded-lg overflow-hidden"
+            >
               <button
                 v-for="partner in filteredPartners"
                 :key="partner.id"
@@ -336,13 +319,13 @@ watch(
                   >
                     <span
                       class="text-sm font-medium text-right transition-colors"
-                      :class="item.status === 'available' ? 'text-gray-300' : 'text-gray-700'"
+                      :class="item.isAvailable === true ? 'text-gray-300' : 'text-gray-700'"
                     >
                       {{ item.partner?.fullName || item.seat }}
                     </span>
                     <div
                       class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.status === 'available' ? 'bg-gray-200' : 'bg-success'"
+                      :class="item.isAvailable === true ? 'bg-gray-200' : 'bg-success'"
                     ></div>
                   </div>
                 </div>
@@ -357,11 +340,11 @@ watch(
                   >
                     <div
                       class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.status === 'available' ? 'bg-gray-200' : 'bg-success'"
+                      :class="item.isAvailable === true ? 'bg-gray-200' : 'bg-success'"
                     ></div>
                     <span
                       class="text-sm font-medium text-left transition-colors"
-                      :class="item.status === 'available' ? 'text-gray-300' : 'text-gray-700'"
+                      :class="item.isAvailable === true ? 'text-gray-300' : 'text-gray-700'"
                     >
                       {{ item.partner?.fullName || item.seat }}
                     </span>

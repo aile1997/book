@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { useToast } from '../composables/useToast'
-import Toast from './Toast.vue'
+import ToastMessage from './ToastMessage.vue'
 
 const { toasts, removeToast } = useToast()
 </script>
 
 <template>
   <div class="toast-container">
-    <Toast
+    <ToastMessage
       v-for="toast in toasts"
       :key="toast.id"
       :message="toast.message"

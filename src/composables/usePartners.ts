@@ -88,8 +88,8 @@ export function usePartners() {
 
   /**
    * 搜索用户 (Invite Partner) - 实际执行函数
- * @param query 搜索关键词
- */
+   * @param query 搜索关键词
+   */
   async function searchUsersForInvite(query: string) {
     if (!query) {
       searchResults.value = []
@@ -105,18 +105,17 @@ export function usePartners() {
       // 2. 调用 searchUsers API
       // 注意：searchUsers API 已经修改为接收 code 和 query
       const data = await searchUsers(code, query, 10) // 限制返回 10 个结果
-      
+
       // 3. 适配返回数据结构
-      // 后端返回: { userId: "string", unionId: "string", username: "string" }
+      // 后端返回: { userId: "string", openId: "string", username: "string" }
       // 前端需要: { id: string, fullName: string, ... }
-      searchResults.value = data.map((user: any) => ({
-        id: user.userId, // 使用 userId 作为前端 ID
-        unionId: user.unionId,
-        username: user.username,
-        fullName: user.username, // 假设 username 即为展示的 fullName
-      })) || []
-  
-      
+      searchResults.value =
+        data.map((user: any) => ({
+          id: user.userId, // 使用 userId 作为前端 ID
+          openId: user.openId,
+          username: user.username,
+          fullName: user.username, // 假设 username 即为展示的 fullName
+        })) || []
     } catch (err: any) {
       searchError.value = '搜索用户失败: ' + (err.message || '未知错误')
       console.error(searchError.value, err)

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 
 export interface ToastProps {
   message: string
-  type?: 'success' | 'error' | 'warning' | 'info'
-  duration?: number
+  type: 'success' | 'error' | 'warning' | 'info' | 'confirm'
   visible: boolean
+  onConfirm?: () => void
+  onCancel?: () => void
 }
 
 interface Emits {
@@ -20,13 +21,16 @@ const props = withDefaults(defineProps<ToastProps>(), {
 const emit = defineEmits<Emits>()
 
 // 自动关闭
-watch(() => props.visible, (newVal) => {
-  if (newVal && props.duration > 0) {
-    setTimeout(() => {
-      emit('update:visible', false)
-    }, props.duration)
-  }
-})
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (newVal && props.duration > 0) {
+      setTimeout(() => {
+        emit('update:visible', false)
+      }, props.duration)
+    }
+  },
+)
 
 // 手动关闭
 const close = () => {
@@ -39,7 +43,12 @@ const typeClasses = {
   error: 'bg-red-500',
   warning: 'bg-yellow-500',
   info: 'bg-blue-500',
+  confirm: 'bg-gray-dark shadow-2xl border border-white/10',
 }
+
+// 按钮处理
+const handleConfirm = () => props.onConfirm?.()
+const handleCancel = () => props.onCancel?.()
 
 // 根据类型返回对应的图标
 const getIcon = () => {
@@ -61,12 +70,10 @@ const getIcon = () => {
     <Transition name="toast">
       <div
         v-if="visible"
-        class="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] px-4 w-full max-w-md"
+        class="fixed top-10 left-1/2 -translate-x-1/2 z-[9999] px-4 w-full max-w-md"
       >
         <!-- Toast 内容 -->
-        <div 
-          :class="[typeClasses[type], 'rounded-2xl px-6 py-4 shadow-2xl']"
-        >
+        <div :class="[typeClasses[type], 'rounded-xl px-6 py-4 shadow-2xl']">
           <div class="flex items-center justify-between gap-4">
             <!-- 左侧：图标和文字 -->
             <div class="flex items-center gap-3 flex-1">
@@ -81,7 +88,7 @@ const getIcon = () => {
                   v-html="getIcon()"
                 />
               </div>
-              
+
               <!-- 消息文本 -->
               <p class="text-white text-sm font-medium leading-snug">
                 {{ message }}
@@ -108,6 +115,21 @@ const getIcon = () => {
                   stroke-linejoin="round"
                 />
               </svg>
+            </button>
+          </div>
+
+          <div v-if="type === 'confirm'" class="flex justify-end gap-3">
+            <button
+              @click="handleCancel"
+              class="px-4 py-2 rounded-lg bg-white/10 text-white/80 text-sm font-medium hover:bg-white/20 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="handleConfirm"
+              class="px-5 py-2 rounded-lg bg-success text-white text-sm font-bold shadow-sm hover:opacity-90 transition-opacity"
+            >
+              Confirm
             </button>
           </div>
         </div>

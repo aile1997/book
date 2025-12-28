@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import NProgress from 'nprogress'
 import { ref, computed, onMounted } from 'vue'
 import { useBooking } from '../composables/useBooking' // 导入 useBooking
 import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录状态
 import { useRouter } from 'vue-router'
 import { useSeats } from '../composables/useSeats'
 import { useToast } from '../composables/useToast'
-import { cache, CacheKeys, CacheTTL } from '../utils/cache'
 import SeatMap from '../components/SeatMap.vue'
 import InvitePartnerModal from '../components/InvitePartnerModal.vue'
 import FindPartnerModal from '../components/FindPartnerModal.vue'
@@ -23,11 +23,10 @@ const {
   selectSeat,
   clearSelection,
   isLoading: isLoadingSeats,
-  error: seatError,
   querySeatAvailability, // 查询可用性函数
-  loadAreas, // 加载区域列表
-  loadSeatMap, // 加载座位图
   loadTimeSlots, // 导入 loadTimeSlots
+  loadAreasWithCache, // 加载区域（带缓存）
+  loadSeatMapWithCache, // 加载座位图（带缓存）
 } = useSeats()
 
 // 使用预订管理组合式函数
@@ -42,7 +41,7 @@ const { isAuthenticated } = useAuth()
 const invitedPartners = ref<Partner[]>([])
 
 // Coins 消耗
-const coinCost = ref(10)
+const coinCost = ref(5)
 
 // 模态框状态
 const showSeatModal = ref(false)
@@ -135,44 +134,45 @@ const adaptTimeSlots = (backendSlots: any[]) => {
 
 // 在 onMounted 中调用 loadTimeSlots 并适配数据
 onMounted(async () => {
-  // 0. 清除上一次的选择状态，确保数据状态一致性
-  clearSelection()
+  // 此时路由守卫已经触发了 NProgress.start()
+  try {
+    // 0. 清除上一次的选择状态
+    clearSelection()
 
-  // 1. 使用缓存加载区域和座位数据（缓存 30 分钟）
-  if (seats.value.length === 0) {
-    await Promise.all([
-      cache.getOrFetch(CacheKeys.SEAT_AREAS, () => loadAreas(), CacheTTL.LONG),
-      cache.getOrFetch(CacheKeys.SEAT_MAP(), () => loadSeatMap(), CacheTTL.LONG),
-    ])
-  }
+    // 1. 并发加载基础数据（缓存逻辑）
+    if (seats.value.length === 0) {
+      await Promise.all([loadAreasWithCache(), loadSeatMapWithCache()])
+    }
 
-  // 2. 加载时间段数据
-  const backendSlots = await loadTimeSlots()
-  if (backendSlots && backendSlots.length > 0) {
-    adaptTimeSlots(backendSlots)
-  }
+    // 2. 加载时间段数据
+    const backendSlots = await loadTimeSlots()
+    if (backendSlots && backendSlots.length > 0) {
+      adaptTimeSlots(backendSlots)
+    }
 
-  // 3. 默认选中第一个可用的时间段，并查询可用性
-  if (timeSlots.value.length > 0) {
-    // 查找第一个可用的时间段
-    let firstAvailableTimeSlot = null
-    for (const dateSlot of timeSlots.value) {
-      firstAvailableTimeSlot = dateSlot.times.find((time) => !time.disabled)
-      if (firstAvailableTimeSlot) {
-        // 选中它
-        firstAvailableTimeSlot.selected = true
-        break
+    // 3. 业务逻辑处理：默认选中并查询可用性
+    if (timeSlots.value.length > 0) {
+      let firstAvailableTimeSlot = null
+      for (const dateSlot of timeSlots.value) {
+        firstAvailableTimeSlot = dateSlot.times.find((time) => !time.disabled)
+        if (firstAvailableTimeSlot) {
+          firstAvailableTimeSlot.selected = true
+          break
+        }
+      }
+
+      if (selectedDateTime.value) {
+        // 等待关键的可用性查询完成
+        await querySeatAvailability(
+          selectedDateTime.value.dateISO,
+          Number(selectedDateTime.value.timeSlotId),
+        )
       }
     }
-
-    // 触发可用性查询
-    if (selectedDateTime.value) {
-      // 查询所有区域的可用性
-      querySeatAvailability(
-        selectedDateTime.value.dateISO,
-        Number(selectedDateTime.value.timeSlotId),
-      ) // 不传 areaId，查询所有区域
-    }
+  } catch (error) {
+    console.error('页面数据初始化失败:', error)
+  } finally {
+    NProgress.done()
   }
 })
 
@@ -317,13 +317,15 @@ const bookNow = async () => {
   // 构造 invitePartners 数组
   const invitePartners = invitedPartners.value
     .map((partner, index) => {
+      console.log(partner)
+
       const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
 
       // 确保分配了座位，否则不邀请
       if (assignedSeat && assignedSeat.backendSeatId) {
         return {
           userId: partner.id, // 维护前端 Partner.id 字段
-          unionId: partner.unionId || '', // 维护 unionId 字段
+          openId: partner.openId || '', // 维护 openId 字段
           username: partner.username || partner.fullName, // 维护 username 字段
           seatId: assignedSeat.backendSeatId, // 分配的座位后端 ID
         }
@@ -366,8 +368,6 @@ const bookNow = async () => {
 const goBack = () => {
   router.back()
 }
-
-
 </script>
 
 <template>
@@ -593,16 +593,7 @@ const goBack = () => {
       <div class="flex justify-end max-w-2xl mx-auto">
         <div class="flex items-center gap-3 w-2/3">
           <div class="flex items-center gap-1.5 px-3 py-2 bg-cyan/10 rounded-xl flex-shrink-0">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle cx="12" cy="12" r="10" fill="#51D5FF" />
-              <path d="M12 7v10M7 12h10" stroke="white" stroke-width="2" stroke-linecap="round" />
-            </svg>
+            <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
             <span class="text-base font-bold text-cyan">{{ coinCost }}</span>
           </div>
 

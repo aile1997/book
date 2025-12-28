@@ -3,9 +3,12 @@ import { ref } from 'vue'
 export interface ToastMessage {
   id: number
   message: string
-  type: 'success' | 'error' | 'warning' | 'info'
+  type: 'success' | 'error' | 'warning' | 'info' | 'confirm'
   duration: number
   visible: boolean
+  // 新增：用于 Confirm 的回调
+  onConfirm?: () => void
+  onCancel?: () => void
 }
 
 // 全局Toast状态
@@ -22,7 +25,7 @@ export function useToast() {
   const showToast = (
     message: string,
     type: 'success' | 'error' | 'warning' | 'info' = 'info',
-    duration: number = 3000
+    duration: number = 3000,
   ) => {
     const id = toastIdCounter++
     const toast: ToastMessage = {
@@ -71,11 +74,33 @@ export function useToast() {
     showToast(message, 'info', duration)
   }
 
+  const confirm = (message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const id = toastIdCounter++
+      const toast: ToastMessage = {
+        id,
+        message,
+        type: 'confirm',
+        duration: 0, // Confirm 不自动关闭
+        visible: true,
+        onConfirm: () => {
+          removeToast(id)
+          resolve(true)
+        },
+        onCancel: () => {
+          removeToast(id)
+          resolve(false)
+        },
+      }
+      toasts.value.push(toast)
+    })
+  }
+
   /**
    * 移除指定Toast
    */
   const removeToast = (id: number) => {
-    const index = toasts.value.findIndex(t => t.id === id)
+    const index = toasts.value.findIndex((t) => t.id === id)
     if (index > -1) {
       toasts.value[index].visible = false
       // 等待动画完成后移除
@@ -101,5 +126,6 @@ export function useToast() {
     info,
     removeToast,
     clearAll,
+    confirm,
   }
 }

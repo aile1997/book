@@ -57,7 +57,7 @@ class CacheManager {
    */
   get<T>(key: string): T | null {
     const item = this.cache.get(key)
-    
+
     if (!item) {
       return null
     }
@@ -85,7 +85,7 @@ class CacheManager {
       timestamp: Date.now(),
       ttl,
     }
-    
+
     this.cache.set(key, item)
     this.saveToStorage()
   }
@@ -123,15 +123,11 @@ class CacheManager {
    * @param ttl 缓存有效期（毫秒）
    * @returns 缓存或新获取的数据
    */
-  async getOrFetch<T>(
-    key: string,
-    fetcher: () => Promise<T>,
-    ttl: number = 300000
-  ): Promise<T> {
+  async getOrFetch<T>(key: string, fetcher: () => Promise<T>, ttl: number = 300000): Promise<T> {
     const cached = this.get<T>(key)
-    
+
     if (cached !== null) {
-      console.log(`Cache hit: ${key}`)
+      console.log(`Cache hit: ${key} ${cached}`)
       return cached
     }
 
@@ -150,18 +146,18 @@ export const CacheKeys = {
   // 用户相关
   USER_INFO: 'user_info',
   USER_CREDITS: 'user_credits',
-  
+
   // 座位相关
   SEAT_AREAS: 'seat_areas',
   SEAT_TIME_SLOTS: 'seat_time_slots',
   SEAT_MAP: (areaId?: number) => `seat_map_${areaId || 'all'}`,
   SEAT_AVAILABILITY: (date: string, timeSlotId: number, areaId?: number) =>
     `seat_availability_${date}_${timeSlotId}_${areaId || 'all'}`,
-  
+
   // 预订相关
   USER_BOOKINGS: 'user_bookings',
   USER_INVITATIONS: 'user_invitations',
-  
+
   // 交易相关
   USER_TRANSACTIONS: 'user_transactions',
 }

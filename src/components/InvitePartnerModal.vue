@@ -19,7 +19,7 @@ const emit = defineEmits<Emits>()
 
 // ========== 数据与逻辑层 (参照 FindPartnerModal) ==========
 
-const { searchResults, searchUsersForInvite } = usePartners()
+const { searchResults, searchUsersForInvite, isSearching } = usePartners()
 const searchQuery = ref('')
 
 // 1. 统一搜索逻辑：直接使用 API 搜索结果
@@ -50,11 +50,12 @@ const highlightMatch = (text: string, query: string) => {
 const selectPartner = (partner: Partner) => {
   const selected = [...props.selectedPartners]
   // 确保将完整的 Partner 对象添加到列表中，并检查是否已存在
-  if (!selected.some(p => p.id === partner.id)) {
+  if (!selected.some((p) => p.id === partner.id)) {
     selected.push(partner)
     emit('update:selectedPartners', selected)
   }
   searchQuery.value = '' // 选择后清空
+  close()
 }
 
 const close = () => {
@@ -105,8 +106,17 @@ watch(
             />
           </div>
 
+          <!-- 搜索加载状态 -->
+          <div v-if="isSearching" class="bg-white rounded-lg overflow-hidden mb-8 shadow-xl">
+            <button
+              class="w-full text-left px-4 py-3 text-base font-medium hover:bg-purple-50 transition-colors leading-[100%] tracking-[-0.16px] border-b border-gray-100 last:border-0"
+            >
+              loading...
+            </button>
+          </div>
+
           <div
-            v-if="searchQuery && filteredPartners.length > 0"
+            v-else-if="searchQuery && filteredPartners.length > 0"
             class="bg-white rounded-lg overflow-hidden mb-8 shadow-xl"
           >
             <button

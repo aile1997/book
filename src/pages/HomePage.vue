@@ -52,10 +52,10 @@ interface FeatureCardData {
 const featureCards = computed<FeatureCardData[]>(() => {
   // 计算 Booking Seats 卡片的状态和副标题
   let bookingStatus = 'Open now'
-  let bookingSubtitle = 'Tomorrow : 10 seats left'
+  let bookingSubtitle = 'No bookings'
 
   // 检查是否有待处理的邀请
-  const pendingInvitations = upcomingInvitations.value.filter(inv => inv.status === 'PENDING')
+  const pendingInvitations = upcomingInvitations.value.filter((inv) => inv.status === 'PENDING')
   if (pendingInvitations.length > 0) {
     bookingStatus = 'New Invitation'
     bookingSubtitle = `${pendingInvitations.length} invitation${pendingInvitations.length > 1 ? 's' : ''} pending`
@@ -63,7 +63,7 @@ const featureCards = computed<FeatureCardData[]>(() => {
     // 如果有预订，显示最近的预订信息
     const latestBooking = bookings.value[0]
     bookingStatus = 'Booked'
-    bookingSubtitle = `${latestBooking.seat.seatNumber} - ${latestBooking.bookingDate}`
+    bookingSubtitle = `${latestBooking.seatNumber} - ${latestBooking.bookingDate}`
   }
 
   return [
@@ -79,15 +79,26 @@ const featureCards = computed<FeatureCardData[]>(() => {
       enabled: true,
     },
     {
-      id: 'admin',
+      id: 'coin-store',
       title: 'Coin Store',
       status: 'New arrival',
       subtitle: 'Coming soon',
       imageUrl: Escultures,
       imageStyle: '',
       iconSvg: Group55,
+      route: '/coin-store',
+      enabled: false,
+    },
+    {
+      id: 'admin',
+      title: 'Admin Page',
+      status: '',
+      subtitle: 'Coming soon',
+      imageUrl: Escultures,
+      imageStyle: '',
       route: '/admin',
       enabled: true,
+      fullName: user.value?.fullName,
     },
   ]
 })
@@ -148,10 +159,11 @@ onBeforeRouteLeave(() => {
         <div class="flex items-center gap-3">
           <RockBundLogo color="#292929" />
           <button
+            v-if="user?.fullName === '牛思顿'"
             @click="navigateToPresentation"
             class="px-3 py-1.5 bg-success/10 text-success text-xs font-medium rounded-lg border border-success/20 hover:bg-success/20 transition-all"
           >
-            🎯 项目展示
+            项目展示
           </button>
         </div>
 

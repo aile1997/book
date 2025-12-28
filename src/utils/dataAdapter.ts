@@ -188,5 +188,24 @@ export function convertBackendAvailabilityToFrontend(backendData: any): any[] {
     return [];
   }
   // 每个元素都创建新对象，确保引用改变
-  return backendData.map(item => ({ ...item }));
+  const result = backendData.map(item => ({ ...item }));
+  
+  // 按 seatId 进行排序
+  result.sort((a, b) => {
+    // 假设 seatId 是数字类型
+    if (typeof a.seatId === 'number' && typeof b.seatId === 'number') {
+      return a.seatId - b.seatId;
+    }
+    // 如果 seatId 是字符串类型，则按字符串排序
+    if (typeof a.seatId === 'string' && typeof b.seatId === 'string') {
+      return a.seatId.localeCompare(b.seatId);
+    }
+    // 如果 seatId 类型不一致，优先处理数字
+    if (typeof a.seatId === 'number') return -1;
+    if (typeof b.seatId === 'number') return 1;
+    // 默认返回 0
+    return 0;
+  });
+  
+  return result;
 }

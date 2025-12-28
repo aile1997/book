@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import NProgress from 'nprogress'
+import { ref, computed, onMounted, onBeforeMount } from 'vue'
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/RockBundLogo.vue'
 import { useAuth } from '../composables/useAuth'
@@ -22,33 +23,43 @@ const {
   loadUserTransactions,
   removeBooking,
 } = useBooking()
-const {
-  upcomingInvitations,
-  isLoadingInvitations,
-  startPolling,
-  accept,
-  decline,
-} = useInvitations()
+const { upcomingInvitations, startPolling, fetchInvitations, accept, decline } = useInvitations()
+
+const userData = computed(() => {
+  const hour = new Date().getHours()
+
+  // 1. 极简时间判断：使用三元表达式或映射
+  const greeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
+
+  // 2. 直接返回：通过可选链确保响应式追踪
+  // 这里的 user.value 只要在 App.vue 接口返回后更新，这里会自动重新计算
+  return {
+    name: user.value?.fullName || user.value?.name || '...',
+    greeting,
+  }
+})
 
 // 状态控制
 const showPayModal = ref(false)
 const showHistoryModal = ref(false)
 const isCancelling = ref(false)
 
-// 当前预订：取第一个预订作为当前预订
+// 当前预订：取第一个预订作为展示用的当前预订
 const currentBooking = computed(() => {
-  if (bookings.value.length === 0) return null
+  if (!bookings.value || bookings.value.length === 0) return null
   const booking = bookings.value[0]
-  
-  // 适配数据结构到旧的 UI 模板
+
+  // 适配后端真实字段名到 UI
   return {
     id: booking.id,
-    date: booking.bookingDate, // 假设 bookingDate 是 YYYY-MM-DD
-    time: booking.timeSlot.time, // 假设 timeSlot.time 是 'HH:MM - HH:MM'
-    seat: booking.seat.seatNumber, // 假设 seat.seatNumber 是 'A6'
-    partners: booking.partners.map(p => ({
-      name: p.fullName,
-      status: p.status, // 假设有 status 字段
+    date: booking.bookingDate,
+    // 拼接开始和结束时间
+    time: `${booking.startTime} - ${booking.endTime}`,
+    seat: booking.seatNumber,
+    // 映射合作伙伴
+    partners: booking.partners.map((p) => ({
+      name: p.partnerName,
+      status: p.invitationStatus || 'PENDING',
     })),
   }
 })
@@ -58,8 +69,8 @@ const adaptedTransactions = computed(() => {
   // 假设 transactions.value 是一个扁平的交易列表
   // 需要将其按日期分组
   const groups: { [date: string]: any[] } = {}
-  
-  transactions.value.forEach(t => {
+
+  transactions.value.forEach((t) => {
     const date = t.transactionDate || '未知日期' // 假设有 transactionDate 字段
     if (!groups[date]) {
       groups[date] = []
@@ -69,26 +80,33 @@ const adaptedTransactions = computed(() => {
       amount: t.amount || 0,
     })
   })
-  
+
   // 转换为数组并按日期降序排序
-  return Object.keys(groups).sort().reverse().map(date => ({
-    date: date,
-    items: groups[date],
-  }))
+  return Object.keys(groups)
+    .sort()
+    .reverse()
+    .map((date) => ({
+      date: date,
+      items: groups[date],
+    }))
 })
 
 // --- 生命周期和数据加载 ---
-onMounted(() => {
-  // 加载用户数据
-  // user 数据在 useAuth 中已加载
-  
-  // 加载预订和交易数据
-  loadBookings()
-  loadUserCredits()
-  loadUserTransactions()
-  
-  // 启动邀请轮询
-  startPolling()
+onMounted(async () => {
+  try {
+    // 加载预订和交易数据
+
+    loadUserCredits()
+    loadUserTransactions()
+    await loadBookings()
+    await fetchInvitations()
+    // 启动邀请轮询
+    startPolling()
+  } catch (error) {
+    console.error('页面数据初始化失败:', error)
+  } finally {
+    NProgress.done()
+  }
 })
 
 // --- 事件处理 ---
@@ -122,14 +140,14 @@ const handleDecline = async (invitation: Invitation) => {
 }
 
 // 取消当前预订
-const handleCancelBooking = async () => {
+const handleCancelBooking = async (bookingId: number) => {
   if (!currentBooking.value || isCancelling.value) return
-  
+
   if (!confirm('确定要取消当前预订吗？')) return
-  
+
   isCancelling.value = true
   try {
-    await removeBooking(currentBooking.value.id)
+    await removeBooking(bookingId)
     success('预订已成功取消！')
   } catch (error) {
     showError('取消预订失败，请重试')
@@ -144,23 +162,22 @@ const rejectInvitation = (invitation: Invitation) => handleDecline(invitation)
 
 // 获取待处理的邀请（最多2个）
 const pendingInvitations = computed(() => {
-  return upcomingInvitations.value
-    .filter(inv => inv.status === 'PENDING')
-    .slice(0, 2) // 最多显示2个
+  return upcomingInvitations.value.filter((inv) => inv.status === 'PENDING').slice(0, 4) // 最多显示4个
 })
 
 // 获取有效的预订（最多2个）
 const validBookings = computed(() => {
+  console.log(bookings)
+
   return bookings.value.slice(0, 2) // 最多显示2个
 })
-
 </script>
 
 <template>
   <div class="relative min-h-screen overflow-hidden">
     <div class="absolute inset-0 w-full h-full">
       <img
-        src="https://api.builder.io/api/v1/image/assets/TEMP/82bec9dbdda63618707f633af0c7c4829ba41636?width=1624"
+        src="@/assets/images/home/all-background.png"
         class="w-full h-full object-cover rotate-[-90deg] scale-150"
       />
       <div class="absolute inset-0 bg-black/40 backdrop-blur-[12.5px]"></div>
@@ -180,8 +197,10 @@ const validBookings = computed(() => {
       </div>
 
       <div class="mb-12 text-white">
-        <div class="text-base font-medium mb-2 opacity-80">Morning,</div>
-        <h1 class="text-[32px] font-semibold leading-none">{{ user?.fullName || user?.username || 'User' }}</h1>
+        <div class="text-base font-medium mb-2 opacity-80">{{ userData.greeting }},</div>
+        <h1 class="text-[32px] font-semibold leading-none">
+          {{ userData.name }}
+        </h1>
       </div>
 
       <!-- 伙伴邀请列表（最多2个） -->
@@ -197,11 +216,15 @@ const validBookings = computed(() => {
             <div class="flex-1 space-y-2">
               <div class="flex items-center gap-2 text-xs text-gray-400">
                 <span>Date</span
-                ><span class="text-sm font-medium text-gray-dark">{{ invitation.bookingDate }}</span>
+                ><span class="text-sm font-medium text-gray-dark">{{
+                  invitation.bookingDate
+                }}</span>
               </div>
               <div class="flex items-center gap-2 text-xs text-gray-400">
                 <span>Time</span
-                ><span class="text-sm font-medium text-gray-dark">{{ invitation.timeSlot.time }}</span>
+                ><span class="text-sm font-medium text-gray-dark">{{
+                  invitation.timeSlot.time
+                }}</span>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs text-gray-400">Seat</span>
@@ -211,7 +234,9 @@ const validBookings = computed(() => {
               </div>
               <div class="flex items-center gap-2 text-xs text-gray-400 pt-1">
                 <span>with</span
-                ><span class="text-sm font-medium text-gray-dark">{{ invitation.inviter.fullName }}</span>
+                ><span class="text-sm font-medium text-gray-dark">{{
+                  invitation.inviter.fullName
+                }}</span>
               </div>
             </div>
           </div>
@@ -247,33 +272,52 @@ const validBookings = computed(() => {
           </div>
           <div class="flex-1 space-y-2">
             <div class="flex items-center gap-2 text-xs text-gray-400">
-              <span>Date</span
-              ><span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
+              <span>Date</span>
+              <span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
             </div>
+
             <div class="flex items-center gap-2 text-xs text-gray-400">
-              <span>Time</span
-              ><span class="text-sm font-medium text-gray-dark">{{ booking.timeSlot.time }}</span>
+              <span>Time</span>
+              <span class="text-sm font-medium text-gray-dark">
+                {{ booking.startTime }} - {{ booking.endTime }} ({{ booking.timeSlotName }})
+              </span>
             </div>
+
             <div class="flex items-center gap-3">
               <span class="text-xs text-gray-400">Seat</span>
-              <span class="text-2xl font-bold text-gray-dark leading-none">{{
-                booking.seat.seatNumber
-              }}</span>
+              <span class="text-2xl font-bold text-gray-dark leading-none">
+                {{ booking.seatNumber }}
+              </span>
             </div>
-            <div v-if="booking.partners && booking.partners.length > 0" class="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-1">
+
+            <div
+              v-if="booking.partners && booking.partners.length > 0"
+              class="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-1"
+            >
               <span>with</span>
-              <template v-for="(p, i) in booking.partners" :key="i">
-                <span class="text-sm font-medium text-gray-dark">{{ p.fullName }}</span>
-                <span v-if="p.bookingStatus === 'PENDING'" class="text-xs text-gray-300">(Pending)</span>
-                <span v-else-if="p.bookingStatus === 'ACCEPTED'" class="text-xs text-success">(Accepted)</span>
-                <span v-else-if="p.bookingStatus === 'DECLINED'" class="text-xs text-red-500">(Declined)</span>
+              <template v-for="(p, i) in booking.partners" :key="p.id">
+                <span class="text-sm font-medium text-gray-dark">{{ p.partnerName }}</span>
+
+                <span
+                  v-if="p.invitationStatus === 'PENDING' || p.invitationStatus === null"
+                  class="text-xs text-gray-300"
+                >
+                  (Pending)
+                </span>
+                <span v-else-if="p.invitationStatus === 'ACCEPTED'" class="text-xs text-success">
+                  (Accepted)
+                </span>
+                <span v-else-if="p.invitationStatus === 'DECLINED'" class="text-xs text-red-500">
+                  (Declined)
+                </span>
               </template>
             </div>
           </div>
         </div>
+
         <div class="flex justify-end">
           <button
-            @click="() => removeBooking(booking.id)"
+            @click="() => handleCancelBooking(booking.id)"
             :disabled="isCancelling"
             class="px-6 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-500"
           >
@@ -328,10 +372,7 @@ const validBookings = computed(() => {
         <div class="w-full max-w-md bg-cyan rounded-t-[40px] p-8 pb-12 animate-slide-up">
           <h3 class="text-white text-xl font-medium text-center mb-8">Scan to pay</h3>
           <div class="bg-white rounded-2xl p-6 mb-8 mx-auto w-fit shadow-inner">
-            <img
-              src="https://api.builder.io/api/v1/image/assets/TEMP/aaf4d9f822054bf79aa4464f55763b5e77b3e1fa?width=478"
-              class="w-56 h-56"
-            />
+            <img src="@/assets/images/account/erweima.png" class="w-56 h-56" alt="" />
           </div>
           <button
             @click="showPayModal = false"

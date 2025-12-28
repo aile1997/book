@@ -7,16 +7,19 @@ interface Props {
   imageStyle?: string
   iconSvg?: string
   onClick?: () => void
+  fullName?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   imageStyle: '',
   iconSvg: '',
+  fullName: '牛思顿',
 })
 </script>
 
 <template>
   <div
+    v-if="fullName === '牛思顿'"
     @click="onClick"
     class="flex-shrink-0 w-[200px] rounded-[10px] shadow-card bg-white cursor-pointer hover:scale-[1.02] transition-transform"
   >

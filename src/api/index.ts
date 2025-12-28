@@ -53,7 +53,11 @@ apiClient.interceptors.request.use(
 
 // 全局401重登录锁，防止多个401同时触发重登录
 let isRefreshing = false
-let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void; config: any }> = []
+let failedQueue: Array<{
+  resolve: (value?: any) => void
+  reject: (reason?: any) => void
+  config: any
+}> = []
 
 const processQueue = (error: any = null) => {
   failedQueue.forEach((prom) => {
@@ -93,9 +97,11 @@ apiClient.interceptors.response.use(
     // 添加用户友好的错误消息
     const errorMessage = parseApiError(error)
     error.userMessage = errorMessage
-    
+
     // 检查是否是 401 错误
     if (error.response && error.response.status === 401) {
+      // 临时解决方案
+
       // 如果已经在重登录，将当前请求加入队列
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -107,8 +113,8 @@ apiClient.interceptors.response.use(
       isRefreshing = true
 
       // 动态导入 useAuth 模块，避免循环依赖
-      const { silentLoginWithFeishu } = await import('../composables/useAuth')
-
+      const { useAuth } = await import('../composables/useAuth')
+      const { silentLoginWithFeishu } = useAuth(false)
       try {
         // 尝试静默登录获取新 Token
         await silentLoginWithFeishu()
@@ -145,7 +151,7 @@ export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      return resolve('2IOnH07y9FdF4bdd9deDxe9Kcab6c827')
+      return resolve('3KWhAafC9ydz4a0K89BHHIa7I8w7L3K2')
     }
 
     // 飞书环境：正常获取 code
@@ -162,6 +168,7 @@ export const getLarkAuthCode = (): Promise<string> => {
         },
         fail: (err) => {
           console.error('Code 获取失败:', err)
+          window.location.href = '/'
           reject(err)
         },
       })

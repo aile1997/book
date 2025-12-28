@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useSeats } from '../composables/useSeats'
-import { usePartners } from '../composables/usePartners'
 import { debounce } from '../utils/debounce'
 import type { Partner } from '../types/booking'
+import { useSeatConfig } from '../composables/useSeatConfig'
 
 interface Props {
   visible: boolean
@@ -22,8 +22,10 @@ const emit = defineEmits<Emits>()
 
 // ========== 数据层 ==========
 
+// 加载全局座位配置
+const { getSeatGroupConfig, generateSeatPath, colors } = useSeatConfig()
+
 // 使用伙伴管理组合式函数
-const {} = usePartners()
 const { seatAvailability } = useSeats()
 
 // 视图模式: 'search' | 'table'
@@ -193,6 +195,30 @@ const highlightMatch = (text: string, query: string) => {
   }
 }
 
+// C 区自定义路径常量
+const TABLE_C_SVG_PATH =
+  'M12.7307 1.73203L8.51711 4.1648L5.80667 2.60131C5.04605 2.16064 4.09831 2.70996 4.09831 3.59131V6.71828L1.81042 8.0403C0.729861 8.66208 0.729861 10.2256 1.81042 10.8534L4.09831 12.1754V15.3024C4.09831 16.1777 5.04605 16.727 5.80667 16.2924L8.51711 14.7289L12.7307 17.1616C13.8112 17.7834 15.1634 17.0047 15.1634 15.7551V3.1446C15.1634 1.89502 13.8112 1.11628 12.7307 1.73806V1.73203Z'
+
+/**
+ * 生成 A/B 区半圆路径
+ * @param isLeft 是否为左侧座位（开口方向不同）
+ */
+const getSemicirclePath = (isLeft: boolean): string => {
+  // 宽度16, 高度16, 半径8
+  return isLeft
+    ? `M 16 0 h -8 a 8 8 0 0 0 0 16 h 8 z` // 左侧：圆弧在左
+    : `M 0 0 h 8 a 8 8 0 0 1 0 16 h -8 z` // 右侧：圆弧在右
+}
+
+const tableHeight = computed(() => {
+  const leftCount = leftSeats.value.length
+  const rightCount = rightSeats.value.length
+  const maxCount = Math.max(leftCount, rightCount)
+
+  // 参照配置：通常间距是 36-40px，加上上下 padding
+  return maxCount * 33
+})
+
 // 重置状态当模态框关闭
 watch(
   () => props.visible,
@@ -310,7 +336,7 @@ watch(
                 selectedTable === 'C' ? 'rounded-tr-none' : '', // 选中C，右上变直角
               ]"
             >
-              <div class="flex">
+              <div class="flex items-center justify-center min-h-[200px]">
                 <div class="flex-1 space-y-3 pr-4">
                   <div
                     v-for="(item, index) in leftSeats"
@@ -318,19 +344,34 @@ watch(
                     class="flex items-center justify-end gap-3 h-6"
                   >
                     <span
-                      class="text-sm font-medium text-right transition-colors"
-                      :class="item.isAvailable === true ? 'text-gray-300' : 'text-gray-700'"
+                      class="text-sm font-medium text-right"
+                      :class="item.isAvailable ? 'text-gray-300' : 'text-gray-700'"
                     >
                       {{ item.partner?.fullName || item.seat }}
                     </span>
-                    <div
-                      class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.isAvailable === true ? 'bg-gray-200' : 'bg-success'"
-                    ></div>
+
+                    <svg width="16" height="16" viewBox="0 0 16 16" class="flex-shrink-0">
+                      <path
+                        :d="selectedTable === 'C' ? TABLE_C_SVG_PATH : getSemicirclePath(true)"
+                        :fill="item.isAvailable ? '#E5E7EB' : '#10B981'"
+                      />
+                    </svg>
                   </div>
                 </div>
 
-                <div class="w-px bg-gray-200 mx-2"></div>
+                <div
+                  class="w-14 bg-gray-100 rounded-md border border-gray-200/60 flex items-center justify-center relative shadow-"
+                  :style="{ height: `${tableHeight}px` }"
+                >
+                  <div class="flex flex-col items-center gap-1">
+                    <span class="text-[12px] font-bold text-gray-400 uppercase tracking-tighter">{{
+                      selectedTable
+                    }}</span>
+                  </div>
+                  <div
+                    class="absolute inset-y-8 left-1/2 w-px bg-gray-200/50 -translate-x-1/2"
+                  ></div>
+                </div>
 
                 <div class="flex-1 space-y-3 pl-4">
                   <div
@@ -338,13 +379,16 @@ watch(
                     :key="`right-${index}`"
                     class="flex items-center justify-start gap-3 h-6"
                   >
-                    <div
-                      class="w-4 h-4 rounded-sm flex-shrink-0"
-                      :class="item.isAvailable === true ? 'bg-gray-200' : 'bg-success'"
-                    ></div>
+                    <svg width="16" height="16" viewBox="0 0 16 16" class="flex-shrink-0">
+                      <path
+                        :d="selectedTable === 'C' ? TABLE_C_SVG_PATH : getSemicirclePath(false)"
+                        :fill="item.isAvailable ? '#E5E7EB' : '#10B981'"
+                      />
+                    </svg>
+
                     <span
-                      class="text-sm font-medium text-left transition-colors"
-                      :class="item.isAvailable === true ? 'text-gray-300' : 'text-gray-700'"
+                      class="text-sm font-medium text-left"
+                      :class="item.isAvailable ? 'text-gray-300' : 'text-gray-700'"
                     >
                       {{ item.partner?.fullName || item.seat }}
                     </span>

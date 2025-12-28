@@ -15,10 +15,10 @@ export function useBooking() {
   const coins = ref(0) // 新增：积分余额
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-  
+
   // 轮询相关状态
   let pollingTimer: number | null = null
-  const pollingInterval = 30000 // 30秒
+  const pollingInterval = 10000 // 10秒
 
   /**
    * 创建新的预订
@@ -104,23 +104,20 @@ export function useBooking() {
       console.error('加载交易记录失败:', err)
     }
   }
-  
+
   /**
    * 刷新预订和积分数据
    */
   async function refreshData() {
-    await Promise.all([
-      loadBookings(),
-      loadUserCredits(),
-    ])
+    await Promise.all([loadBookings(), loadUserCredits()])
   }
-  
+
   /**
    * 启动轮询
    */
   function startPolling() {
     if (pollingTimer) return
-    
+
     pollingTimer = window.setInterval(() => {
       // 检查页面是否可见
       if (document.visibilityState === 'visible') {
@@ -128,7 +125,7 @@ export function useBooking() {
       }
     }, pollingInterval)
   }
-  
+
   /**
    * 停止轮询
    */

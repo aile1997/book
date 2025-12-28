@@ -55,6 +55,7 @@ const selectPartner = (partner: Partner) => {
     emit('update:selectedPartners', selected)
   }
   searchQuery.value = '' // 选择后清空
+  searchResults.value = []
   close()
 }
 

@@ -23,8 +23,8 @@ export interface Invitation {
 
 const { loadBookings } = useBooking()
 
-// 轮询间隔（例如 30 秒）
-const POLLING_INTERVAL = 30000
+// 轮询间隔（例如 10 秒）
+const POLLING_INTERVAL = 10000
 
 // 模块级状态，实现单例
 const upcomingInvitations = ref<Invitation[]>([])

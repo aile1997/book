@@ -15,6 +15,11 @@ const user = ref<any>(null)
 const isLoading = ref(!!localStorage.getItem('authToken')) // 如果有token，初始就是加载中
 const authError = ref<string | null>(null)
 
+const isAdmin = computed(() => {
+  // 规范的判断：检查角色是否为 ADMIN 或以上
+  return user.value?.isAdmin
+})
+
 // 飞书静默登录状态
 const isSilentLogin = ref(false)
 
@@ -151,9 +156,9 @@ async function silentLoginWithFeishu() {
 /**
  * 认证状态管理 Composable
  */
-export function useAuth() {
+export function useAuth(isFirstLoad = true) {
   // 首次加载时检查认证状态
-  if (!user.value && isAuthenticated.value) {
+  if (!user.value && isAuthenticated.value && isFirstLoad) {
     checkAuthStatus()
   }
 
@@ -163,6 +168,7 @@ export function useAuth() {
     isLoading: computed(() => isLoading.value),
     isSilentLogin: computed(() => isSilentLogin.value), // 暴露静默登录状态
     authError: computed(() => authError.value),
+    isAdmin,
     signIn,
     signInWithFeishu,
     signOut,

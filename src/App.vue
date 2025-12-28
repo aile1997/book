@@ -72,3 +72,69 @@ onMounted(async () => {
     {{ authError }}
   </div>
 </template>
+
+<style>
+/* 当 NProgress 激活时，通过控制 bar 的存在来激活遮罩 */
+#nprogress .spinner,
+#nprogress .bar {
+  z-index: 10001; /* 确保进度条在遮罩上方 */
+}
+
+/* 1. 定义背景呼吸动画 */
+@keyframes mask-pulse {
+  0% {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  50% {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+  100% {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* 2. 增强 NProgress 进度条本身的质感 */
+#nprogress .bar {
+  background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%) !important; /* 渐变色 */
+  height: 3px !important;
+  box-shadow: 0 0 15px rgba(79, 172, 254, 0.7); /* 进度条发光 */
+}
+
+/* 3. 高级遮罩主体 */
+#nprogress::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  /* 关键：使用带有透明度的径向渐变，模拟中心点光源 */
+  background: radial-gradient(
+    circle at 50% 0%,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+
+  /* 毛玻璃深度感：稍微加大模糊，并配合呼吸动画 */
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+
+  animation: mask-pulse 3s infinite ease-in-out;
+  z-index: 10000;
+  cursor: wait;
+  pointer-events: all; /* 确保拦截所有点击 */
+}
+
+/* 4. 可选：增加一个微妙的网格纹理（极其高端的细节） */
+#nprogress::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(#ffffff 0.5px, transparent 0.5px);
+  background-size: 20px 20px;
+  opacity: 0.05;
+  z-index: 10001;
+  pointer-events: none;
+}
+</style>

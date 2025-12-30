@@ -1,19 +1,42 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch, nextTick } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useSeats } from './composables/useSeats'
 import { useInvitations } from './composables/useInvitations'
 import { cache, CacheKeys, CacheTTL } from './utils/cache'
-import ToastContainer from './components/ToastContainer.vue'
+import ToastContainer from './components/common/ToastContainer.vue'
+import LoadingScreen from './components/layout/LoadingScreen.vue'
+import { useRoute } from 'vue-router'
 
-import LoadingScreen from './components/LoadingScreen.vue'
+const route = useRoute()
 
 const { authError, signInWithFeishu, checkAuthStatus, user } = useAuth()
 const { loadAreas, loadSeatMap } = useSeats()
 const { fetchInvitations } = useInvitations()
 
-const isPreloading = ref(true)
+/**
+ * 核心逻辑：检测是否有滚动条并切换 overscroll-behavior
+ */
+const checkScrollStatus = () => {
+  nextTick(() => {
+    const html = document.documentElement
+    // scrollHeight 是内容实际高度，clientHeight 是视口高度
+    const hasScroll = html.scrollHeight > html.clientHeight
 
+    if (hasScroll) {
+      // 页面内容多，开启回弹
+      html.style.overscrollBehaviorY = 'auto'
+    } else {
+      // 页面内容少，禁止回弹，从而锁死飞书刷新栏导致的背景跳动
+      html.style.overscrollBehaviorY = 'none'
+    }
+  })
+}
+
+// 路由变化时重新检测
+watch(() => route.path, checkScrollStatus)
+
+const isPreloading = ref(true)
 // 预加载函数
 async function preloadData() {
   try {

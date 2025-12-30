@@ -17,6 +17,7 @@
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -41,7 +42,7 @@ body {
 }
 
 #app {
-  min-height: 100vh;
+  height: 100vh;
 }
 
 /* 自定义滚动条 */

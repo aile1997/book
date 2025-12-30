@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { Seat } from '../types/booking'
-import { useSeatConfig } from '../composables/useSeatConfig'
+import type { Seat } from '../../types/booking'
+import { useSeatConfig } from '../../composables/useSeatConfig'
 
 interface Props {
   seats: Seat[]

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { usePartners } from '../composables/usePartners' // 使用新的伙伴管理逻辑
-import type { Partner } from '../types/booking'
+import { usePartners } from '../../composables/usePartners' // 使用新的伙伴管理逻辑
+import type { Partner } from '../../types/booking'
 
 interface Props {
   visible: boolean

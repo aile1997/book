@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import RockBundLogo from '../components/RockBundLogo.vue'
+import RockBundLogo from '../components/layout/RockBundLogo.vue'
 
 const router = useRouter()
 
 // 当前展示的部分
-const currentSection = ref<'overview' | 'architecture' | 'technology' | 'future' | 'experience'>('overview')
+const currentSection = ref<'overview' | 'architecture' | 'technology' | 'future' | 'experience'>(
+  'overview',
+)
 
 // 切换部分
 const showSection = (section: typeof currentSection.value) => {
@@ -113,7 +115,9 @@ const uxHighlights = [
 <template>
   <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
     <!-- 顶部导航 -->
-    <div class="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-50">
+    <div
+      class="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-50"
+    >
       <div class="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
         <div class="flex items-center gap-4">
           <RockBundLogo color="#292929" />
@@ -133,13 +137,9 @@ const uxHighlights = [
       <div class="max-w-7xl mx-auto px-8">
         <!-- 标题区 -->
         <div class="text-center mb-12 pt-8">
-          <h1 class="text-5xl font-bold text-gray-900 mb-4 tracking-tight">
-            飞书企业订座系统
-          </h1>
-          <p class="text-xl text-gray-600 mb-8">
-            企业级空间资源数字化管理解决方案
-          </p>
-          
+          <h1 class="text-5xl font-bold text-gray-900 mb-4 tracking-tight">飞书企业订座系统</h1>
+          <p class="text-xl text-gray-600 mb-8">企业级空间资源数字化管理解决方案</p>
+
           <!-- 导航标签 -->
           <div class="flex justify-center gap-3 flex-wrap">
             <button
@@ -150,7 +150,7 @@ const uxHighlights = [
                 'px-6 py-3 rounded-xl font-medium transition-all',
                 currentSection === item.key
                   ? 'bg-success text-white shadow-lg scale-105'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200',
               ]"
             >
               <span class="mr-2">{{ item.icon }}</span>
@@ -164,16 +164,20 @@ const uxHighlights = [
           <!-- 产品定位 -->
           <div v-if="currentSection === 'overview'" class="space-y-8">
             <h2 class="text-3xl font-bold text-gray-900 mb-6">产品架构定位</h2>
-            
+
             <div class="prose prose-lg max-w-none">
               <p class="text-gray-700 leading-relaxed text-lg">
-                本系统不仅是一个简单的"订座工具"，而是一套<strong class="text-success">企业级空间资源数字化管理解决方案</strong>。
+                本系统不仅是一个简单的"订座工具"，而是一套<strong class="text-success"
+                  >企业级空间资源数字化管理解决方案</strong
+                >。
                 它通过可视化技术、实时数据同步、智能推荐等能力，帮助企业实现办公空间的高效利用与精细化管理。
               </p>
             </div>
 
             <div class="grid grid-cols-2 gap-6 mt-8">
-              <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-2xl border border-green-200">
+              <div
+                class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-2xl border border-green-200"
+              >
                 <div class="text-3xl mb-3">🏢</div>
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">企业级</h3>
                 <p class="text-gray-700">
@@ -181,7 +185,9 @@ const uxHighlights = [
                 </p>
               </div>
 
-              <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl border border-blue-200">
+              <div
+                class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl border border-blue-200"
+              >
                 <div class="text-3xl mb-3">💼</div>
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">数字化办公</h3>
                 <p class="text-gray-700">
@@ -189,7 +195,9 @@ const uxHighlights = [
                 </p>
               </div>
 
-              <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl border border-purple-200">
+              <div
+                class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl border border-purple-200"
+              >
                 <div class="text-3xl mb-3">📊</div>
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">空间资源管理</h3>
                 <p class="text-gray-700">
@@ -197,7 +205,9 @@ const uxHighlights = [
                 </p>
               </div>
 
-              <div class="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-2xl border border-orange-200">
+              <div
+                class="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-2xl border border-orange-200"
+              >
                 <div class="text-3xl mb-3">🔧</div>
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">可扩展性</h3>
                 <p class="text-gray-700">
@@ -206,7 +216,9 @@ const uxHighlights = [
               </div>
             </div>
 
-            <div class="mt-8 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl border border-green-200">
+            <div
+              class="mt-8 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl border border-green-200"
+            >
               <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <span>🎯</span>
                 <span>平台化潜力</span>
@@ -222,8 +234,10 @@ const uxHighlights = [
           <!-- 技术架构 -->
           <div v-if="currentSection === 'architecture'" class="space-y-8">
             <h2 class="text-3xl font-bold text-gray-900 mb-6">系统架构设计</h2>
-            
-            <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200">
+
+            <div
+              class="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200"
+            >
               <div class="grid grid-cols-3 gap-6">
                 <div class="text-center">
                   <div class="text-5xl mb-4">🎨</div>
@@ -248,12 +262,16 @@ const uxHighlights = [
 
             <div class="prose prose-lg max-w-none mt-8">
               <h3 class="text-2xl font-semibold text-gray-900 mb-4">架构特点</h3>
-              
+
               <div class="space-y-4">
-                <div class="flex items-start gap-4 p-4 bg-green-50 rounded-xl border border-green-200">
+                <div
+                  class="flex items-start gap-4 p-4 bg-green-50 rounded-xl border border-green-200"
+                >
                   <div class="text-2xl">✅</div>
                   <div>
-                    <h4 class="font-semibold text-gray-900 mb-1">设计稿驱动（Layout JSON / SVG Engine）</h4>
+                    <h4 class="font-semibold text-gray-900 mb-1">
+                      设计稿驱动（Layout JSON / SVG Engine）
+                    </h4>
                     <p class="text-gray-700 text-sm">
                       座位布局由 SVG 配置驱动，设计师修改设计稿后，前端只需更新配置文件即可生效，
                       无需修改代码。这种<strong>"设计稿即配置"</strong>的模式，极大提升了迭代效率。
@@ -261,7 +279,9 @@ const uxHighlights = [
                   </div>
                 </div>
 
-                <div class="flex items-start gap-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <div
+                  class="flex items-start gap-4 p-4 bg-blue-50 rounded-xl border border-blue-200"
+                >
                   <div class="text-2xl">✅</div>
                   <div>
                     <h4 class="font-semibold text-gray-900 mb-1">前端渲染与业务逻辑解耦</h4>
@@ -272,7 +292,9 @@ const uxHighlights = [
                   </div>
                 </div>
 
-                <div class="flex items-start gap-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
+                <div
+                  class="flex items-start gap-4 p-4 bg-purple-50 rounded-xl border border-purple-200"
+                >
                   <div class="text-2xl">✅</div>
                   <div>
                     <h4 class="font-semibold text-gray-900 mb-1">可复用的选座引擎 / 布局引擎</h4>
@@ -283,10 +305,14 @@ const uxHighlights = [
                   </div>
                 </div>
 
-                <div class="flex items-start gap-4 p-4 bg-orange-50 rounded-xl border border-orange-200">
+                <div
+                  class="flex items-start gap-4 p-4 bg-orange-50 rounded-xl border border-orange-200"
+                >
                   <div class="text-2xl">✅</div>
                   <div>
-                    <h4 class="font-semibold text-gray-900 mb-1">对未来多楼层、多办公区、多城市的天然支持</h4>
+                    <h4 class="font-semibold text-gray-900 mb-1">
+                      对未来多楼层、多办公区、多城市的天然支持
+                    </h4>
                     <p class="text-gray-700 text-sm">
                       系统架构设计时就考虑了<strong>多层级、多区域</strong>的扩展需求。
                       通过配置化的方式，可以轻松支持多楼层、多办公区、甚至多城市的场景，
@@ -301,7 +327,7 @@ const uxHighlights = [
           <!-- 技术优势 -->
           <div v-if="currentSection === 'technology'" class="space-y-8">
             <h2 class="text-3xl font-bold text-gray-900 mb-6">技术先进性</h2>
-            
+
             <div class="grid grid-cols-1 gap-6">
               <div
                 v-for="(item, index) in techAdvantages"
@@ -314,7 +340,9 @@ const uxHighlights = [
                     <p class="text-gray-700 leading-relaxed">{{ item.desc }}</p>
                   </div>
                   <div class="ml-4">
-                    <span class="px-4 py-2 bg-success/10 text-success text-sm font-medium rounded-lg border border-success/20">
+                    <span
+                      class="px-4 py-2 bg-success/10 text-success text-sm font-medium rounded-lg border border-success/20"
+                    >
                       {{ item.highlight }}
                     </span>
                   </div>
@@ -322,7 +350,9 @@ const uxHighlights = [
               </div>
             </div>
 
-            <div class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border border-blue-200">
+            <div
+              class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border border-blue-200"
+            >
               <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <span>💡</span>
                 <span>技术创新点</span>
@@ -330,11 +360,15 @@ const uxHighlights = [
               <ul class="space-y-2 text-gray-700">
                 <li class="flex items-start gap-2">
                   <span class="text-success font-bold">•</span>
-                  <span><strong>SVG 动态渲染</strong>：基于配置动态生成座位图，支持任意形状和布局</span>
+                  <span
+                    ><strong>SVG 动态渲染</strong>：基于配置动态生成座位图，支持任意形状和布局</span
+                  >
                 </li>
                 <li class="flex items-start gap-2">
                   <span class="text-success font-bold">•</span>
-                  <span><strong>实时状态同步</strong>：WebSocket / 轮询机制，确保座位状态实时更新</span>
+                  <span
+                    ><strong>实时状态同步</strong>：WebSocket / 轮询机制，确保座位状态实时更新</span
+                  >
                 </li>
                 <li class="flex items-start gap-2">
                   <span class="text-success font-bold">•</span>
@@ -351,7 +385,7 @@ const uxHighlights = [
           <!-- 未来演进 -->
           <div v-if="currentSection === 'future'" class="space-y-8">
             <h2 class="text-3xl font-bold text-gray-900 mb-6">可持续建设规划</h2>
-            
+
             <div class="prose prose-lg max-w-none mb-8">
               <p class="text-gray-700 leading-relaxed text-lg">
                 本系统<strong>不是一次性交付</strong>，而是一个<strong>可持续建设的平台</strong>。
@@ -384,7 +418,9 @@ const uxHighlights = [
               </div>
             </div>
 
-            <div class="mt-8 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl border border-green-200">
+            <div
+              class="mt-8 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl border border-green-200"
+            >
               <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <span>🎯</span>
                 <span>价值主张</span>
@@ -400,7 +436,7 @@ const uxHighlights = [
           <!-- 用户体验 -->
           <div v-if="currentSection === 'experience'" class="space-y-8">
             <h2 class="text-3xl font-bold text-gray-900 mb-6">用户体验评价</h2>
-            
+
             <div class="grid grid-cols-2 gap-6">
               <div
                 v-for="(item, index) in uxHighlights"
@@ -414,7 +450,9 @@ const uxHighlights = [
             </div>
 
             <div class="mt-8 space-y-6">
-              <div class="p-6 bg-gradient-to-r from-green-50 to-green-100 rounded-2xl border border-green-200">
+              <div
+                class="p-6 bg-gradient-to-r from-green-50 to-green-100 rounded-2xl border border-green-200"
+              >
                 <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span>🎨</span>
                   <span>设计理念</span>
@@ -426,7 +464,9 @@ const uxHighlights = [
                 </p>
               </div>
 
-              <div class="p-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl border border-blue-200">
+              <div
+                class="p-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl border border-blue-200"
+              >
                 <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span>🔗</span>
                   <span>生态融合</span>
@@ -437,7 +477,9 @@ const uxHighlights = [
                 </p>
               </div>
 
-              <div class="p-6 bg-gradient-to-r from-purple-50 to-purple-100 rounded-2xl border border-purple-200">
+              <div
+                class="p-6 bg-gradient-to-r from-purple-50 to-purple-100 rounded-2xl border border-purple-200"
+              >
                 <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span>⚡</span>
                   <span>性能优化</span>
@@ -445,13 +487,14 @@ const uxHighlights = [
                 <p class="text-gray-700 leading-relaxed">
                   通过预加载、缓存、防抖、骨架屏等技术手段，
                   系统的加载速度提升了<strong>60%</strong>，搜索性能提升了<strong>70%</strong>，
-                  用户感知加载时间减少了<strong>60%</strong>，
-                  带来了流畅、快速的使用体验。
+                  用户感知加载时间减少了<strong>60%</strong>， 带来了流畅、快速的使用体验。
                 </p>
               </div>
             </div>
 
-            <div class="mt-8 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl border border-yellow-200">
+            <div
+              class="mt-8 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl border border-yellow-200"
+            >
               <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <span>🏆</span>
                 <span>体验价值</span>

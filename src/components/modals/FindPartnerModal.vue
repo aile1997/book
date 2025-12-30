@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useSeats } from '../composables/useSeats'
-import { debounce } from '../utils/debounce'
-import type { Partner } from '../types/booking'
-import { useSeatConfig } from '../composables/useSeatConfig'
+import { useSeats } from '../../composables/useSeats'
+import { debounce } from '../../utils/debounce'
+import type { Partner } from '../../types/booking'
+import { useSeatConfig } from '../../composables/useSeatConfig'
+import PinyinMatch from 'pinyin-match'
 
 interface Props {
   visible: boolean
@@ -40,12 +41,12 @@ const debouncedSearchQuery = ref('') // 防抖后的搜索关键词
 const isSearching = ref(false) // 搜索加载状态
 
 // 为搜索添加防抖（300ms）
-const updateSearch = debounce((value: string) => {
+const updateSearch = (value: string) => {
   isSearching.value = true
   // 模拟搜索延迟，给用户明确的加载反馈
   debouncedSearchQuery.value = value
   isSearching.value = false
-}, 300)
+}
 
 // 监听 searchQuery 变化，触发防抖更新
 watch(searchQuery, (newValue) => {
@@ -59,37 +60,55 @@ watch(searchQuery, (newValue) => {
 })
 
 // ========== 计算属性 ==========
-
-// 过滤后的伙伴列表（基于搜索）
 const filteredPartners = computed(() => {
+  // 只有在防抖后的值存在时才计算
   if (!debouncedSearchQuery.value) return []
-  const lowerQuery = debouncedSearchQuery.value.toLowerCase()
+  const query = debouncedSearchQuery.value.trim()
 
-  // 1. 从 seatAvailability.value 中提取已预订的伙伴信息
-  if (!seatAvailability.value || seatAvailability.value.length === 0) {
-    console.warn('Seats array is empty, cannot search for partners')
-    return []
-  }
-  const occupiedPartners: Partner[] = seatAvailability.value
-    .filter((s) => s.bookingUserInfo) // 筛选出已预订的座位
-    .map((s) => ({
-      id: s.bookingUserInfo.userId,
-      username: s.bookingUserInfo.username,
-      fullName: s.bookingUserInfo.fullName,
-      email: '',
-    }))
+  if (!seatAvailability.value) return []
 
-  // 2. 去重并过滤
-  const uniquePartners = occupiedPartners.reduce((acc, current) => {
-    if (!acc.some((p) => p.id === current.id)) {
-      acc.push(current)
-    }
-    return acc
-  }, [] as Partner[])
+  // 1. 提取并去重
+  const uniquePartners = seatAvailability.value
+    .filter((s) => s.bookingUserInfo)
+    .reduce((acc, current) => {
+      const userInfo = current.bookingUserInfo
+      if (!acc.some((p) => p.id === userInfo.userId)) {
+        acc.push({
+          id: userInfo.userId,
+          fullName: userInfo.fullName,
+          username: userInfo.username,
+        })
+      }
+      return acc
+    }, [] as any[])
 
-  // 3. 搜索过滤
-  return uniquePartners.filter((p) => p.fullName.toLowerCase().includes(lowerQuery))
+  // 2. 使用 PinyinMatch 进行极速匹配
+  return uniquePartners.filter((p) => {
+    // PinyinMatch.match 会同时匹配：中文、全拼、首字母、甚至拼音的一部分
+    // 如果匹配成功，它会返回一个数组 [开始索引, 结束索引]，否则返回 false
+    return PinyinMatch.match(p.fullName, query) || PinyinMatch.match(p.username, query)
+  })
 })
+/**
+ * 增强版高亮逻辑：支持拼音匹配汉字高亮
+ */
+const highlightMatch = (text: string, query: string) => {
+  if (!query) return { before: text, match: '', after: '' }
+
+  // PinyinMatch.match 返回匹配到的 [开始索引, 结束索引]
+  const result = PinyinMatch.match(text, query)
+
+  if (result) {
+    const [start, end] = result
+    return {
+      before: text.slice(0, start),
+      match: text.slice(start, end + 1), // 这里的 end 是包含在内的索引
+      after: text.slice(end + 1),
+    }
+  }
+
+  return { before: text, match: '', after: '' }
+}
 
 // 根据桌子获取座位布局，并关联伙伴数据
 const tableSeatMap = computed(() => {
@@ -182,19 +201,6 @@ const confirm = () => {
   close()
 }
 
-// 高亮搜索文本
-const highlightMatch = (text: string, query: string) => {
-  if (!query) return { before: text, match: '', after: '' }
-  const index = text.toLowerCase().indexOf(query.toLowerCase())
-  if (index === -1) return { before: text, match: '', after: '' }
-
-  return {
-    before: text.slice(0, index),
-    match: text.slice(index, index + query.length),
-    after: text.slice(index + query.length),
-  }
-}
-
 // C 区自定义路径常量
 const TABLE_C_SVG_PATH =
   'M12.7307 1.73203L8.51711 4.1648L5.80667 2.60131C5.04605 2.16064 4.09831 2.70996 4.09831 3.59131V6.71828L1.81042 8.0403C0.729861 8.66208 0.729861 10.2256 1.81042 10.8534L4.09831 12.1754V15.3024C4.09831 16.1777 5.04605 16.727 5.80667 16.2924L8.51711 14.7289L12.7307 17.1616C13.8112 17.7834 15.1634 17.0047 15.1634 15.7551V3.1446C15.1634 1.89502 13.8112 1.11628 12.7307 1.73806V1.73203Z'
@@ -275,10 +281,16 @@ watch(
             <div v-if="isSearching" class="bg-white rounded-lg p-4 text-center">
               <div class="text-gray-500 text-sm">搜索中...</div>
             </div>
-
+            <div v-if="isSearching" class="bg-white rounded-lg overflow-hidden shadow-xl">
+              <button
+                class="w-full text-left px-4 py-4 text-base font-medium text-gray-400 animate-pulse"
+              >
+                Searching...
+              </button>
+            </div>
             <!-- 搜索结果列表 -->
             <div
-              v-else-if="filteredPartners.length > 0"
+              v-else-if="searchQuery && filteredPartners.length > 0"
               class="bg-white rounded-lg overflow-hidden"
             >
               <button
@@ -297,6 +309,17 @@ watch(
                   highlightMatch(partner.fullName, searchQuery).after
                 }}</span>
               </button>
+            </div>
+
+            <div
+              v-else-if="searchQuery && !isSearching"
+              class="bg-white rounded-lg overflow-hidden mb-8 shadow-xl"
+            >
+              <div
+                class="w-full text-left px-4 py-3 text-base font-medium leading-[100%] tracking-[-0.16px] text-gray-400"
+              >
+                当前时间段无该用户
+              </div>
             </div>
 
             <!-- "查看全部" 按钮 -->

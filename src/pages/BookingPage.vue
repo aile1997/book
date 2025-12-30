@@ -6,11 +6,11 @@ import { useAuth } from '../composables/useAuth' // 导入 useAuth 检查登录�
 import { useRouter } from 'vue-router'
 import { useSeats } from '../composables/useSeats'
 import { useToast } from '../composables/useToast'
-import SeatMap from '../components/SeatMap.vue'
-import InvitePartnerModal from '../components/InvitePartnerModal.vue'
-import FindPartnerModal from '../components/FindPartnerModal.vue'
-import SeatSelectionModal from '../components/SeatSelectionModal.vue'
-import SuccessModal from '../components/SuccessModal.vue'
+import SeatMap from '../components/features/SeatMap.vue'
+import InvitePartnerModal from '../components/modals/InvitePartnerModal.vue'
+import FindPartnerModal from '../components/modals/FindPartnerModal.vue'
+import SeatSelectionModal from '../components/modals/SeatSelectionModal.vue'
+import SuccessModal from '../components/modals/SuccessModal.vue'
 import type { TimeSlot, Partner } from '../types/booking'
 
 const router = useRouter()
@@ -27,13 +27,19 @@ const {
   loadTimeSlots, // 导入 loadTimeSlots
   loadAreasWithCache, // 加载区域（带缓存）
   loadSeatMapWithCache, // 加载座位图（带缓存）
+  seatAvailability,
 } = useSeats()
 
 // 使用预订管理组合式函数
-const { makeBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
+const {
+  makeBooking,
+  isLoading: isBookingLoading,
+  error: bookingError,
+  removeBooking,
+} = useBooking()
 
 // 使用认证组合式函数
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, user } = useAuth()
 
 // ========== 状态管理 ==========
 
@@ -348,19 +354,59 @@ const bookNow = async () => {
     showSuccessModal.value = true
 
     // 1. 先刷新服务器数据，确保获取最新的座位状态
+    refreshData()
+
+    // 2. 然后再清理本地UI状态，避免竞态条件
+    clearSelection()
+    invitedPartners.value = []
+  } catch (error) {
+    // 检查是否是因为“已有预订”导致的失败（根据后端返回的错误码或消息判断）
+    if (error.message.includes('该时间段已预订会议') || error.code === 400) {
+      // 1. 弹出二次确认框（使用浏览器 confirm 或自定义弹窗）
+      const confirmSwitch = confirm('当前时间段您已经有预订，是否切换座位？')
+
+      if (confirmSwitch) {
+        // 2. 从 seatAvailability 获取当前用户的旧预订 ID
+        // 假设当前用户 ID 为 currentUserId
+        const oldBooking = seatAvailability.value.find(
+          (seat) => seat.bookingUserInfo?.userId === user.value.id,
+        )
+
+        if (oldBooking?.seatId) {
+          isBookingLoading.value = true
+          try {
+            // 3. 执行取消旧预订
+            await removeBooking(oldBooking.seatId)
+
+            // 4. 执行新预订
+            await makeBooking(bookingData)
+
+            showSuccessModal.value = true
+            await refreshData()
+
+            invitedPartners.value = []
+            clearSelection()
+          } catch (error) {
+            showError('切换座位失败，请稍后重试', error)
+          } finally {
+            isBookingLoading.value = false
+          }
+        }
+      }
+    } else {
+      showError(bookingError.value || '请检查网络或登录状态')
+      console.error('预订失败:', error)
+    }
+  }
+
+  // 数据刷新封装
+  async function refreshData() {
     if (selectedDateTime.value) {
       await querySeatAvailability(
         selectedDateTime.value.dateISO,
         Number(selectedDateTime.value.timeSlotId),
       )
     }
-
-    // 2. 然后再清理本地UI状态，避免竞态条件
-    clearSelection()
-    invitedPartners.value = []
-  } catch (error) {
-    showError('预订失败: ' + (bookingError.value || '请检查网络或登录状态'))
-    console.error('预订失败:', error)
   }
 }
 

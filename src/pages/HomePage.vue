@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
-import RockBundLogo from '../components/RockBundLogo.vue'
-import FeatureCard from '../components/FeatureCard.vue'
+import RockBundLogo from '../components/layout/RockBundLogo.vue'
+import FeatureCard from '../components/features/FeatureCard.vue'
 import { useToast } from '../composables/useToast'
 
 import Photo from '@/assets/images/home/Photo.png'

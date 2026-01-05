@@ -451,7 +451,7 @@ const goBack = () => {
 
     <!-- ========== 主要内容区域 ========== -->
     <div class="px-6 py-6 pb-28 max-w-2xl mx-auto">
-      <!-- ========== 座位选择区域 ========== -->
+      <!-- ========== Seat Selection Area ========== -->
       <section class="mb-6">
         <div class="opacity-90 pointer-events-none">
           <SeatMap :seats="seats" :selected-seat="selectedSeat" @select-seat="() => {}" />
@@ -484,22 +484,22 @@ const goBack = () => {
           </button>
         </div>
       </div>
-      <!-- ========== 分隔线 ========== -->
+      <!-- ========== Divider ========== -->
       <div class="border-t border-gray-light my-8"></div>
 
-      <!-- ========== 日期和时间选择 ========== -->
+      <!-- ========== Date and Time Selection ========== -->
       <section class="mb-8">
-        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Data & Time</h2>
+        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Date & Time</h2>
 
         <div class="space-y-4">
           <div v-for="(slot, dateIndex) in timeSlots" :key="slot.id" class="flex gap-4 items-start">
-            <!-- 日期显示 -->
+            <!-- Date display -->
             <div class="w-20 flex-shrink-0">
               <div class="text-2xl font-bold text-gray-dark tracking-tight">{{ slot.date }}</div>
               <div class="text-xs text-gray mt-1 tracking-tight">{{ slot.weekday }}</div>
             </div>
 
-            <!-- 时间段选择 -->
+            <!-- Time slot selection -->
             <div class="flex-1 space-y-2">
               <button
                 v-for="(time, timeIndex) in slot.times"
@@ -522,15 +522,15 @@ const goBack = () => {
         </div>
       </section>
 
-      <!-- ========== 分隔线 ========== -->
+      <!-- ========== Divider ========== -->
       <div class="border-t border-gray-light my-8"></div>
 
-      <!-- ========== 邀请伙伴 ========== -->
+      <!-- ========== Invite Partners ========== -->
       <section class="mb-8">
         <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Invite Partner</h2>
 
         <div class="flex flex-wrap gap-3">
-          <!-- 已邀请的伙伴标签 -->
+          <!-- Invited partner tags -->
           <button
             v-for="partner in invitedPartners"
             :key="partner.id"
@@ -556,7 +556,7 @@ const goBack = () => {
             </svg>
           </button>
 
-          <!-- 添加伙伴按钮 -->
+          <!-- Add partner button -->
           <button
             @click="openFindPartnerModal"
             class="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-light rounded-full hover:border-gray-dark transition-colors group"
@@ -579,54 +579,45 @@ const goBack = () => {
             <span
               class="text-sm font-medium text-gray group-hover:text-gray-dark transition-colors"
             >
-              添加伙伴
+              Add Partner
             </span>
           </button>
         </div>
 
-        <!-- 提示信息 -->
-        <p class="text-xs text-gray mt-3">点击标签可移除已邀请的伙伴</p>
+        <!-- Tip message -->
+        <p class="text-xs text-gray mt-3">Click tag to remove invited partner</p>
       </section>
 
-      <!-- ========== 预订摘要 ========== -->
+      <!-- ========== Booking Summary ========== -->
       <section
         v-if="selectedSeat && selectedDateTime"
         class="bg-primary-light/30 rounded-2xl p-6 border border-primary/20"
       >
-        <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">预订摘要</h3>
+        <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Booking Summary</h3>
         <div class="space-y-3 text-sm">
           <div class="flex justify-between">
-            <span class="text-gray">座位</span>
+            <span class="text-gray">Seat</span>
             <span class="font-medium text-gray-dark">{{ selectedSeat }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-gray">日期</span>
+            <span class="text-gray">Date</span>
             <span class="font-medium text-gray-dark"
               >{{ selectedDateTime.date }} ({{ selectedDateTime.weekday }})</span
             >
           </div>
           <div class="flex justify-between">
-            <span class="text-gray">时间</span>
+            <span class="text-gray">Time</span>
             <span class="font-medium text-gray-dark">{{ selectedDateTime.time }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-gray">伙伴</span>
-            <span class="font-medium text-gray-dark">{{ invitedPartners.length }} 人</span>
+            <span class="text-gray">Partners</span>
+            <span class="font-medium text-gray-dark">{{ invitedPartners.length }}</span>
           </div>
           <div class="border-t border-primary/20 pt-3 mt-3"></div>
           <div class="flex justify-between items-center">
-            <span class="text-gray">消耗积分</span>
+            <span class="text-gray">Coins Used</span>
             <div class="flex items-center gap-2">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="10" cy="10" r="9" fill="#51D5FF" />
-                <path d="M10 6v8M6 10h8" stroke="white" stroke-width="1.5" stroke-linecap="round" />
-              </svg>
+              <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
               <span class="font-bold text-cyan text-lg">{{ coinCost }}</span>
             </div>
           </div>
@@ -634,7 +625,7 @@ const goBack = () => {
       </section>
     </div>
 
-    <!-- ========== 底部固定操作栏 ========== -->
+    <!-- ========== Fixed Bottom Action Bar ========== -->
     <div class="fixed bottom-0 left-0 right-0 bg-white px-6 py-4 z-20 shadow-lg">
       <div class="flex justify-end max-w-2xl mx-auto">
         <div class="flex items-center gap-3 w-2/3">

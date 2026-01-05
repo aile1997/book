@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import type { Seat } from '../types/booking'
+import { useAuth } from './useAuth'
 import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots } from '../api' // 导入 API 客户端和新 API
 import {
   convertBackendMapToFrontendSeats,
@@ -296,15 +297,17 @@ function createSeatsStore() {
       }
 
       // 如果座位不可用（已被预订或锁定）
+      const bookingUserInfo = typeof availability === 'object' ? availability.bookingUserInfo : null
       return {
         ...seat,
-        status: 'occupied', // 直接设置为 'occupied'
+        status: 'occupied',
         occupiedBy:
-          typeof availability === 'object' && availability.bookingUserInfo
-            ? availability.bookingUserInfo.fullName ||
-              availability.bookingUserInfo.username ||
+          bookingUserInfo
+            ? bookingUserInfo.fullName ||
+              bookingUserInfo.username ||
               '已预订'
             : '已预订',
+        bookedByMe: bookingUserInfo?.userId === useAuth().user.value?.userId
       }
     })
   }
@@ -317,6 +320,7 @@ function createSeatsStore() {
   // 选择座位
   const selectSeat = (seatId: string) => {
     const seat = seats.value.find((s) => s.id === seatId)
+    // 修改逻辑：只有状态为 available 的座位才能被选中，禁止选择已预定的座位
     if (seat && seat.status === 'available') {
       // 取消之前选中的座位
       seats.value.forEach((s) => {

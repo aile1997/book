@@ -460,12 +460,21 @@ const goBack = () => {
 
       <div class="flex items-center justify-center w-full min-h-[64px]">
         <button
-          v-if="!selectedSeat"
+          v-if="!selectedSeat && !myBookingInCurrentSlot"
           @click="openSeatModal"
           :disabled="isLoadingSeats"
           class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ isLoadingSeats ? 'Loading Seats...' : 'Select Seat' }}
+        </button>
+
+        <button
+          v-else-if="!selectedSeat && myBookingInCurrentSlot"
+          @click="openSeatModal"
+          :disabled="isLoadingSeats"
+          class="px-10 py-3 bg-primary text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{ isLoadingSeats ? 'Loading Seats...' : 'Change Seat' }}
         </button>
 
         <div v-else class="flex items-center justify-between w-full max-w-2xl px-2">
@@ -590,14 +599,16 @@ const goBack = () => {
 
       <!-- ========== Booking Summary ========== -->
       <section
-        v-if="selectedSeat && selectedDateTime"
+        v-if="(selectedSeat || myBookingInCurrentSlot) && selectedDateTime"
         class="bg-primary-light/30 rounded-2xl p-6 border border-primary/20"
       >
-        <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Booking Summary</h3>
+        <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">
+          {{ selectedSeat ? 'Booking Summary' : 'Current Booking' }}
+        </h3>
         <div class="space-y-3 text-sm">
           <div class="flex justify-between">
             <span class="text-gray">Seat</span>
-            <span class="font-medium text-gray-dark">{{ selectedSeat }}</span>
+            <span class="font-medium text-gray-dark">{{ selectedSeat || myBookingInCurrentSlot.id }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray">Date</span>
@@ -609,12 +620,12 @@ const goBack = () => {
             <span class="text-gray">Time</span>
             <span class="font-medium text-gray-dark">{{ selectedDateTime.time }}</span>
           </div>
-          <div class="flex justify-between">
+          <div v-if="selectedSeat" class="flex justify-between">
             <span class="text-gray">Partners</span>
             <span class="font-medium text-gray-dark">{{ invitedPartners.length }}</span>
           </div>
-          <div class="border-t border-primary/20 pt-3 mt-3"></div>
-          <div class="flex justify-between items-center">
+          <div v-if="selectedSeat" class="border-t border-primary/20 pt-3 mt-3"></div>
+          <div v-if="selectedSeat" class="flex justify-between items-center">
             <span class="text-gray">Coins Used</span>
             <div class="flex items-center gap-2">
               <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />

@@ -265,11 +265,28 @@ export async function searchUsers(code: string, query: string, limit?: number): 
 
 /**
  * 检查用户是否已存在预订
- * @param {string} feishuUserId - 飞书用户 ID
+ * @param {object} params - 参数对象
+ * @param {string} params.feishuUserId - 飞书用户 ID
+ * @param {string} params.bookingDate - 预订日期
+ * @param {number} params.timeSlotId - 时间段 ID
+ * @param {number} [params.areaId] - 区域 ID（可选）
  * @returns {Promise<object>} 包含是否存在预订的信息
  */
-export async function checkUserExists(feishuUserId: string): Promise<any> {
-  return apiClient.get('/api/v1/users/exists', { params: { feishuUserId } })
+export async function checkUserExists(params: { 
+  feishuUserId: string, 
+  bookingDate: string, 
+  timeSlotId: number,
+  areaId?: number  // 设为可选
+}): Promise<any> {
+  const { feishuUserId, bookingDate, timeSlotId, areaId } = params
+  return apiClient.get('/api/v1/users/exists', { 
+    params: { 
+      feishuUserId,
+      bookingDate,
+      timeSlotId,
+      areaId
+    } 
+  })
 }
 
 // -----------------------------------------------------------------------------

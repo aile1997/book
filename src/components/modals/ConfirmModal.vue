@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
   title: 'Confirm Action',
   message: 'Are you sure you want to proceed?',
   confirmText: 'Confirm',
-  cancelText: 'Cancel'
+  cancelText: 'Cancel',
 })
 
 const emit = defineEmits<Emits>()
@@ -56,7 +56,7 @@ const handleConfirm = () => {
             >
               {{ confirmText }}
             </button>
-            
+
             <button
               @click="handleCancel"
               class="w-full py-3.5 bg-transparent border border-white/20 text-white/80 text-base font-medium rounded-xl hover:bg-white/5 active:scale-95 transition-all"

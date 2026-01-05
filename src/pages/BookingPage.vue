@@ -626,10 +626,14 @@ const goBack = () => {
 
           <button
             @click="bookNow"
-            :disabled="(!selectedSeat && !myBookingInCurrentSlot) || isBookingLoading || isLoadingSeats"
+            :disabled="
+              isBookingLoading || 
+              isLoadingSeats || 
+              (!selectedSeat && !(myBookingInCurrentSlot && invitedPartners.length > 0))
+            "
             class="w-full py-4 text-lg font-bold text-white rounded-xl bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {{ isBookingLoading ? 'Processing...' : (myBookingInCurrentSlot && !selectedSeat ? 'Invite Partners' : 'Book Now') }}
+            {{ isBookingLoading ? 'Processing...' : 'Book Now' }}
           </button>
         </div>
       </div>

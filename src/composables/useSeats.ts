@@ -282,6 +282,7 @@ function createSeatsStore() {
           ...seat,
           status: seat.status === 'selected' ? 'selected' : 'available',
           occupiedBy: '',
+          bookedByMe: false,
         }
       }
 
@@ -293,6 +294,7 @@ function createSeatsStore() {
           status:
             seat.status === 'selected' && seat.id === selectedSeat.value ? 'selected' : 'available',
           occupiedBy: '',
+          bookedByMe: false,
         }
       }
 
@@ -301,13 +303,10 @@ function createSeatsStore() {
       return {
         ...seat,
         status: 'occupied',
-        occupiedBy:
-          bookingUserInfo
-            ? bookingUserInfo.fullName ||
-              bookingUserInfo.username ||
-              '已预订'
-            : '已预订',
-        bookedByMe: bookingUserInfo?.userId === useAuth().user.value?.id
+        occupiedBy: bookingUserInfo
+          ? bookingUserInfo.fullName || bookingUserInfo.username || '已预订'
+          : '已预订',
+        bookedByMe: bookingUserInfo?.userId === useAuth().user.value?.id,
       }
     })
   }

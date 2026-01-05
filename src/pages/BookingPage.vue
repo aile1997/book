@@ -80,7 +80,9 @@ const getWeekday = (date: Date) => {
 }
 
 // 计算当前时间段是否有我的预订
-const myBookingInCurrentSlot = computed(() => seats.value.find((s: any) => s.bookedByMe))
+const myBookingInCurrentSlot = computed(() => {
+  return seats.value.find((s: any) => s.bookedByMe)
+})
 
 // 获取今天和明天的 Date 对象，使用计算属性确保始终是最新的
 const today = computed(() => new Date())
@@ -280,6 +282,8 @@ const clearHighlight = () => {
 
 // --- 邻座分配逻辑 ---
 const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
+  console.log(mySeatId)
+
   if (!mySeatId || partnersCount <= 0) return []
 
   const table = mySeatId.charAt(0) // 获取桌号，如 'A'
@@ -309,7 +313,7 @@ const bookNow = async () => {
   }
 
   const seat = seats.value.find((s) => s.id === selectedSeat.value)
-  if (!seat || !seat.backendSeatId) {
+  if ((!seat || !seat.backendSeatId) && !myBookingInCurrentSlot.value) {
     showError('请先选择有效的座位')
     return
   }
@@ -321,7 +325,10 @@ const bookNow = async () => {
   }
 
   // 自动分配邻座给伙伴
-  const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
+  const partnerAllocations = assignNearbySeats(
+    selectedSeat.value || myBookingInCurrentSlot.value.id,
+    invitedPartners.value.length,
+  )
 
   // 构造 invitePartners 数组
   const invitePartners = invitedPartners.value
@@ -329,7 +336,7 @@ const bookNow = async () => {
       console.log(partner)
 
       const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
-
+      console.log(assignedSeat, partnerAllocations)
       // 确保分配了座位，否则不邀请
       if (assignedSeat && assignedSeat.backendSeatId) {
         return {
@@ -345,7 +352,7 @@ const bookNow = async () => {
 
   // 构造预订数据
   const bookingData = {
-    seatId: seat.backendSeatId, // 后端座位 ID
+    seatId: seat?.backendSeatId || myBookingInCurrentSlot.value.backendSeatId, // 后端座位 ID
     bookingDate: selectedTimeSlot.dateISO, // 日期
     timeSlotId: Number(selectedTimeSlot.timeSlotId), // 时间段 ID
     invitePartners: invitePartners,
@@ -366,7 +373,11 @@ const bookNow = async () => {
     // 检查是否是因为“已有预订”导致的失败（根据后端返回的错误码或消息判断）
     if (error.message.includes('该时间段已预订会议') || error.code === 400) {
       // 1. 弹出二次确认框（使用浏览器 confirm 或自定义弹窗）
-      const confirmSwitch = confirm('当前时间段您已经有预订，是否切换座位？')
+      const confirmSwitch = confirm(
+        selectedSeat.value
+          ? '当前时间段您已经有预订，是否切换座位？'
+          : '当前时间段您已经有预定，是否直接邀请好友？',
+      )
 
       if (confirmSwitch) {
         // 2. 从 seatAvailability 获取当前用户的旧预订 ID
@@ -375,11 +386,11 @@ const bookNow = async () => {
           (seat) => seat.bookingUserInfo?.userId === user.value.id,
         )
 
-        if (oldBooking?.seatId) {
+        if (oldBooking?.bookingUserInfo.bookingId) {
           isBookingLoading.value = true
           try {
             // 3. 执行取消旧预订
-            await removeBooking(oldBooking.seatId)
+            await removeBooking(oldBooking.bookingUserInfo.bookingId)
 
             // 4. 执行新预订
             await makeBooking(bookingData)
@@ -390,7 +401,8 @@ const bookNow = async () => {
             invitedPartners.value = []
             clearSelection()
           } catch (error) {
-            showError('切换座位失败，请稍后重试', error)
+            console.error('预订失败:', error)
+            showError(bookingError.value || '请检查网络或登录状态')
           } finally {
             isBookingLoading.value = false
           }
@@ -463,21 +475,26 @@ const goBack = () => {
 
       <div class="flex items-center justify-center w-full min-h-[64px]">
         <button
-          v-if="!selectedSeat"
+          v-if="!selectedSeat && !myBookingInCurrentSlot"
           @click="openSeatModal"
           :disabled="isLoadingSeats"
-          class="px-10 py-3 text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="myBookingInCurrentSlot ? 'bg-primary' : 'bg-gray-dark'"
+          class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {{ isLoadingSeats ? 'Loading Seats...' : (myBookingInCurrentSlot ? 'Change Seat' : 'Select Seat') }}
+          {{ isLoadingSeats ? 'Loading Seats...' : 'Select Seat' }}
         </button>
 
         <div v-else class="flex items-center justify-between w-full max-w-2xl px-2">
           <div class="flex items-baseline gap-4">
             <span class="text-sm font-medium text-gray-400 tracking-tight">Your Seat</span>
-            <span class="text-3xl font-bold text-gray-dark tracking-tighter">{{ selectedSeat }}</span>
+            <span class="text-3xl font-bold text-gray-dark tracking-tighter">
+              {{ selectedSeat || myBookingInCurrentSlot.id }}
+            </span>
           </div>
-          <button @click="openSeatModal" class="px-5 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-semibold text-gray-dark hover:bg-gray-50 active:scale-95 transition-all">
+
+          <button
+            @click="openSeatModal"
+            class="px-5 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-semibold text-gray-dark hover:bg-gray-50 active:scale-95 transition-all"
+          >
             Change Seat
           </button>
         </div>
@@ -597,7 +614,9 @@ const goBack = () => {
         <div class="space-y-3 text-sm">
           <div class="flex justify-between">
             <span class="text-gray">Seat</span>
-            <span class="font-medium text-gray-dark">{{ selectedSeat || myBookingInCurrentSlot.id }}</span>
+            <span class="font-medium text-gray-dark">{{
+              selectedSeat || myBookingInCurrentSlot.id
+            }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray">Date</span>
@@ -636,7 +655,13 @@ const goBack = () => {
 
           <button
             @click="bookNow"
-            :disabled="!selectedSeat || isBookingLoading || isLoadingSeats"
+            :disabled="
+              (!selectedSeat &&
+                (!myBookingInCurrentSlot || !invitedPartners.length) &&
+                !myBookingInCurrentSlot) ||
+              isBookingLoading ||
+              isLoadingSeats
+            "
             class="w-full py-4 text-lg font-bold text-white rounded-xl bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ isBookingLoading ? 'Booking...' : 'Book Now' }}

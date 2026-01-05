@@ -8,6 +8,7 @@ import { useBooking } from '../composables/useBooking'
 import { useInvitations } from '../composables/useInvitations'
 import { useToast } from '../composables/useToast'
 import type { Invitation } from '../composables/useInvitations'
+import ConfirmModal from '../components/modals/ConfirmModal.vue'
 
 const router = useRouter()
 const { success, error: showError } = useToast()
@@ -43,6 +44,12 @@ const userData = computed(() => {
 const showPayModal = ref(false)
 const showHistoryModal = ref(false)
 const isCancelling = ref(false)
+const showConfirmModal = ref(false)
+const confirmModalConfig = ref({
+  title: '',
+  message: '',
+  onConfirm: () => {}
+})
 
 // 当前预订：取第一个预订作为展示用的当前预订
 const currentBooking = computed(() => {
@@ -125,8 +132,15 @@ onMounted(async () => {
 // --- 事件处理 ---
 const goBack = () => router.push('/')
 const logout = () => {
-  signOut()
-  router.push('/')
+  confirmModalConfig.value = {
+    title: 'Log Out',
+    message: 'Are you sure you want to log out of your account?',
+    onConfirm: () => {
+      signOut()
+      router.push('/')
+    }
+  }
+  showConfirmModal.value = true
 }
 
 // 处理接受邀请
@@ -156,19 +170,24 @@ const handleDecline = async (invitation: Invitation) => {
 const handleCancelBooking = async (bookingId: number) => {
   if (!currentBooking.value || isCancelling.value) return
 
-  if (!confirm('确定要取消当前预订吗？')) return
-
-  isCancelling.value = true
-  try {
-    await removeBooking(bookingId)
-    success('预订已成功取消！')
-    // 刷新积分
-    await loadUserCredits()
-  } catch (error) {
-    showError(error.message)
-  } finally {
-    isCancelling.value = false
+  confirmModalConfig.value = {
+    title: 'Cancel Booking',
+    message: 'Are you sure you want to cancel this booking? This action cannot be undone.',
+    onConfirm: async () => {
+      isCancelling.value = true
+      try {
+        await removeBooking(bookingId)
+        success('预订已成功取消！')
+        // 刷新积分
+        await loadUserCredits()
+      } catch (error: any) {
+        showError(error.message)
+      } finally {
+        isCancelling.value = false
+      }
+    }
   }
+  showConfirmModal.value = true
 }
 
 // 兼容旧的邀请处理函数 (现在使用 useInvitations)
@@ -480,6 +499,14 @@ const validBookings = computed(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- 确认模态框 -->
+    <ConfirmModal
+      v-model:visible="showConfirmModal"
+      :title="confirmModalConfig.title"
+      :message="confirmModalConfig.message"
+      @confirm="confirmModalConfig.onConfirm"
+    />
   </div>
 </template>
 

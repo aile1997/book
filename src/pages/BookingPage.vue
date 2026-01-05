@@ -301,115 +301,95 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
     .map((s) => s.id)
 }
 
-// 修改预订执行函数
+// 预订执行函数重构
 const bookNow = async () => {
-  if (!isAuthenticated.value) {
-    showError('请先登录才能进行预订操作')
-    return
+  if (!isAuthenticated.value) return showError('请先登录才能进行预订操作')
+  if (!selectedDateTime.value) return showError('请先选择预订时间段')
+
+  // 1. 确定目标座位：如果没选新座但有旧座，则使用旧座（用于直接邀请场景）
+  const targetSeat = selectedSeat.value 
+    ? seats.value.find(s => s.id === selectedSeat.value)
+    : myBookingInCurrentSlot.value
+
+  if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
+
+  // 2. 校验伙伴是否已在当前时间段有预订（本地校验）
+  const partnersWithBooking = invitedPartners.value.filter(partner => {
+    // 在当前座位的可用性数据中查找该伙伴
+    return seatAvailability.value.some(avail => 
+      avail.bookingUserInfo?.userId === partner.id && !avail.isAvailable
+    )
+  })
+
+  if (partnersWithBooking.length > 0) {
+    const names = partnersWithBooking.map(p => p.fullName).join(', ')
+    return showError(`伙伴 ${names} 在该时间段已有预订，无法重复邀请`)
   }
 
-  const seat = seats.value.find((s) => s.id === selectedSeat.value)
-  if (!seat || !seat.backendSeatId) {
-    showError('请先选择有效的座位')
-    return
-  }
-
-  const selectedTimeSlot = selectedDateTime.value
-  if (!selectedTimeSlot) {
-    showError('请先选择预订时间段')
-    return
-  }
-
-  // 自动分配邻座给伙伴
-  const partnerAllocations = assignNearbySeats(selectedSeat.value, invitedPartners.value.length)
-
-  // 构造 invitePartners 数组
+  // 3. 准备预订数据
+  const partnerAllocations = assignNearbySeats(targetSeat.id, invitedPartners.value.length)
   const invitePartners = invitedPartners.value
     .map((partner, index) => {
-      console.log(partner)
-
-      const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
-
-      // 确保分配了座位，否则不邀请
-      if (assignedSeat && assignedSeat.backendSeatId) {
-        return {
-          userId: partner.id, // 维护前端 Partner.id 字段
-          openId: partner.openId || '', // 维护 openId 字段
-          username: partner.username || partner.fullName, // 维护 username 字段
-          seatId: assignedSeat.backendSeatId, // 分配的座位后端 ID
-        }
-      }
-      return null
+      const assignedSeat = seats.value.find(s => s.id === partnerAllocations[index])
+      return assignedSeat?.backendSeatId ? {
+        userId: partner.id,
+        openId: partner.openId || '',
+        username: partner.username || partner.fullName,
+        seatId: assignedSeat.backendSeatId,
+      } : null
     })
-    .filter((p) => p !== null) // 过滤掉未分配座位的伙伴
+    .filter(p => p !== null)
 
-  // 构造预订数据
   const bookingData = {
-    seatId: seat.backendSeatId, // 后端座位 ID
-    bookingDate: selectedTimeSlot.dateISO, // 日期
-    timeSlotId: Number(selectedTimeSlot.timeSlotId), // 时间段 ID
-    invitePartners: invitePartners,
+    seatId: targetSeat.backendSeatId,
+    bookingDate: selectedDateTime.value.dateISO,
+    timeSlotId: Number(selectedDateTime.value.timeSlotId),
+    invitePartners
   }
 
   try {
-    await makeBooking(bookingData)
-    // 预订成功
-    showSuccessModal.value = true
-
-    // 1. 先刷新服务器数据，确保获取最新的座位状态
-    refreshData()
-
-    // 2. 然后再清理本地UI状态，避免竞态条件
-    clearSelection()
-    invitedPartners.value = []
-  } catch (error) {
-    // 检查是否是因为“已有预订”导致的失败（根据后端返回的错误码或消息判断）
-    if (error.message.includes('该时间段已预订会议') || error.code === 400) {
-      // 1. 弹出二次确认框（使用浏览器 confirm 或自定义弹窗）
-      const confirmSwitch = confirm('当前时间段您已经有预订，是否切换座位？')
-
-      if (confirmSwitch) {
-        // 2. 从 seatAvailability 获取当前用户的旧预订 ID
-        // 假设当前用户 ID 为 currentUserId
-        const oldBooking = seatAvailability.value.find(
-          (seat) => seat.bookingUserInfo?.userId === user.value.id,
-        )
-
-        if (oldBooking?.seatId) {
-          isBookingLoading.value = true
-          try {
-            // 3. 执行取消旧预订
-            await removeBooking(oldBooking.seatId)
-
-            // 4. 执行新预订
-            await makeBooking(bookingData)
-
-            showSuccessModal.value = true
-            await refreshData()
-
-            invitedPartners.value = []
-            clearSelection()
-          } catch (error) {
-            showError('切换座位失败，请稍后重试', error)
-          } finally {
-            isBookingLoading.value = false
-          }
+    // 场景判断与执行
+    if (myBookingInCurrentSlot.value) {
+      const isChangingSeat = !!selectedSeat.value
+      const isInvitingNew = invitedPartners.value.length > 0
+      
+      // 场景 1 & 2: 切换座位或直接邀请好友
+      const confirmMsg = isChangingSeat 
+        ? '当前时间段您已经有预订，是否切换座位？' 
+        : '当前时间段您已经有预订，是否直接邀请好友？'
+      
+      if (confirm(confirmMsg)) {
+        // 必须先取消旧预订（因为 makeBooking 不支持追加邀请或直接覆盖）
+        const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
+        if (oldBookingId) {
+          await removeBooking(oldBookingId)
+          await makeBooking(bookingData)
+          showSuccessModal.value = true
         }
       }
     } else {
-      showError(bookingError.value || '请检查网络或登录状态')
-      console.error('预订失败:', error)
+      // 场景 3 & 4: 正常选座或正常选座邀请
+      await makeBooking(bookingData)
+      showSuccessModal.value = true
     }
-  }
 
-  // 数据刷新封装
-  async function refreshData() {
-    if (selectedDateTime.value) {
-      await querySeatAvailability(
-        selectedDateTime.value.dateISO,
-        Number(selectedDateTime.value.timeSlotId),
-      )
+    if (showSuccessModal.value) {
+      await refreshData()
+      clearSelection()
+      invitedPartners.value = []
     }
+  } catch (error: any) {
+    showError(error.message || '预订失败，请稍后重试')
+  }
+}
+
+// 数据刷新封装
+async function refreshData() {
+  if (selectedDateTime.value) {
+    await querySeatAvailability(
+      selectedDateTime.value.dateISO,
+      Number(selectedDateTime.value.timeSlotId),
+    )
   }
 }
 
@@ -636,10 +616,10 @@ const goBack = () => {
 
           <button
             @click="bookNow"
-            :disabled="!selectedSeat || isBookingLoading || isLoadingSeats"
+            :disabled="(!selectedSeat && !myBookingInCurrentSlot) || isBookingLoading || isLoadingSeats"
             class="w-full py-4 text-lg font-bold text-white rounded-xl bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {{ isBookingLoading ? 'Booking...' : 'Book Now' }}
+            {{ isBookingLoading ? 'Processing...' : (myBookingInCurrentSlot && !selectedSeat ? 'Invite Partners' : 'Book Now') }}
           </button>
         </div>
       </div>

@@ -298,6 +298,7 @@ function createSeatsStore() {
 
       // 如果座位不可用（已被预订或锁定）
       const bookingUserInfo = typeof availability === 'object' ? availability.bookingUserInfo : null
+      const isBookedByMe = bookingUserInfo?.userId === useAuth().user.value?.id
       return {
         ...seat,
         status: 'occupied',
@@ -307,7 +308,9 @@ function createSeatsStore() {
               bookingUserInfo.username ||
               '已预订'
             : '已预订',
-        bookedByMe: bookingUserInfo?.userId === useAuth().user.value?.id
+        bookedByMe: isBookedByMe,
+        // 如果是我预订的，保存预订信息，方便后续取消
+        bookingId: isBookedByMe ? availability.bookingId : null
       }
     })
   }

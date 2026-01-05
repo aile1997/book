@@ -38,28 +38,28 @@ const handleConfirm = () => {
     <Transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-6"
         @click.self="handleCancel"
       >
         <div
-          class="w-full max-w-md bg-primary rounded-t-[40px] p-8 pb-12 animate-slide-up flex flex-col items-center text-center"
+          class="w-full max-w-[320px] bg-[#2C2C2C] rounded-[24px] p-6 shadow-2xl animate-scale-in flex flex-col items-center text-center"
         >
-          <h3 class="text-white text-2xl font-semibold mb-4">{{ title }}</h3>
-          <p class="text-white/80 text-base mb-10 px-4 leading-relaxed">
+          <h3 class="text-white text-xl font-bold mb-3">{{ title }}</h3>
+          <p class="text-white/70 text-sm mb-8 leading-relaxed">
             {{ message }}
           </p>
 
-          <div class="flex flex-col gap-4 w-full px-6">
+          <div class="flex flex-col gap-3 w-full">
             <button
               @click="handleConfirm"
-              class="w-full py-4 bg-white text-primary text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-all"
+              class="w-full py-3.5 bg-white text-[#2C2C2C] text-base font-bold rounded-xl active:scale-95 transition-all"
             >
               {{ confirmText }}
             </button>
             
             <button
               @click="handleCancel"
-              class="w-full py-4 bg-transparent border-2 border-white/30 text-white text-lg font-medium rounded-2xl hover:bg-white/10 active:scale-95 transition-all"
+              class="w-full py-3.5 bg-transparent border border-white/20 text-white/80 text-base font-medium rounded-xl hover:bg-white/5 active:scale-95 transition-all"
             >
               {{ cancelText }}
             </button>
@@ -81,16 +81,18 @@ const handleConfirm = () => {
   opacity: 0;
 }
 
-.animate-slide-up {
-  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+.animate-scale-in {
+  animation: scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes slide-up {
+@keyframes scale-in {
   from {
-    transform: translateY(100%);
+    opacity: 0;
+    transform: scale(0.9);
   }
   to {
-    transform: translateY(0);
+    opacity: 1;
+    transform: scale(1);
   }
 }
 </style>

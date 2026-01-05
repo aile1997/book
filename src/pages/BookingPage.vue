@@ -11,6 +11,7 @@ import InvitePartnerModal from '../components/modals/InvitePartnerModal.vue'
 import FindPartnerModal from '../components/modals/FindPartnerModal.vue'
 import SeatSelectionModal from '../components/modals/SeatSelectionModal.vue'
 import SuccessModal from '../components/modals/SuccessModal.vue'
+import ConfirmModal from '../components/modals/ConfirmModal.vue'
 import type { TimeSlot, Partner } from '../types/booking'
 
 const router = useRouter()
@@ -53,6 +54,12 @@ const coinCost = ref(5)
 const showSeatModal = ref(false)
 const showFindPartnerModal = ref(false)
 const showSuccessModal = ref(false)
+const showConfirmModal = ref(false)
+const confirmModalConfig = ref({
+  title: '',
+  message: '',
+  onConfirm: () => {}
+})
 
 // 高亮显示的伙伴（用于在座位图上显示tooltip）
 const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
@@ -351,38 +358,38 @@ const bookNow = async () => {
     invitePartners
   }
 
-  try {
-    // 场景判断与执行
-    if (myBookingInCurrentSlot.value) {
-      const isChangingSeat = !!selectedSeat.value
-      
-      // 场景 1 & 2: 切换座位或直接邀请好友
-      const confirmMsg = isChangingSeat 
-        ? '当前时间段您已经有预订，是否切换座位？' 
-        : '当前时间段您已经有预订，是否直接邀请好友？'
-      
-      if (confirm(confirmMsg)) {
-        // 必须先取消旧预订（因为 makeBooking 不支持追加邀请或直接覆盖）
+  const executeBooking = async () => {
+    try {
+      if (myBookingInCurrentSlot.value) {
         const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
         if (oldBookingId) {
           await removeBooking(oldBookingId)
-          await makeBooking(bookingData)
-          showSuccessModal.value = true
         }
       }
-    } else {
-      // 场景 3 & 4: 正常选座或正常选座邀请
       await makeBooking(bookingData)
       showSuccessModal.value = true
-    }
-
-    if (showSuccessModal.value) {
       await refreshData()
       clearSelection()
       invitedPartners.value = []
+    } catch (error: any) {
+      showError(error.message || '预订失败，请稍后重试')
     }
-  } catch (error: any) {
-    showError(error.message || '预订失败，请稍后重试')
+  }
+
+  // 场景判断与执行
+  if (myBookingInCurrentSlot.value) {
+    const isChangingSeat = !!selectedSeat.value
+    confirmModalConfig.value = {
+      title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
+      message: isChangingSeat 
+        ? 'You already have a booking in this slot. Do you want to change your seat?' 
+        : 'You already have a booking. Do you want to invite partners to join you?',
+      onConfirm: executeBooking
+    }
+    showConfirmModal.value = true
+  } else {
+    // 场景 3 & 4: 正常选座或正常选座邀请
+    await executeBooking()
   }
 }
 
@@ -671,6 +678,14 @@ const goBack = () => {
 
     <!-- 成功模态框 -->
     <SuccessModal v-model:visible="showSuccessModal" />
+
+    <!-- 确认模态框 -->
+    <ConfirmModal
+      v-model:visible="showConfirmModal"
+      :title="confirmModalConfig.title"
+      :message="confirmModalConfig.message"
+      @confirm="confirmModalConfig.onConfirm"
+    />
   </div>
 </template>
 

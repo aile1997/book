@@ -64,30 +64,43 @@ const currentBooking = computed(() => {
   }
 })
 
-// 交易记录：适配数据结构到旧的 UI 模板
+// 交易记录：适配数据结构，按日期和时间段分组
 const adaptedTransactions = computed(() => {
-  // 假设 transactions.value 是一个扁平的交易列表
-  // 需要将其按日期分组
-  const groups: { [date: string]: any[] } = {}
+  const groups: { [key: string]: any[] } = {}
 
   transactions.value.forEach((t) => {
-    const date = t.transactionDate || '未知日期' // 假设有 transactionDate 字段
-    if (!groups[date]) {
-      groups[date] = []
+    // 从 description 中提取日期和时间段，例如 "预订座位 A-01 于 2026-01-06 下午时段"
+    // 匹配格式：YYYY-MM-DD 和 XX时段
+    const dateMatch = t.description?.match(/\d{4}-\d{2}-\d{2}/)
+    const slotMatch = t.description?.match(/[上下]午时段/)
+    
+    const date = dateMatch ? dateMatch[0] : (t.createdAt ? t.createdAt.split('T')[0] : 'Unknown Date')
+    const slot = slotMatch ? slotMatch[0] : ''
+    
+    // 组合键：日期 + 下划线 + 时间段
+    const key = slot ? `${date} _ ${slot}` : date
+    
+    if (!groups[key]) {
+      groups[key] = []
     }
-    groups[date].push({
-      desc: t.description || '交易',
+    groups[key].push({
+      desc: t.description || 'Transaction',
       amount: t.amount || 0,
+      id: t.id
     })
   })
 
-  // 转换为数组并按日期降序排序
+  // 按 ID 降序排序（通常 ID 越大越新）
   return Object.keys(groups)
-    .sort()
-    .reverse()
-    .map((date) => ({
-      date: date,
-      items: groups[date],
+    .sort((a, b) => {
+      // 提取日期进行比较
+      const dateA = a.split(' _ ')[0]
+      const dateB = b.split(' _ ')[0]
+      return dateB.localeCompare(dateA)
+    })
+    .map((key) => ({
+      date: key,
+      items: groups[key],
     }))
 })
 
@@ -438,16 +451,16 @@ const validBookings = computed(() => {
               <!-- 分隔线：除了第一组外，每组上方显示 -->
               <div class="border-t border-white/30 my-6"></div>
               
-              <div class="text-white/60 text-xs text-right mb-4 font-medium">
+              <div class="text-white/60 text-xs text-right mb-4 font-medium tracking-wider">
                 {{ group.date }}
               </div>
               <div class="space-y-5">
                 <div
-                  v-for="(item, idx) in group.items"
-                  :key="idx"
+                  v-for="item in group.items"
+                  :key="item.id"
                   class="flex justify-between items-center"
                 >
-                  <span class="text-white text-base font-medium">{{ item.desc }}</span>
+                  <span class="text-white text-base font-medium opacity-90">{{ item.desc }}</span>
                   <span class="text-white text-lg font-semibold">
                     {{ item.amount > 0 ? '+' : '' }}{{ item.amount }}
                   </span>

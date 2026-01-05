@@ -8,14 +8,44 @@ interface CacheItem<T> {
   timestamp: number
   ttl: number
 }
-
+declare const __APP_VERSION__: string
 class CacheManager {
   private cache: Map<string, CacheItem<any>>
   private storageKey = 'app_cache'
+  private versionKey = 'app_version'
+
+  // ...
+  private currentVersion = __APP_VERSION__
 
   constructor() {
     this.cache = new Map()
     this.loadFromStorage()
+    this.checkVersion() // 初始化时检查版本
+  }
+
+  private checkVersion() {
+    const savedVersion = localStorage.getItem(this.versionKey)
+
+    // 如果本地存的版本号与当前代码里的版本号不一致
+    if (savedVersion && savedVersion !== this.currentVersion) {
+      console.log(`[Version Control] 检测到新版本: ${this.currentVersion}`)
+
+      // 1. 清除旧缓存
+      this.clear()
+
+      // 2. 更新版本号到本地
+      localStorage.setItem(this.versionKey, this.currentVersion)
+
+      // 3. 高级刷新：在 URL 后面强制挂载时间戳参数
+      // 这会让飞书等容器认为是一个全新的页面，从而放弃读取磁盘上的旧 index.html
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.set('v', this.currentVersion)
+
+      window.location.replace(newUrl.toString())
+    } else if (!savedVersion) {
+      // 首次进入，仅记录版本不刷新
+      localStorage.setItem(this.versionKey, this.currentVersion)
+    }
   }
 
   /**
@@ -103,6 +133,8 @@ class CacheManager {
    * 清空所有缓存
    */
   clear() {
+    console.log(this.cache)
+
     this.cache.clear()
     localStorage.removeItem(this.storageKey)
   }

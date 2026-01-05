@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import SeatMap from './SeatMap.vue'
-import type { Seat, Partner } from '../types/booking'
+import SeatMap from '../features/SeatMap.vue'
+import type { Seat, Partner } from '../../types/booking'
 
 interface Props {
   visible: boolean

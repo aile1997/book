@@ -26,9 +26,7 @@ const close = () => {
         <!-- 内容区域 -->
         <div class="flex flex-col items-center text-center">
           <!-- 标题 -->
-          <h2 class="text-white text-2xl font-semibold mb-6">
-            Successfully<br />Booked
-          </h2>
+          <h2 class="text-white text-2xl font-semibold mb-6">Successfully<br />Booked</h2>
 
           <!-- Back 按钮 -->
           <button

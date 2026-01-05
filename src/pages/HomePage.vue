@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
-import RockBundLogo from '../components/RockBundLogo.vue'
-import FeatureCard from '../components/FeatureCard.vue'
+import RockBundLogo from '../components/layout/RockBundLogo.vue'
+import FeatureCard from '../components/features/FeatureCard.vue'
 import { useToast } from '../composables/useToast'
 
 import Photo from '@/assets/images/home/Photo.png'
@@ -17,7 +17,7 @@ import { useInvitations } from '../composables/useInvitations'
 
 const router = useRouter()
 const { info } = useToast()
-const { user } = useAuth()
+const { user, isAdmin } = useAuth()
 const { bookings, loadBookings } = useBooking()
 const { upcomingInvitations, startPolling, stopPolling } = useInvitations()
 
@@ -87,20 +87,23 @@ const featureCards = computed<FeatureCardData[]>(() => {
       imageStyle: '',
       iconSvg: Group55,
       route: '/coin-store',
-      enabled: false,
+      enabled: isAdmin.value,
     },
     {
       id: 'admin',
       title: 'Admin Page',
-      status: '',
+      status: 'Coming soon',
       subtitle: 'Coming soon',
       imageUrl: Escultures,
       imageStyle: '',
       route: '/admin',
       enabled: true,
-      fullName: user.value?.fullName,
+      isAdmin: isAdmin.value ? true : false,
     },
-  ]
+  ].filter((card) => {
+    // 根据isAdmin属性来控制是否显示卡片
+    return card.isAdmin === undefined || card.isAdmin === true
+  })
 })
 
 // ========== 事件处理层 ==========
@@ -145,11 +148,7 @@ onBeforeRouteLeave(() => {
   <div class="relative min-h-screen overflow-hidden">
     <!-- 背景图 -->
     <div class="absolute inset-0 w-full h-full">
-      <img
-        src="https://api.builder.io/api/v1/image/assets/TEMP/8bd54818f10b6c6ac11ede7b04b6f0c919dc42bc?width=750"
-        alt=""
-        class="w-full h-full object-cover"
-      />
+      <img src="@/assets/images/home/opacity.png" alt="" class="w-full h-full object-cover" />
     </div>
 
     <!-- 主要内容 -->
@@ -159,7 +158,7 @@ onBeforeRouteLeave(() => {
         <div class="flex items-center gap-3">
           <RockBundLogo color="#292929" />
           <button
-            v-if="user?.fullName === '牛思顿'"
+            v-if="isAdmin"
             @click="navigateToPresentation"
             class="px-3 py-1.5 bg-success/10 text-success text-xs font-medium rounded-lg border border-success/20 hover:bg-success/20 transition-all"
           >

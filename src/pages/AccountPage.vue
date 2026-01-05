@@ -2,7 +2,7 @@
 import NProgress from 'nprogress'
 import { ref, computed, onMounted, onBeforeMount, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import RockBundLogo from '../components/RockBundLogo.vue'
+import RockBundLogo from '../components/layout/RockBundLogo.vue'
 import { useAuth } from '../composables/useAuth'
 import { useBooking } from '../composables/useBooking'
 import { useInvitations } from '../composables/useInvitations'
@@ -124,7 +124,7 @@ const handleAccept = async (invitation: Invitation) => {
     // 刷新预订列表
     await loadBookings()
   } catch (error) {
-    showError('接受邀请失败，请重试')
+    showError(error.message)
   }
 }
 
@@ -135,7 +135,7 @@ const handleDecline = async (invitation: Invitation) => {
     success('已拒绝邀请！')
     // 不需要刷新预订列表
   } catch (error) {
-    showError('拒绝邀请失败，请重试')
+    showError(error.message)
   }
 }
 
@@ -152,7 +152,7 @@ const handleCancelBooking = async (bookingId: number) => {
     // 刷新积分
     await loadUserCredits()
   } catch (error) {
-    showError('取消预订失败，请重试')
+    showError(error.message)
   } finally {
     isCancelling.value = false
   }
@@ -176,7 +176,7 @@ const validBookings = computed(() => {
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden">
+  <div class="relative min-h-screen overflow-hidden AccountPage">
     <div class="absolute inset-0 w-full h-full">
       <img
         src="@/assets/images/home/all-background.png"
@@ -431,3 +431,9 @@ const validBookings = computed(() => {
     </Transition>
   </div>
 </template>
+
+<style>
+.AccountPage {
+  overscroll-behavior-y: auto !important;
+}
+</style>

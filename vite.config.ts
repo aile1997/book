@@ -6,6 +6,10 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    // 每次 build 时，__APP_VERSION__ 都会变成当前时间戳
+    __APP_VERSION__: JSON.stringify(Date.now().toString()),
+  },
   plugins: [vue(), vueDevTools()],
   resolve: {
     alias: {

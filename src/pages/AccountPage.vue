@@ -420,24 +420,35 @@ const validBookings = computed(() => {
         <div
           class="w-full max-w-md bg-cyan rounded-t-[40px] p-8 pb-12 animate-slide-up h-[80vh] flex flex-col"
         >
-          <h3 class="text-white text-xl font-medium text-center mb-6">Account History</h3>
+          <h3 class="text-white text-[28px] font-medium text-center mb-2">Account History</h3>
+          <div class="flex items-center justify-center gap-2 mb-8">
+            <span class="text-white/80 text-sm">Balance</span>
+            <div class="flex items-center gap-1.5">
+              <svg width="18" height="18" viewBox="0 0 27 27" fill="white">
+                <path
+                  d="M13.1 0C5.8 0 0 5.8 0 13.1s5.8 13.1 13.1 13.1 13.1-5.8 13.1-13.1S20.3 0 13.1 0zm4.9 12.1H8.5v.3c0 1.6 1.3 2.9 2.9 2.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-2.7 0-4.9-2.2-4.9-4.9v-2.6c0-2.7 2.2-4.9 4.9-4.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-1.6 0-2.9 1.3-2.9 2.9v.3h9.5c.5 0 .9.4.9.9s-.4.9-.9.9z"
+                />
+              </svg>
+              <span class="text-white text-lg font-bold">{{ coins }}</span>
+            </div>
+          </div>
 
-          <div class="overflow-y-auto flex-1 px-2 space-y-8">
-            <div v-for="group in adaptedTransactions" :key="group.date">
-              <div class="text-white/40 text-[10px] uppercase tracking-widest text-right mb-4">
+          <div class="overflow-y-auto flex-1 px-2">
+            <div v-for="(group, gIdx) in adaptedTransactions" :key="group.date">
+              <!-- 分隔线：除了第一组外，每组上方显示 -->
+              <div class="border-t border-white/30 my-6"></div>
+              
+              <div class="text-white/60 text-xs text-right mb-4 font-medium">
                 {{ group.date }}
               </div>
-              <div class="space-y-4">
+              <div class="space-y-5">
                 <div
                   v-for="(item, idx) in group.items"
                   :key="idx"
                   class="flex justify-between items-center"
                 >
-                  <span class="text-white/90 text-sm">{{ item.desc }}</span>
-                  <span
-                    class="text-white font-semibold"
-                    :class="item.amount > 0 ? 'text-white' : 'text-white/80'"
-                  >
+                  <span class="text-white text-base font-medium">{{ item.desc }}</span>
+                  <span class="text-white text-lg font-semibold">
                     {{ item.amount > 0 ? '+' : '' }}{{ item.amount }}
                   </span>
                 </div>
@@ -445,12 +456,14 @@ const validBookings = computed(() => {
             </div>
           </div>
 
-          <button
-            @click="showHistoryModal = false"
-            class="mt-8 w-full py-4 border border-white/30 rounded-xl text-white font-medium"
-          >
-            Back
-          </button>
+          <div class="mt-10 px-10">
+            <button
+              @click="showHistoryModal = false"
+              class="w-full py-3.5 border-2 border-white/60 rounded-[18px] text-white text-lg font-medium hover:bg-white/10 transition-colors active:scale-95"
+            >
+              Back
+            </button>
+          </div>
         </div>
       </div>
     </Transition>

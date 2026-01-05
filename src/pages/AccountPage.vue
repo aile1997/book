@@ -48,7 +48,7 @@ const showConfirmModal = ref(false)
 const confirmModalConfig = ref({
   title: '',
   message: '',
-  onConfirm: () => {}
+  onConfirm: () => {},
 })
 
 // 当前预订：取第一个预订作为展示用的当前预订
@@ -138,7 +138,7 @@ const logout = () => {
     onConfirm: () => {
       signOut()
       router.push('/')
-    }
+    },
   }
   showConfirmModal.value = true
 }
@@ -185,7 +185,7 @@ const handleCancelBooking = async (bookingId: number) => {
       } finally {
         isCancelling.value = false
       }
-    }
+    },
   }
   showConfirmModal.value = true
 }
@@ -475,8 +475,10 @@ const validBookings = computed(() => {
                   :key="item.id"
                   class="flex justify-between items-center"
                 >
-                  <span class="text-white text-base font-medium opacity-90">{{ item.desc }}</span>
-                  <span class="text-white text-lg font-semibold">
+                  <span class="text-white text-base font-medium opacity-90 text-[15px]">{{
+                    item.desc
+                  }}</span>
+                  <span class="text-white text-lg font-semibold text-[15px]">
                     {{ item.amount > 0 ? '+' : '' }}{{ item.amount }}
                   </span>
                 </div>

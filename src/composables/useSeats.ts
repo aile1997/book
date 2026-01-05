@@ -307,7 +307,7 @@ function createSeatsStore() {
               bookingUserInfo.username ||
               '已预订'
             : '已预订',
-        bookedByMe: bookingUserInfo?.userId === useAuth().user.value?.userId
+        bookedByMe: bookingUserInfo?.userId === useAuth().user.value?.id
       }
     })
   }

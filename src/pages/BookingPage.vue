@@ -312,21 +312,27 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
     .map((s) => s.id)
 }
 
-// 预订执行函数重构
+/**
+ * 预订执行核心逻辑
+ * 涵盖四种场景：切换座位、直接邀请好友、正常选座、正常选座邀请
+ */
 const bookNow = async () => {
+  // 基础校验：登录状态与时间段选择
   if (!isAuthenticated.value) return showError('请先登录才能进行预订操作')
   if (!selectedDateTime.value) return showError('请先选择预订时间段')
 
-  // 1. 确定目标座位：如果没选新座但有旧座，则使用旧座（用于直接邀请场景）
+  // 1. 确定目标座位
+  // 场景 1, 3, 4：使用新选中的座位 (selectedSeat)
+  // 场景 2：若未选新座但已有预订，则使用旧座位 (myBookingInCurrentSlot) 进行直接邀请
   const targetSeat = selectedSeat.value 
     ? seats.value.find(s => s.id === selectedSeat.value)
     : myBookingInCurrentSlot.value
 
   if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
 
-  // 2. 校验伙伴是否已在当前时间段有预订（本地校验）
+  // 2. 伙伴预订状态本地校验
+  // 遍历已邀请的伙伴，检查其在当前时间段的 seatAvailability 中是否已有预订
   const partnersWithBooking = invitedPartners.value.filter(partner => {
-    // 在当前座位的可用性数据中查找该伙伴
     return seatAvailability.value.some(avail => 
       avail.bookingUserInfo?.userId === partner.id && !avail.isAvailable
     )
@@ -337,7 +343,8 @@ const bookNow = async () => {
     return showError(`伙伴 ${names} 在该时间段已有预订，无法重复邀请`)
   }
 
-  // 3. 准备预订数据
+  // 3. 准备预订数据与邻座分配
+  // 根据目标座位自动为伙伴分配最近的空闲邻座
   const partnerAllocations = assignNearbySeats(targetSeat.id, invitedPartners.value.length)
   const invitePartners = invitedPartners.value
     .map((partner, index) => {
@@ -358,37 +365,47 @@ const bookNow = async () => {
     invitePartners
   }
 
+  /**
+   * 内部执行函数：处理取消旧预订并创建新预订的原子操作
+   */
   const executeBooking = async () => {
     try {
+      // 如果当前时间段已有预订，必须先调用取消接口（后端 makeBooking 不支持直接覆盖）
       if (myBookingInCurrentSlot.value) {
         const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
         if (oldBookingId) {
           await removeBooking(oldBookingId)
         }
       }
+      
+      // 执行预订请求
       await makeBooking(bookingData)
+      
+      // 预订成功后的 UI 反馈与状态重置
       showSuccessModal.value = true
-      await refreshData()
-      clearSelection()
-      invitedPartners.value = []
+      await refreshData() // 刷新座位图可用性
+      clearSelection()    // 清除当前选座状态
+      invitedPartners.value = [] // 清空邀请列表
     } catch (error: any) {
       showError(error.message || '预订失败，请稍后重试')
     }
   }
 
-  // 场景判断与执行
+  // 4. 场景判断与弹窗交互
   if (myBookingInCurrentSlot.value) {
+    // 已有预订的情况：区分“切换座位”与“直接邀请”
     const isChangingSeat = !!selectedSeat.value
+    
     confirmModalConfig.value = {
-      title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
+      title: isChangingSeat ? '确认切换座位' : '确认邀请伙伴',
       message: isChangingSeat 
-        ? 'You already have a booking in this slot. Do you want to change your seat?' 
-        : 'You already have a booking. Do you want to invite partners to join you?',
+        ? '您在该时间段已有预订，是否取消原预订并切换到新座位？' 
+        : '您在该时间段已有预订，是否取消原预订并重新发起包含伙伴的预订？',
       onConfirm: executeBooking
     }
     showConfirmModal.value = true
   } else {
-    // 场景 3 & 4: 正常选座或正常选座邀请
+    // 场景 3 & 4：无预订情况下的正常流程，无需二次确认
     await executeBooking()
   }
 }

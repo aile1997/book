@@ -59,7 +59,7 @@ const showConfirmModal = ref(false)
 const confirmModalConfig = ref({
   title: '',
   message: '',
-  onConfirm: () => {}
+  onConfirm: () => {},
 })
 
 // 高亮显示的伙伴（用于在座位图上显示tooltip）
@@ -325,8 +325,8 @@ const bookNow = async () => {
   // 1. 确定目标座位
   // 场景 1, 3, 4：使用新选中的座位 (selectedSeat)
   // 场景 2：若未选新座但已有预订，则使用旧座位 (myBookingInCurrentSlot) 进行直接邀请
-  const targetSeat = selectedSeat.value 
-    ? seats.value.find(s => s.id === selectedSeat.value)
+  const targetSeat = selectedSeat.value
+    ? seats.value.find((s) => s.id === selectedSeat.value)
     : myBookingInCurrentSlot.value
 
   if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
@@ -334,17 +334,17 @@ const bookNow = async () => {
   // 2. 伙伴预订状态校验（调用新接口）
   if (invitedPartners.value.length > 0) {
     try {
-      const checkPromises = invitedPartners.value.map(partner => 
-        checkUserExists(partner.id).then(res => ({
+      const checkPromises = invitedPartners.value.map((partner) =>
+        checkUserExists(partner.id).then((res) => ({
           partner,
-          exists: res.exists || res.hasBooking
-        }))
+          exists: res.exists || res.hasBooking,
+        })),
       )
       const results = await Promise.all(checkPromises)
-      const partnersWithBooking = results.filter(r => r.exists).map(r => r.partner)
+      const partnersWithBooking = results.filter((r) => r.exists).map((r) => r.partner)
 
       if (partnersWithBooking.length > 0) {
-        const names = partnersWithBooking.map(p => p.fullName).join(', ')
+        const names = partnersWithBooking.map((p) => p.fullName).join(', ')
         return showError(`伙伴 ${names} 在该时间段已有预订，无法重复邀请`)
       }
     } catch (err) {
@@ -357,21 +357,23 @@ const bookNow = async () => {
   const partnerAllocations = assignNearbySeats(targetSeat.id, invitedPartners.value.length)
   const invitePartners = invitedPartners.value
     .map((partner, index) => {
-      const assignedSeat = seats.value.find(s => s.id === partnerAllocations[index])
-      return assignedSeat?.backendSeatId ? {
-        userId: partner.id,
-        openId: partner.openId || '',
-        username: partner.username || partner.fullName,
-        seatId: assignedSeat.backendSeatId,
-      } : null
+      const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
+      return assignedSeat?.backendSeatId
+        ? {
+            userId: partner.id,
+            openId: partner.openId || '',
+            username: partner.username || partner.fullName,
+            seatId: assignedSeat.backendSeatId,
+          }
+        : null
     })
-    .filter(p => p !== null)
+    .filter((p) => p !== null)
 
   const bookingData = {
     seatId: targetSeat.backendSeatId,
     bookingDate: selectedDateTime.value.dateISO,
     timeSlotId: Number(selectedDateTime.value.timeSlotId),
-    invitePartners
+    invitePartners,
   }
 
   /**
@@ -386,14 +388,14 @@ const bookNow = async () => {
           await removeBooking(oldBookingId)
         }
       }
-      
+
       // 执行预订请求
       await makeBooking(bookingData)
-      
+
       // 预订成功后的 UI 反馈与状态重置
       showSuccessModal.value = true
       await refreshData() // 刷新座位图可用性
-      clearSelection()    // 清除当前选座状态
+      clearSelection() // 清除当前选座状态
       invitedPartners.value = [] // 清空邀请列表
     } catch (error: any) {
       showError(error.message || '预订失败，请稍后重试')
@@ -404,13 +406,13 @@ const bookNow = async () => {
   if (myBookingInCurrentSlot.value) {
     // 已有预订的情况：区分“切换座位”与“直接邀请”
     const isChangingSeat = !!selectedSeat.value
-    
+
     confirmModalConfig.value = {
-      title: isChangingSeat ? '确认切换座位' : '确认邀请伙伴',
-      message: isChangingSeat 
-        ? '您在该时间段已有预订，是否取消原预订并切换到新座位？' 
-        : '您在该时间段已有预订，是否取消原预订并重新发起包含伙伴的预订？',
-      onConfirm: executeBooking
+      title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
+      message: isChangingSeat
+        ? 'You already have a booking in this slot. Do you want to change your seat?'
+        : 'You already have a booking. Do you want to invite partners to join you?',
+      onConfirm: executeBooking,
     }
     showConfirmModal.value = true
   } else {
@@ -659,7 +661,9 @@ const goBack = () => {
 
           <button
             @click="bookNow"
-            :disabled="(!selectedSeat && !myBookingInCurrentSlot) || isBookingLoading || isLoadingSeats"
+            :disabled="
+              (!selectedSeat && !myBookingInCurrentSlot) || isBookingLoading || isLoadingSeats
+            "
             class="w-full py-4 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
           >
             {{ isBookingLoading ? 'Processing...' : 'Book Now' }}

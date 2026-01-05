@@ -80,7 +80,9 @@ const getWeekday = (date: Date) => {
 }
 
 // 计算当前时间段是否有我的预订
-const myBookingInCurrentSlot = computed(() => seats.value.find((s: any) => s.bookedByMe))
+const myBookingInCurrentSlot = computed(() => {
+  return seats.value.find((s: any) => s.bookedByMe)
+})
 
 // 获取今天和明天的 Date 对象，使用计算属性确保始终是最新的
 const today = computed(() => new Date())
@@ -280,6 +282,8 @@ const clearHighlight = () => {
 
 // --- 邻座分配逻辑 ---
 const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
+  console.log(mySeatId)
+
   if (!mySeatId || partnersCount <= 0) return []
 
   const table = mySeatId.charAt(0) // 获取桌号，如 'A'
@@ -351,7 +355,6 @@ const bookNow = async () => {
     // 场景判断与执行
     if (myBookingInCurrentSlot.value) {
       const isChangingSeat = !!selectedSeat.value
-      const isInvitingNew = invitedPartners.value.length > 0
       
       // 场景 1 & 2: 切换座位或直接邀请好友
       const confirmMsg = isChangingSeat 
@@ -443,21 +446,26 @@ const goBack = () => {
 
       <div class="flex items-center justify-center w-full min-h-[64px]">
         <button
-          v-if="!selectedSeat"
+          v-if="!selectedSeat && !myBookingInCurrentSlot"
           @click="openSeatModal"
           :disabled="isLoadingSeats"
-          class="px-10 py-3 text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="myBookingInCurrentSlot ? 'bg-primary' : 'bg-gray-dark'"
+          class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {{ isLoadingSeats ? 'Loading Seats...' : (myBookingInCurrentSlot ? 'Change Seat' : 'Select Seat') }}
+          {{ isLoadingSeats ? 'Loading Seats...' : 'Select Seat' }}
         </button>
 
         <div v-else class="flex items-center justify-between w-full max-w-2xl px-2">
           <div class="flex items-baseline gap-4">
             <span class="text-sm font-medium text-gray-400 tracking-tight">Your Seat</span>
-            <span class="text-3xl font-bold text-gray-dark tracking-tighter">{{ selectedSeat }}</span>
+            <span class="text-3xl font-bold text-gray-dark tracking-tighter">
+              {{ selectedSeat || myBookingInCurrentSlot.id }}
+            </span>
           </div>
-          <button @click="openSeatModal" class="px-5 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-semibold text-gray-dark hover:bg-gray-50 active:scale-95 transition-all">
+
+          <button
+            @click="openSeatModal"
+            class="px-5 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-semibold text-gray-dark hover:bg-gray-50 active:scale-95 transition-all"
+          >
             Change Seat
           </button>
         </div>
@@ -577,7 +585,9 @@ const goBack = () => {
         <div class="space-y-3 text-sm">
           <div class="flex justify-between">
             <span class="text-gray">Seat</span>
-            <span class="font-medium text-gray-dark">{{ selectedSeat || myBookingInCurrentSlot.id }}</span>
+            <span class="font-medium text-gray-dark">{{
+              selectedSeat || myBookingInCurrentSlot.id
+            }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray">Date</span>

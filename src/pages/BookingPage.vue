@@ -21,6 +21,7 @@ const { error: showError } = useToast()
 
 // 使用座位管理组合式函数
 const {
+  areas,
   seats,
   selectedSeat,
   selectSeat,
@@ -360,13 +361,19 @@ const bookNow = async () => {
   if (invitedPartners.value.length > 0) {
     try {
       const checkPromises = invitedPartners.value.map((partner) =>
-        checkUserExists(partner.id).then((res) => ({
+        checkUserExists({
+          feishuUserId: partner.id,
+          bookingDate: selectedDateTime.value.dateISO,
+          timeSlotId: Number(selectedDateTime.value.timeSlotId),
+          areaId: areas.value.length > 0 ? areas.value[0].id : undefined,
+        }).then((res) => ({
           partner,
-          exists: res.exists || res.hasBooking,
+          exists: res,
         })),
       )
       const results = await Promise.all(checkPromises)
       const partnersWithBooking = results.filter((r) => r.exists).map((r) => r.partner)
+      console.log(results, partnersWithBooking)
 
       if (partnersWithBooking.length > 0) {
         const names = partnersWithBooking.map((p) => p.fullName).join(', ')
@@ -433,10 +440,10 @@ const bookNow = async () => {
     const isChangingSeat = !!selectedSeat.value
 
     confirmModalConfig.value = {
-      title: isChangingSeat ? '确认切换座位' : '确认邀请伙伴',
+      title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
       message: isChangingSeat
-        ? '您在该时间段已有预订，是否取消原预订并切换到新座位？'
-        : '您在该时间段已有预订，是否取消原预订并重新发起包含伙伴的预订？',
+        ? 'You already have a booking in this slot. Do you want to change your seat?'
+        : 'You already have a booking. Do you want to invite partners to join you?',
       onConfirm: executeBooking,
     }
     showConfirmModal.value = true
@@ -686,7 +693,7 @@ const goBack = () => {
               isLoadingSeats ||
               (!selectedSeat && !(myBookingInCurrentSlot && invitedPartners.length > 0))
             "
-            class="w-full py-2.5 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            class="w-full py-4 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
           >
             {{ isBookingLoading ? 'Processing...' : 'Book Now' }}
           </button>

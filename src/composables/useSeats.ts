@@ -251,7 +251,9 @@ function createSeatsStore() {
       }
 
       const bookingUserInfo = typeof availability === 'object' ? availability.bookingUserInfo : null
-      const isBookedByMe = bookingUserInfo?.userId === useAuth().user.value?.id
+      const isBookedByMe = bookingUserInfo?.userId === useAuth(false).user.value?.id
+      console.log(bookingUserInfo, isBookedByMe, availability)
+
       return {
         ...seat,
         status: 'occupied',
@@ -259,7 +261,7 @@ function createSeatsStore() {
           ? bookingUserInfo.fullName || bookingUserInfo.username || '已预订'
           : '已预订',
         bookedByMe: isBookedByMe,
-        bookingId: isBookedByMe ? availability.bookingId : null
+        bookingId: isBookedByMe ? bookingUserInfo.bookingId : null,
       }
     })
   }

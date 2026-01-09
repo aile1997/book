@@ -90,7 +90,7 @@ watch(
         @click.self="close"
       >
         <div
-          class="w-full max-w-md rounded-t-[45px] bg-[#784DC7] px-8 pb-10 pt-10 animate-slide-up"
+          class="w-full max-w-md rounded-t-[45px] bg-[#784DC7] px-8 pb-12 pt-10 animate-slide-up"
         >
           <h2
             class="text-2xl font-medium text-white text-center mb-8 leading-[100%] tracking-[-0.24px]"
@@ -139,16 +139,16 @@ watch(
             </button>
           </div>
 
-          <div class="flex gap-3">
+          <div class="flex gap-3 pt-6">
             <button
               @click="close"
-              class="flex-1 h-12 rounded-full border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
+              class="flex-1 h-12 rounded-xl border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
             >
               Back
             </button>
             <button
               @click="confirm"
-              class="flex-1 h-12 rounded-full border-2 border-white bg-white text-[#784DC7] text-base font-bold leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
+              class="flex-1 h-12 rounded-xl border-2 border-white bg-white text-[#784DC7] text-base font-bold leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
             >
               Confirm
             </button>

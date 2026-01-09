@@ -13,6 +13,7 @@ import FindPartnerModal from '../components/modals/FindPartnerModal.vue'
 import SeatSelectionModal from '../components/modals/SeatSelectionModal.vue'
 import SuccessModal from '../components/modals/SuccessModal.vue'
 import ConfirmModal from '../components/modals/ConfirmModal.vue'
+import { formatDateISO, isBookingExpired } from '../utils/time'
 import type { TimeSlot, Partner } from '../types/booking'
 
 const router = useRouter()
@@ -59,7 +60,7 @@ const showConfirmModal = ref(false)
 const confirmModalConfig = ref({
   title: '',
   message: '',
-  onConfirm: () => {}
+  onConfirm: () => {},
 })
 
 // 高亮显示的伙伴（用于在座位图上显示tooltip）
@@ -72,13 +73,6 @@ const formatDate = (date: Date) => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
   return `${month}.${day}`
-}
-// 辅助函数：格式化日期为 YYYY-MM-DD 格式
-const formatDateISO = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 // 辅助函数：获取星期缩写
@@ -104,18 +98,9 @@ const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
 // 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
 const adaptTimeSlots = (backendSlots: any[]) => {
-  const now = new Date()
-  const nowTime = now.getHours() * 60 + now.getMinutes() // 当前时间（分钟）
-
   const backendTimeSlots = backendSlots.map((slot: any) => {
-    // 解析开始时间为分钟
-    const [startHour, startMinute] = slot.startTime.split(':').map(Number)
-    const startTimeInMinutes = startHour * 60 + startMinute
-
     // 判断今天的时间段是否已过期 (超过开始时间即过期)
-    const isExpiredToday =
-      formatDateISO(now) === formatDateISO(today.value) && nowTime >= startTimeInMinutes
-
+    const isExpiredToday = isBookingExpired(formatDateISO(today.value), slot.startTime)
     return {
       id: String(slot.id), // 确保是字符串
       time: `${slot.startTime} - ${slot.endTime}`,
@@ -169,25 +154,65 @@ onMounted(async () => {
       adaptTimeSlots(backendSlots)
     }
 
-    // 3. 业务逻辑处理：默认选中并查询可用性
+    // --- 新增：解析路由参数并自动选中 ---
+    const targetDate = router.currentRoute.value.query.date as string
+    const targetSlotId = router.currentRoute.value.query.slotId as string
+
     if (timeSlots.value.length > 0) {
-      let firstAvailableTimeSlot = null
-      for (const dateSlot of timeSlots.value) {
-        firstAvailableTimeSlot = dateSlot.times.find((time) => !time.disabled)
-        if (firstAvailableTimeSlot) {
-          firstAvailableTimeSlot.selected = true
-          break
+      let found = false
+
+      // 如果有传入参数，尝试匹配
+      if (targetDate && targetSlotId) {
+        timeSlots.value.forEach((dateSlot) => {
+          if (dateSlot.dateISO === targetDate) {
+            const timeSlot = dateSlot.times.find((t) => t.id === targetSlotId)
+            if (timeSlot && !timeSlot.disabled) {
+              timeSlot.selected = true
+              found = true
+            }
+          }
+        })
+      }
+
+      // 如果没传参数或匹配失败，执行原有的“选中第一个可用”逻辑
+      if (!found) {
+        for (const dateSlot of timeSlots.value) {
+          const firstAvailable = dateSlot.times.find((time) => !time.disabled)
+          if (firstAvailable) {
+            firstAvailable.selected = true
+            break
+          }
         }
       }
 
+      // 触发查询
       if (selectedDateTime.value) {
-        // 等待关键的可用性查询完成
         await querySeatAvailability(
           selectedDateTime.value.dateISO,
           Number(selectedDateTime.value.timeSlotId),
         )
       }
     }
+
+    // // 3. 业务逻辑处理：默认选中并查询可用性
+    // if (timeSlots.value.length > 0) {
+    //   let firstAvailableTimeSlot = null
+    //   for (const dateSlot of timeSlots.value) {
+    //     firstAvailableTimeSlot = dateSlot.times.find((time) => !time.disabled)
+    //     if (firstAvailableTimeSlot) {
+    //       firstAvailableTimeSlot.selected = true
+    //       break
+    //     }
+    //   }
+
+    //   if (selectedDateTime.value) {
+    //     // 等待关键的可用性查询完成
+    //     await querySeatAvailability(
+    //       selectedDateTime.value.dateISO,
+    //       Number(selectedDateTime.value.timeSlotId),
+    //     )
+    //   }
+    // }
   } catch (error) {
     console.error('页面数据初始化失败:', error)
   } finally {
@@ -325,8 +350,8 @@ const bookNow = async () => {
   // 1. 确定目标座位
   // 场景 1, 3, 4：使用新选中的座位 (selectedSeat)
   // 场景 2：若未选新座但已有预订，则使用旧座位 (myBookingInCurrentSlot) 进行直接邀请
-  const targetSeat = selectedSeat.value 
-    ? seats.value.find(s => s.id === selectedSeat.value)
+  const targetSeat = selectedSeat.value
+    ? seats.value.find((s) => s.id === selectedSeat.value)
     : myBookingInCurrentSlot.value
 
   if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
@@ -334,17 +359,17 @@ const bookNow = async () => {
   // 2. 伙伴预订状态校验（调用新接口）
   if (invitedPartners.value.length > 0) {
     try {
-      const checkPromises = invitedPartners.value.map(partner => 
-        checkUserExists(partner.id).then(res => ({
+      const checkPromises = invitedPartners.value.map((partner) =>
+        checkUserExists(partner.id).then((res) => ({
           partner,
-          exists: res.exists || res.hasBooking
-        }))
+          exists: res.exists || res.hasBooking,
+        })),
       )
       const results = await Promise.all(checkPromises)
-      const partnersWithBooking = results.filter(r => r.exists).map(r => r.partner)
+      const partnersWithBooking = results.filter((r) => r.exists).map((r) => r.partner)
 
       if (partnersWithBooking.length > 0) {
-        const names = partnersWithBooking.map(p => p.fullName).join(', ')
+        const names = partnersWithBooking.map((p) => p.fullName).join(', ')
         return showError(`伙伴 ${names} 在该时间段已有预订，无法重复邀请`)
       }
     } catch (err) {
@@ -357,21 +382,23 @@ const bookNow = async () => {
   const partnerAllocations = assignNearbySeats(targetSeat.id, invitedPartners.value.length)
   const invitePartners = invitedPartners.value
     .map((partner, index) => {
-      const assignedSeat = seats.value.find(s => s.id === partnerAllocations[index])
-      return assignedSeat?.backendSeatId ? {
-        userId: partner.id,
-        openId: partner.openId || '',
-        username: partner.username || partner.fullName,
-        seatId: assignedSeat.backendSeatId,
-      } : null
+      const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
+      return assignedSeat?.backendSeatId
+        ? {
+            userId: partner.id,
+            openId: partner.openId || '',
+            username: partner.username || partner.fullName,
+            seatId: assignedSeat.backendSeatId,
+          }
+        : null
     })
-    .filter(p => p !== null)
+    .filter((p) => p !== null)
 
   const bookingData = {
     seatId: targetSeat.backendSeatId,
     bookingDate: selectedDateTime.value.dateISO,
     timeSlotId: Number(selectedDateTime.value.timeSlotId),
-    invitePartners
+    invitePartners,
   }
 
   /**
@@ -386,14 +413,14 @@ const bookNow = async () => {
           await removeBooking(oldBookingId)
         }
       }
-      
+
       // 执行预订请求
       await makeBooking(bookingData)
-      
+
       // 预订成功后的 UI 反馈与状态重置
       showSuccessModal.value = true
       await refreshData() // 刷新座位图可用性
-      clearSelection()    // 清除当前选座状态
+      clearSelection() // 清除当前选座状态
       invitedPartners.value = [] // 清空邀请列表
     } catch (error: any) {
       showError(error.message || '预订失败，请稍后重试')
@@ -404,13 +431,13 @@ const bookNow = async () => {
   if (myBookingInCurrentSlot.value) {
     // 已有预订的情况：区分“切换座位”与“直接邀请”
     const isChangingSeat = !!selectedSeat.value
-    
+
     confirmModalConfig.value = {
       title: isChangingSeat ? '确认切换座位' : '确认邀请伙伴',
-      message: isChangingSeat 
-        ? '您在该时间段已有预订，是否取消原预订并切换到新座位？' 
+      message: isChangingSeat
+        ? '您在该时间段已有预订，是否取消原预订并切换到新座位？'
         : '您在该时间段已有预订，是否取消原预订并重新发起包含伙伴的预订？',
-      onConfirm: executeBooking
+      onConfirm: executeBooking,
     }
     showConfirmModal.value = true
   } else {
@@ -482,14 +509,14 @@ const goBack = () => {
           v-if="!selectedSeat && !myBookingInCurrentSlot"
           @click="openSeatModal"
           :disabled="isLoadingSeats"
-          class="px-10 py-3 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-10 py-2.5 bg-gray-dark text-white text-base font-medium rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ isLoadingSeats ? 'Loading Seats...' : 'Select Seat' }}
         </button>
 
-        <div v-else class="flex items-center justify-between w-full max-w-2xl px-2">
-          <div class="flex items-baseline gap-4">
-            <span class="text-sm font-medium text-gray-400 tracking-tight">Your Seat</span>
+        <div v-else class="flex items-center justify-between w-full max-w-2xl">
+          <div class="flex items-center gap-4">
+            <span class="text-sm font-medium text-gray-dark tracking-tight">Your Seat</span>
             <span class="text-3xl font-bold text-gray-dark tracking-tighter">
               {{ selectedSeat || myBookingInCurrentSlot.id }}
             </span>
@@ -504,7 +531,7 @@ const goBack = () => {
         </div>
       </div>
       <!-- ========== Divider ========== -->
-      <div class="border-t border-gray-light my-8"></div>
+      <div class="h-8 block"></div>
 
       <!-- ========== Date and Time Selection ========== -->
       <section class="mb-8">
@@ -525,13 +552,13 @@ const goBack = () => {
                 :key="time.id"
                 @click="toggleTimeSlot(dateIndex, timeIndex)"
                 :disabled="time.disabled"
-                class="w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all tracking-tight border-2"
+                class="w-full px-4 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-medium transition-all tracking-tight"
                 :class="[
                   time.selected
                     ? 'bg-success text-white shadow-md border-success'
                     : time.disabled
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-100'
-                      : 'border-gray-light text-gray-dark hover:border-gray-dark',
+                      : 'border-gray-100 text-gray-dark hover:border-gray-dark',
                 ]"
               >
                 {{ time.time }}
@@ -542,7 +569,7 @@ const goBack = () => {
       </section>
 
       <!-- ========== Divider ========== -->
-      <div class="border-t border-gray-light my-8"></div>
+      <div class="h-8 block"></div>
 
       <!-- ========== Invite Partners ========== -->
       <section class="mb-8">
@@ -554,22 +581,25 @@ const goBack = () => {
             v-for="partner in invitedPartners"
             :key="partner.id"
             @click="removePartner(partner)"
-            class="inline-flex items-center gap-2 px-4 py-2 bg-gray-light rounded-full text-sm font-medium text-gray-dark hover:bg-gray-200 transition-colors"
+            class="inline-flex items-center gap-2 px-3.5 py-2 bg-[#E9E1F8] rounded-full hover:bg-[#DED2F5] group transition-all"
           >
-            {{ partner.fullName }}
+            <span class="text-sm font-semibold text-[#784DC7] items-center">
+              {{ partner.fullName }}
+            </span>
+
             <svg
-              width="16"
-              height="16"
+              width="18"
+              height="18"
               viewBox="0 0 16 16"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              class="opacity-60 group-hover:opacity-100 transition-opacity"
+              class="transition-transform"
             >
               <circle cx="8" cy="8" r="7" fill="#784DC7" />
               <path
-                d="M5 5L11 11M11 5L5 11"
+                d="M5.5 5.5L10.5 10.5M10.5 5.5L5.5 10.5"
                 stroke="white"
-                stroke-width="1.5"
+                stroke-width="0.9"
                 stroke-linecap="round"
               />
             </svg>
@@ -578,7 +608,7 @@ const goBack = () => {
           <!-- Add partner button -->
           <button
             @click="openFindPartnerModal"
-            class="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-light rounded-full hover:border-gray-dark transition-colors group"
+            class="inline-flex items-center gap-2 px-4 py-2 border-2 border-gray-100 rounded-full hover:border-gray-dark transition-colors group"
           >
             <svg
               width="18"
@@ -602,15 +632,12 @@ const goBack = () => {
             </span>
           </button>
         </div>
-
-        <!-- Tip message -->
-        <p class="text-xs text-gray mt-3">Click tag to remove invited partner</p>
       </section>
 
       <!-- ========== Booking Summary ========== -->
       <section
         v-if="(selectedSeat || myBookingInCurrentSlot) && selectedDateTime"
-        class="bg-primary-light/30 rounded-2xl p-6 border border-primary/20"
+        class="bg-primary-light/30 rounded-2xl p-6"
       >
         <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">
           {{ selectedSeat ? 'Booking Summary' : 'Current Booking' }}
@@ -651,20 +678,15 @@ const goBack = () => {
     <!-- ========== Fixed Bottom Action Bar ========== -->
     <div class="fixed bottom-0 left-0 right-0 bg-white px-6 py-4 z-20 shadow-lg">
       <div class="flex justify-end max-w-2xl mx-auto">
-        <div class="flex items-center gap-3 w-2/3">
-          <div class="flex items-center gap-1.5 px-3 py-2 bg-cyan/10 rounded-xl flex-shrink-0">
-            <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
-            <span class="text-base font-bold text-cyan">{{ coinCost }}</span>
-          </div>
-
+        <div class="flex items-center gap-3 w-1/2">
           <button
             @click="bookNow"
             :disabled="
-              isBookingLoading || 
-              isLoadingSeats || 
+              isBookingLoading ||
+              isLoadingSeats ||
               (!selectedSeat && !(myBookingInCurrentSlot && invitedPartners.length > 0))
             "
-            class="w-full py-4 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            class="w-full py-2.5 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
           >
             {{ isBookingLoading ? 'Processing...' : 'Book Now' }}
           </button>

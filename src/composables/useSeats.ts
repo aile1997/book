@@ -292,17 +292,20 @@ function createSeatsStore() {
 
     if (isBatch) {
       // 批量模式：只有在所有时段都可用时，座位才可用
-      // 存储每个座位的可用性状态和预订信息
-      const seatStatusMap = new Map<number, { isAvailable: boolean; bookingInfo: any }>()
+      // 存储每个座位的可用性状态、预订信息和 bookingId
+      const seatStatusMap = new Map<number, { isAvailable: boolean; bookingInfo: any; bookingId: number | null }>()
 
       availabilityData.forEach((slotData) => {
         if (slotData.seats && Array.isArray(slotData.seats)) {
           slotData.seats.forEach((seat: any) => {
             const existing = seatStatusMap.get(seat.seatId)
+            const isMe = seat.bookingUserInfo?.userId === currentUserId
+
             if (!existing) {
               seatStatusMap.set(seat.seatId, {
                 isAvailable: seat.isAvailable,
                 bookingInfo: seat.bookingUserInfo,
+                bookingId: isMe ? (seat.bookingId || seat.bookingUserInfo?.bookingId) : null,
               })
             } else {
               // 逻辑与：只要有一个时段不可用，整体就不可用
@@ -310,6 +313,8 @@ function createSeatsStore() {
               // 如果当前时段有预订信息且之前没有，或者当前预订是我的，更新预订信息
               if (seat.bookingUserInfo && (!existing.bookingInfo || seat.bookingUserInfo.userId === currentUserId)) {
                 existing.bookingInfo = seat.bookingUserInfo
+                // 同时更新 bookingId
+                existing.bookingId = seat.bookingId || seat.bookingUserInfo?.bookingId
               }
             }
           })
@@ -320,6 +325,7 @@ function createSeatsStore() {
         availabilityMap.set(seatId, {
           isAvailable: status.isAvailable,
           bookingUserInfo: status.bookingInfo,
+          bookingId: status.bookingId,
         })
       })
     } else {
@@ -360,8 +366,8 @@ function createSeatsStore() {
       const bookingUserInfo = availability.bookingUserInfo
       const isBookedByMe = bookingUserInfo?.userId === currentUserId
 
-      // 获取 bookingId，可能在 bookingUserInfo.bookingId 或直接在 availability 中
-      const bookingId = isBookedByMe ? (bookingUserInfo?.bookingId || availability.bookingId) : null
+      // 获取 bookingId，已在批量模式中存储，或从单模式中获取
+      const bookingId = isBookedByMe ? (availability.bookingId || bookingUserInfo?.bookingId) : null
 
       return {
         ...seat,

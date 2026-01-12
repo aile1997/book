@@ -187,9 +187,12 @@ export function convertBackendAvailabilityToFrontend(backendData: any): any[] {
   if (!Array.isArray(backendData)) {
     return [];
   }
-  // 每个元素都创建新对象，确保引用改变
-  const result = backendData.map(item => ({ ...item }));
-  
+  // 每个元素都创建新对象，确保引用改变，同时添加 backendSeatId 别名
+  const result = backendData.map(item => ({
+    ...item,
+    backendSeatId: item.seatId, // 添加 backendSeatId 别名，便于查找匹配
+  }));
+
   // 按 seatId 进行排序
   result.sort((a, b) => {
     // 假设 seatId 是数字类型
@@ -206,6 +209,6 @@ export function convertBackendAvailabilityToFrontend(backendData: any): any[] {
     // 默认返回 0
     return 0;
   });
-  
+
   return result;
 }

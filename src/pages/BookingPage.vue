@@ -183,8 +183,10 @@ const getWeekday = (date: Date) => {
   return weekdays[date.getDay()]
 }
 
-// 计算当前时间段是否有我的预订
+// 计算当前时间段是否有我的预订（在所有选定时段中）
 const myBookingInCurrentSlot = computed(() => {
+  // 只有当用户在所有选定的时段都预订了同一个座位时，才认为当前有预订
+  // 这符合“单座位+多时段”的逻辑
   return seats.value.find((s: any) => s.bookedByMe)
 })
 
@@ -440,6 +442,18 @@ const handleBatchAvailabilityData = (data: any[]) => {
     availabilityMap.set(seat.backendSeatId, true)
   })
 
+  // 存储每个座位在所有选定时段中是否都是由我预订的
+  const bookedByMeMap = new Map<number, boolean>()
+  // 存储每个座位在所有选定时段中是否都有预订 ID
+  const bookingIdMap = new Map<number, number | null>()
+
+  // 初始化
+  seats.value.forEach(seat => {
+    availabilityMap.set(seat.backendSeatId, true)
+    bookedByMeMap.set(seat.backendSeatId, true)
+    bookingIdMap.set(seat.backendSeatId, null)
+  })
+
   // 遍历每个时段的数据
   data.forEach((slotData) => {
     const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
@@ -450,6 +464,17 @@ const handleBatchAvailabilityData = (data: any[]) => {
         const currentStatus = availabilityMap.get(seat.seatId)
         // 逻辑与操作：只要有一个时段不可用，座位就不可用
         availabilityMap.set(seat.seatId, currentStatus && seat.isAvailable)
+        
+        // 逻辑与操作：只有所有时段都是我预订的，bookedByMe 才为 true
+        const currentBookedByMe = bookedByMeMap.get(seat.seatId)
+        const isMe = seat.bookingUserInfo?.userId === useAuth().user.value?.id
+        bookedByMeMap.set(seat.seatId, currentBookedByMe && isMe)
+        
+        // 记录 bookingId (假设多时段预订在后端是同一个 ID 或我们取其中一个用于换座)
+        if (isMe && seat.bookingId) {
+          bookingIdMap.set(seat.seatId, seat.bookingId)
+        }
+
         // 存储该时段中该座位的可用性
         seatAvailMap.set(seat.seatId, seat.isAvailable)
       })
@@ -460,13 +485,22 @@ const handleBatchAvailabilityData = (data: any[]) => {
 
   // 更新座位状态
   seats.value.forEach((seat) => {
+    // 识别是否是我预订的
+    const isMe = bookedByMeMap.get(seat.backendSeatId)
+    seat.bookedByMe = isMe || false
+    if (isMe) {
+      (seat as any).bookingId = bookingIdMap.get(seat.backendSeatId)
+    }
+
     // 保持当前选中状态
     if (seat.status === 'selected') return
 
     const isAvailable = availabilityMap.get(seat.backendSeatId)
     if (isAvailable !== undefined) {
+      // 如果是我预订的，状态应视为可用（以便换座逻辑识别）或特殊处理
+      // 但为了 UI 显示，我预订的座位会显示为黑色，这里保持 occupied 逻辑但由 SeatMap 处理颜色
       seat.status = isAvailable ? 'available' : 'occupied'
-      seat.occupiedBy = isAvailable ? '' : '已预订'
+      seat.occupiedBy = isAvailable ? '' : (isMe ? '我的预订' : '已预订')
     }
   })
 
@@ -582,158 +616,167 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
     .map((s) => s.id)
 }
 
-/**
- * 预订执行核心逻辑（支持多时段）
- * 涵盖四种场景：切换座位、直接邀请好友、正常选座、正常选座邀请
- */
-const bookNow = async () => {
-  // 基础校验：登录状态与时间段选择
-  if (!isAuthenticated.value) return showError('请先登录才能进行预订操作')
-  if (selectedTimeSlots.value.length === 0) return showError('请先选择至少一个预订时间段')
-
-  // 1. 确定目标座位
-  const targetSeat = selectedSeat.value
-    ? seats.value.find((s) => s.id === selectedSeat.value)
-    : myBookingInCurrentSlot.value
-
-  if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
-
-  // 2. 伙伴预订状态校验（需要检查所有选定时段）
-  if (invitedPartners.value.length > 0) {
-    try {
-      // 对每个伙伴和每个时段的组合进行检查
-      const checkPromises = invitedPartners.value.flatMap((partner) =>
-        selectedTimeSlots.value.map((slot) =>
-          checkUserExists({
-            feishuUserId: partner.id,
-            bookingDate: slot.dateISO,
-            timeSlotId: Number(slot.timeSlotId),
-            areaId: areas.value.length > 0 ? areas.value[0].id : undefined
-          }).then((exists) => ({
-            partner,
-            slot,
-            exists
-          }))
-        )
-      )
-
-      const results = await Promise.all(checkPromises)
-      const conflicts = results.filter((r) => r.exists)
-
-      if (conflicts.length > 0) {
-        const details = conflicts
-          .map((c) => `${c.partner.fullName} (${c.slot.date} ${c.slot.time})`)
-          .join('\n')
-        return showError(`以下伙伴在相应时段已有预订：\n${details}`)
-      }
-    } catch (err) {
-      console.error('校验伙伴状态失败:', err)
-    }
-  }
-
-  // 3. 准备多时段预订数据与邻座分配
-  const invitePartners = invitedPartners.value
-    .map((partner) => {
-      const assignedSeat = seats.value.find((s) => s.id === assignNearbySeats(targetSeat.id, 1)[0])
-      return assignedSeat?.backendSeatId
-        ? {
-            userId: String(partner.id),
-            openId: partner.openId || '',
-            username: partner.username || partner.fullName,
-            seatId: assignedSeat.backendSeatId
-          }
-        : null
-    })
-    .filter((p) => p !== null)
-
-  // 构建多时段预订数据
-  const bookingData = {
-    areaId: areas.value[0]?.id,
-    seatId: targetSeat.backendSeatId,
-    timeSlots: selectedTimeSlots.value.map((slot) => ({
-      bookingDate: slot.dateISO,
-      timeSlotId: Number(slot.timeSlotId)
-    })),
-    invitePartners
-  }
-
-  /**
-   * 内部执行函数：处理取消旧预订并创建新预订的原子操作
-   */
-  const executeBooking = async () => {
-    try {
-      // 如果当前有预订，先取消（后端 makeBooking 不支持直接覆盖）
-      if (myBookingInCurrentSlot.value) {
-        const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
-        if (oldBookingId) {
-          await removeBooking(oldBookingId)
-        }
-      }
-
-      // 执行多时段预订请求
-      await makeBooking(bookingData)
-
-      // 预订成功后的 UI 反馈与状态重置
-      showSuccessModal.value = true
-      await loadBookingHistory() // 刷新预订历史
-
-      clearSelection() // 清除当前选座状态
-      invitedPartners.value = [] // 清空邀请列表
-
-      // 重置时段选择状态并重新选择第一个可用时段
-      timeSlots.value.forEach((slot) => {
-        slot.times.forEach((time) => {
-          time.selected = false
-          // 恢复时段禁用状态（只基于过期状态）
-          time.disabled = time.isExpiredToday || false
-        })
-      })
-      selectedTimeSlots.value = []
-
-      // 重新选择第一个可用时段
-      for (const dateSlot of timeSlots.value) {
-        const firstAvailable = dateSlot.times.find((time) => !time.disabled)
-        if (firstAvailable) {
-          firstAvailable.selected = true
-          const key = `${dateSlot.dateISO}_${firstAvailable.id}`
-          selectedTimeSlots.value.push({
-            key,
-            dateISO: dateSlot.dateISO,
-            date: dateSlot.date,
-            weekday: dateSlot.weekday,
-            timeSlotId: firstAvailable.id,
-            time: firstAvailable.time,
-            isExpired: firstAvailable.disabled || false
-          })
-          break
-        }
-      }
-
-      // 重新查询座位可用性（在重新选择时段之后）
-      if (selectedTimeSlots.value.length > 0) {
-        await queryBatchSeatAvailability()
-      }
-    } catch (error: any) {
-      showError(error.message || '预订失败，请稍后重试')
-    }
-  }
-
-  // 4. 场景判断与弹窗交互
-  if (myBookingInCurrentSlot.value) {
-    const isChangingSeat = !!selectedSeat.value
-
-    confirmModalConfig.value = {
-      title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
-      message: isChangingSeat
-        ? 'You already have a booking. Do you want to change your seat for all selected time slots?'
-        : 'You already have a booking. Do you want to invite partners to join you?',
-      onConfirm: executeBooking
-    }
-    showConfirmModal.value = true
-  } else {
-    await executeBooking()
-  }
-}
+	/**
+	 * 预订执行核心逻辑（支持多时段）
+	 * 涵盖四种场景：切换座位、直接邀请好友、正常选座、正常选座邀请
+	 */
+	const bookNow = async () => {
+	  // 基础校验：登录状态与时间段选择
+	  if (!isAuthenticated.value) return showError('请先登录才能进行预订操作')
+	  if (selectedTimeSlots.value.length === 0) return showError('请先选择至少一个预订时间段')
+	
+	  // 1. 确定目标座位
+	  const targetSeat = selectedSeat.value
+	    ? seats.value.find((s) => s.id === selectedSeat.value)
+	    : myBookingInCurrentSlot.value
+	
+	  if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
+	
+	  // 2. 伙伴预订状态校验（需要检查所有选定时段）
+	  if (invitedPartners.value.length > 0) {
+	    try {
+	      const checkPromises = invitedPartners.value.flatMap((partner) =>
+	        selectedTimeSlots.value.map((slot) =>
+	          checkUserExists({
+	            feishuUserId: partner.id,
+	            bookingDate: slot.dateISO,
+	            timeSlotId: Number(slot.timeSlotId),
+	            areaId: areas.value.length > 0 ? areas.value[0].id : undefined
+	          }).then((exists) => ({
+	            partner,
+	            slot,
+	            exists
+	          }))
+	        )
+	      )
+	
+	      const results = await Promise.all(checkPromises)
+	      const conflicts = results.filter((r) => r.exists)
+	
+	      if (conflicts.length > 0) {
+	        const details = conflicts
+	          .map((c) => `${c.partner.fullName} (${c.slot.date} ${c.slot.time})`)
+	          .join('\n')
+	        return showError(`以下伙伴在相应时段已有预订：\n${details}`)
+	      }
+	    } catch (err) {
+	      console.error('校验伙伴状态失败:', err)
+	    }
+	  }
+	
+	  // 3. 准备伙伴邀请数据
+	  const invitePartners = invitedPartners.value
+	    .map((partner) => {
+	      const assignedSeat = seats.value.find((s) => s.id === assignNearbySeats(targetSeat.id, 1)[0])
+	      return assignedSeat?.backendSeatId
+	        ? {
+	            userId: String(partner.id),
+	            openId: partner.openId || '',
+	            username: partner.username || partner.fullName,
+	            seatId: assignedSeat.backendSeatId
+	          }
+	        : null
+	    })
+	    .filter((p) => p !== null)
+	
+	  /**
+	   * 成功后的清理与刷新逻辑
+	   */
+	  const handleSuccess = async () => {
+	    showSuccessModal.value = true
+	    await loadBookingHistory()
+	    clearSelection()
+	    invitedPartners.value = []
+	    
+	    // 重置时段选择
+	    timeSlots.value.forEach((slot) => {
+	      slot.times.forEach((time) => {
+	        time.selected = false
+	        time.disabled = time.isExpiredToday || false
+	      })
+	    })
+	    selectedTimeSlots.value = []
+	
+	    // 重新选择第一个可用时段并刷新
+	    for (const dateSlot of timeSlots.value) {
+	      const firstAvailable = dateSlot.times.find((time) => !time.disabled)
+	      if (firstAvailable) {
+	        firstAvailable.selected = true
+	        selectedTimeSlots.value.push({
+	          key: `${dateSlot.dateISO}_${firstAvailable.id}`,
+	          dateISO: dateSlot.dateISO,
+	          date: dateSlot.date,
+	          weekday: dateSlot.weekday,
+	          timeSlotId: firstAvailable.id,
+	          time: firstAvailable.time,
+	          isExpired: firstAvailable.disabled || false
+	        })
+	        break
+	      }
+	    }
+	    if (selectedTimeSlots.value.length > 0) await queryBatchSeatAvailability()
+	  }
+	
+	  // 4. 场景判断与执行
+	  const isChangingSeat = !!selectedSeat.value && !!myBookingInCurrentSlot.value
+	  const isInvitingOnly = !selectedSeat.value && !!myBookingInCurrentSlot.value && invitedPartners.value.length > 0
+	
+	  if (isChangingSeat) {
+	    // 场景 1：切换座位 -> 调用 swap-seat 接口
+	    confirmModalConfig.value = {
+	      title: 'Change Seat',
+	      message: 'You already have a booking. Do you want to change your seat for all selected time slots?',
+	      onConfirm: async () => {
+	        try {
+	          await changeSeat({
+	            bookingId: (myBookingInCurrentSlot.value as any).bookingId,
+	            newSeatId: targetSeat.backendSeatId,
+	            invitePartners
+	          })
+	          await handleSuccess()
+	        } catch (error: any) {
+	          showError(error.message || '换座失败')
+	        }
+	      }
+	    }
+	    showConfirmModal.value = true
+	  } else if (isInvitingOnly) {
+	    // 场景 2：直接邀请好友 -> 调用 swap-seat 接口（座位 ID 不变）
+	    confirmModalConfig.value = {
+	      title: 'Invite Partners',
+	      message: 'You already have a booking. Do you want to invite partners to join you?',
+	      onConfirm: async () => {
+	        try {
+	          await changeSeat({
+	            bookingId: (myBookingInCurrentSlot.value as any).bookingId,
+	            newSeatId: targetSeat.backendSeatId,
+	            invitePartners
+	          })
+	          await handleSuccess()
+	        } catch (error: any) {
+	          showError(error.message || '邀请失败')
+	        }
+	      }
+	    }
+	    showConfirmModal.value = true
+	  } else {
+	    // 场景 3 & 4：正常选座/邀请 -> 调用 makeBooking 接口
+	    try {
+	      await makeBooking({
+	        areaId: areas.value[0]?.id,
+	        seatId: targetSeat.backendSeatId,
+	        timeSlots: selectedTimeSlots.value.map((slot) => ({
+	          bookingDate: slot.dateISO,
+	          timeSlotId: Number(slot.timeSlotId)
+	        })),
+	        invitePartners
+	      })
+	      await handleSuccess()
+	    } catch (error: any) {
+	      showError(error.message || '预订失败')
+	    }
+	  }
+	}
 
 // 数据刷新封装（支持多时段）
 async function refreshData() {

@@ -142,7 +142,33 @@ export function useBooking() {
     coins,
     isLoading,
     error,
+    /**
+   * 更换座位
+   * @param {object} swapData - 换座数据 (e.g., { bookingId: 1, newSeatId: 5, invitePartners: [] })
+   */
+  async function changeSeat(swapData: any) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const result = await swapSeat(swapData)
+      return result
+    } catch (err: any) {
+      error.value = '更换座位失败: ' + (err.message || '未知错误')
+      console.error(error.value, err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  return {
+    bookings,
+    transactions,
+    coins,
+    isLoading,
+    error,
     makeBooking,
+    changeSeat,
     loadBookings,
     removeBooking,
     loadUserCredits,

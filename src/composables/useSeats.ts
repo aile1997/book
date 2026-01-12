@@ -221,42 +221,88 @@ function createSeatsStore() {
   // 当前选中的座位
   const selectedSeat = ref<string | null>(null)
 
-  const seatAvailabilityChange = (newAvailability: any[]) => {
-    const availabilityMap = new Map(
-      newAvailability
-        .filter((item) => typeof item === 'object')
-        .map((item: any) => [item.seatId, item]),
-    )
+  /**
+   * 更新座位状态（支持单时段或批量时段数据）
+   * @param availabilityData - 可用性数据
+   * @param isBatch - 是否为批量数据
+   */
+  const updateSeatsStatus = (availabilityData: any[], isBatch = false) => {
+    const availabilityMap = new Map<number, any>()
+    const currentUserId = useAuth(false).user.value?.id
+
+    if (isBatch) {
+      // 批量模式：只有在所有时段都可用时，座位才可用
+      // 存储每个座位的可用性状态和预订信息
+      const seatStatusMap = new Map<number, { isAvailable: boolean; bookingInfo: any }>()
+
+      availabilityData.forEach((slotData) => {
+        if (slotData.seats && Array.isArray(slotData.seats)) {
+          slotData.seats.forEach((seat: any) => {
+            const existing = seatStatusMap.get(seat.seatId)
+            if (!existing) {
+              seatStatusMap.set(seat.seatId, {
+                isAvailable: seat.isAvailable,
+                bookingInfo: seat.bookingUserInfo,
+              })
+            } else {
+              // 逻辑与：只要有一个时段不可用，整体就不可用
+              existing.isAvailable = existing.isAvailable && seat.isAvailable
+              // 如果当前时段有预订信息且之前没有，或者当前预订是我的，更新预订信息
+              if (seat.bookingUserInfo && (!existing.bookingInfo || seat.bookingUserInfo.userId === currentUserId)) {
+                existing.bookingInfo = seat.bookingUserInfo
+              }
+            }
+          })
+        }
+      })
+
+      seatStatusMap.forEach((status, seatId) => {
+        availabilityMap.set(seatId, {
+          isAvailable: status.isAvailable,
+          bookingUserInfo: status.bookingInfo,
+        })
+      })
+    } else {
+      // 单时段模式
+      availabilityData.forEach((item) => {
+        if (typeof item === 'object') {
+          availabilityMap.set(item.seatId, item)
+        }
+      })
+    }
 
     seats.value = seats.value.map((seat) => {
       const availability = availabilityMap.get(seat.backendSeatId)
 
+      // 保持当前选中状态，但如果该座位在当前时段不可用，则需要处理（通常在外部逻辑处理）
+      const isCurrentlySelected = seat.status === 'selected' && seat.id === selectedSeat.value
+
       if (!availability) {
         return {
           ...seat,
-          status: seat.status === 'selected' ? 'selected' : 'available',
+          status: isCurrentlySelected ? 'selected' : 'available',
           occupiedBy: '',
           bookedByMe: false,
+          bookingId: null,
         }
       }
 
-      if (typeof availability === 'object' && availability.isAvailable) {
+      if (availability.isAvailable) {
         return {
           ...seat,
-          status:
-            seat.status === 'selected' && seat.id === selectedSeat.value ? 'selected' : 'available',
+          status: isCurrentlySelected ? 'selected' : 'available',
           occupiedBy: '',
           bookedByMe: false,
+          bookingId: null,
         }
       }
 
-      const bookingUserInfo = typeof availability === 'object' ? availability.bookingUserInfo : null
-      const isBookedByMe = bookingUserInfo?.userId === useAuth(false).user.value?.id
-      console.log(bookingUserInfo, isBookedByMe, availability)
+      const bookingUserInfo = availability.bookingUserInfo
+      const isBookedByMe = bookingUserInfo?.userId === currentUserId
 
       return {
         ...seat,
-        status: 'occupied',
+        status: isCurrentlySelected ? 'selected' : 'occupied',
         occupiedBy: bookingUserInfo
           ? bookingUserInfo.fullName || bookingUserInfo.username || '已预订'
           : '已预订',
@@ -265,6 +311,9 @@ function createSeatsStore() {
       }
     })
   }
+
+  // 保持向后兼容
+  const seatAvailabilityChange = (newAvailability: any[]) => updateSeatsStatus(newAvailability, false)
 
   // 根据桌子和位置获取座位
   const getSeatsByTable = (table: 'A' | 'B' | 'C', position: 'left' | 'right') => {
@@ -360,6 +409,7 @@ function createSeatsStore() {
     selectSeat,
     clearSelection,
     getSeatColor,
+    updateSeatsStatus,
   }
 }
 

@@ -338,127 +338,100 @@ const validBookings = computed(() => {
         </div>
       </div>
 
-      <!-- 我的预订（最多2个） -->
+      <!-- 我的预订（合并卡片展示） -->
       <div
         v-if="validBookings && validBookings.length > 0"
-        class="bg-white rounded-[10px] shadow-card p-5 mb-4"
+        class="bg-white rounded-[24px] shadow-card p-6 mb-6"
       >
-        <h2 class="text-base font-semibold text-gray-dark mb-4">My Bookings</h2>
+        <h2 class="text-lg font-bold text-gray-dark mb-6">My Bookings</h2>
 
         <div
           v-for="(booking, index) in validBookings"
           :key="booking.id"
           :class="[
             'flex flex-col',
-            /* index !== 0 表示从第二个预订开始，上方增加明显的分隔线 */
-            index !== 0 ? 'mt-5 pt-5 border-t-2 border-gray-100' : '',
+            index !== 0 ? 'mt-8 pt-8 border-t border-gray-100' : '',
           ]"
         >
-          <div class="flex items-start gap-3 mb-3">
-            <div
-              class="w-4 h-4 rounded-full bg-success mt-1 flex items-center justify-center shrink-0"
-            >
-              <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
-                <path d="M0.35 2.2L3.43 5.35L8.35 0.35" stroke="white" stroke-width="1.2" />
-              </svg>
+          <div class="flex items-start justify-between mb-6">
+            <div class="flex items-center gap-4">
+              <div class="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <span class="text-2xl font-black text-primary">{{ booking.seatNumber || booking.seat }}</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Your Seat</div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full bg-success animate-pulse"></div>
+                  <span class="text-sm font-bold text-gray-dark">Confirmed</span>
+                </div>
+              </div>
             </div>
-
-            <div class="flex-1 space-y-2">
-              <!-- 适配多时段数据：显示第一个时段或所有时段 -->
-              <template v-if="booking.timeSlotDetails && booking.timeSlotDetails.length > 0">
-                <!-- 多时段显示 -->
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span>Date</span>
-                  <span class="text-sm font-medium text-gray-dark">
-                    {{ booking.timeSlotDetails[0].bookingDate }}
-                    <span v-if="booking.timeSlotDetails.length > 1" class="text-xs">
-                      (+{{ booking.timeSlotDetails.length - 1 }})
-                    </span>
-                  </span>
-                </div>
-
-                <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
-                  <span>Time</span>
-                  <span class="text-sm font-medium text-gray-dark">
-                    {{ booking.timeSlotDetails[0].startTime }} - {{ booking.timeSlotDetails[0].endTime }}
-                  </span>
-                </div>
-              </template>
-              <template v-else>
-                <!-- 单时段显示（兼容旧格式） -->
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span>Date</span>
-                  <span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
-                </div>
-
-                <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
-                  <span>Time</span>
-                  <span class="text-sm font-medium text-gray-dark">
-                    {{ booking.startTime }} - {{ booking.endTime }}
-                  </span>
-                </div>
-              </template>
-
-              <div class="flex items-center gap-3">
-                <span class="text-xs text-gray-400">Seat</span>
-                <span class="text-2xl font-bold text-gray-dark leading-none">
-                  {{ booking.seatNumber || booking.seat }}
-                </span>
-              </div>
-
-              <div
-                v-if="booking.partners && booking.partners.length > 0"
-                class="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-1"
+            <div class="flex gap-2">
+              <button
+                @click="() => handleChangeBooking(booking)"
+                :disabled="isBookingExpiredForBooking(booking)"
+                class="p-2.5 bg-gray-50 text-gray-dark rounded-xl hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-30"
               >
-                <span>with</span>
-                <template v-for="(p, i) in booking.partners" :key="p.id">
-                  <span class="text-sm font-medium text-gray-dark">{{ p.partnerName || p.fullName || p.username }}</span>
-                  <span
-                    v-if="p.invitationStatus === 'PENDING' || p.invitationStatus === null"
-                    class="text-xs text-gray-300"
-                  >
-                    (Pending)
-                  </span>
-                  <span v-else-if="p.invitationStatus === 'ACCEPTED'" class="text-xs text-success">
-                    (Accepted)
-                  </span>
-                  <span v-else-if="p.invitationStatus === 'DECLINED'" class="text-xs text-red-500">
-                    (Declined)
-                  </span>
-                  <span v-else-if="p.invitationStatus === 'EXPIRED'" class="text-xs text-gray-300">
-                    (Dxpired)
-                  </span>
-                  <span v-if="i < booking.partners.length - 1" class="mx-0.5">,</span>
-                </template>
-              </div>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17 1L21 5L17 9M3 11V9C3 7.93913 3.42143 6.92172 4.17157 6.17157C4.92172 5.42143 5.93913 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.0609 20.5786 17.0783 19.8284 17.8284C19.0783 18.5786 18.0609 19 17 19H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button
+                @click="() => handleCancelBooking(booking.id || booking.bookingId)"
+                :disabled="isCancelling || isBookingExpiredForBooking(booking)"
+                class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-all active:scale-95 disabled:opacity-30"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
             </div>
           </div>
 
-          <div class="flex gap-2">
-            <button
-              @click="() => handleChangeBooking(booking)"
-              :disabled="isBookingExpiredForBooking(booking)"
-              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
-              :class="[
-                isBookingExpiredForBooking(booking)
-                  ? 'border-gray-50 text-gray-300 cursor-not-allowed'
-                  : 'border-gray-100 text-gray-500 hover:bg-gray-50',
-              ]"
-            >
-              Change
-            </button>
-            <button
-              @click="() => handleCancelBooking(booking.id || booking.bookingId)"
-              :disabled="isCancelling || isBookingExpiredForBooking(booking)"
-              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
-              :class="[
-                isBookingExpiredForBooking(booking)
-                  ? 'border-gray-50 text-gray-300 cursor-not-allowed'
-                  : 'border-gray-100 text-gray-500 hover:bg-gray-50',
-              ]"
-            >
-              {{ isCancelling ? 'Cancelling...' : 'Cancel' }}
-            </button>
+          <div class="space-y-4">
+            <div>
+              <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Time Slots</div>
+              <div class="grid grid-cols-2 gap-3">
+                <template v-if="booking.timeSlotDetails && booking.timeSlotDetails.length > 0">
+                  <div
+                    v-for="slot in booking.timeSlotDetails"
+                    :key="slot.id"
+                    class="px-4 py-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col"
+                  >
+                    <span class="text-xs font-bold text-gray-dark">{{ slot.bookingDate }}</span>
+                    <span class="text-xs text-gray-400">{{ slot.startTime }} - {{ slot.endTime }}</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="px-4 py-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col">
+                    <span class="text-xs font-bold text-gray-dark">{{ booking.bookingDate }}</span>
+                    <span class="text-xs text-gray-400">{{ booking.startTime }} - {{ booking.endTime }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div v-if="booking.partners && booking.partners.length > 0">
+              <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Partners</div>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="p in booking.partners"
+                  :key="p.id"
+                  class="px-3 py-1.5 bg-success/10 text-success text-xs font-bold rounded-xl"
+                >
+                  {{ p.partnerName || p.fullName || p.username }}
+                  <span v-if="p.invitationStatus === 'PENDING'" class="opacity-60 font-normal ml-1">(Pending)</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- 提示语 -->
+            <div class="pt-4 border-t border-gray-50 flex items-center gap-2 text-gray-400">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 8V12M12 16H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="text-[10px] font-medium uppercase tracking-wider">操作同时对所有预订档期生效</span>
+            </div>
           </div>
         </div>
       </div>

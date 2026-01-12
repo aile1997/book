@@ -39,11 +39,9 @@ const selectedTimeSlotKey = ref<string | null>(null)
 // 监听 selectedTimeSlots 变化，默认选中第一个（如果只有一个时段则不显示选择器）
 watch(() => props.selectedTimeSlots, (newSlots) => {
   if (newSlots && newSlots.length > 0) {
-    // 如果只有一个时段，默认选中它；如果有多个时段，默认选中第一个
-    if (newSlots.length === 1) {
+    // 默认选中第一个时段，不再支持“全部时段”以避免展示混乱
+    if (!selectedTimeSlotKey.value || !newSlots.find(s => s.key === selectedTimeSlotKey.value)) {
       selectedTimeSlotKey.value = newSlots[0].key
-    } else if (!selectedTimeSlotKey.value) {
-      selectedTimeSlotKey.value = null // 默认显示"全部时段"
     }
   }
 }, { immediate: true })
@@ -51,9 +49,7 @@ watch(() => props.selectedTimeSlots, (newSlots) => {
 // 获取当前选择的时间段信息
 const currentTimeSlot = computed(() => {
   if (!props.selectedTimeSlots || props.selectedTimeSlots.length === 0) return null
-  // 如果选择了"全部时段"（null），返回 null
-  if (!selectedTimeSlotKey.value) return null
-  return props.selectedTimeSlots.find((slot) => slot.key === selectedTimeSlotKey.value)
+  return props.selectedTimeSlots.find((slot) => slot.key === selectedTimeSlotKey.value) || props.selectedTimeSlots[0]
 })
 
 // ========== 组功能状态 ==========
@@ -77,6 +73,7 @@ const tableSeatMap = computed(() => {
   }
 
   // 2. 生成组信息（从座位可用性数据中提取）
+  // 如果有多个时段数据，我们需要根据当前选中的时段来过滤
   const seatsWithGroups = currentTableSeats.map((seat) => {
     const result: SeatWithGroup = {
       seat: seat.seatNumber,
@@ -343,7 +340,6 @@ watch(
                 v-model="selectedTimeSlotKey"
                 class="w-full px-4 py-2.5 rounded-lg border-0 text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-white/50"
               >
-                <option :value="null">全部时段</option>
                 <option
                   v-for="slot in selectedTimeSlots"
                   :key="slot.key"
@@ -434,7 +430,6 @@ watch(
                 v-model="selectedTimeSlotKey"
                 class="w-full px-4 py-2.5 rounded-lg border-0 text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-white/50"
               >
-                <option :value="null">全部时段</option>
                 <option
                   v-for="slot in selectedTimeSlots"
                   :key="slot.key"

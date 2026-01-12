@@ -33,6 +33,7 @@ const {
   loadTimeSlots, // 导入 loadTimeSlots
   loadAreasWithCache, // 加载区域（带缓存）
   loadSeatMapWithCache, // 加载座位图（带缓存）
+  updateSeatsStatus,
 } = useSeats()
 
 // 使用预订管理组合式函数
@@ -429,67 +430,32 @@ const handleBatchAvailabilityData = (data: any[]) => {
     return
   }
 
-  // 合并所有时段的可用性状态
-  // 只有在所有时段都可用时，座位才可用
-  const availabilityMap = new Map<number, boolean>()
-  // 存储每个时段中每个座位的可用性：时段key -> 座位ID -> 是否可用
-  const slotAvailabilityMap = new Map<string, Map<number, boolean>>()
+  // 调用 useSeats 的统一状态更新方法
+  updateSeatsStatus(data, true)
 
-  // 初始化所有座位为可用
-  seats.value.forEach(seat => {
-    availabilityMap.set(seat.backendSeatId, true)
-  })
-
-  // 遍历每个时段的数据
-  data.forEach((slotData) => {
-    const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
-    const seatAvailMap = new Map<number, boolean>()
-
-    if (slotData.seats && Array.isArray(slotData.seats)) {
-      slotData.seats.forEach((seat: any) => {
-        const currentStatus = availabilityMap.get(seat.seatId)
-        // 逻辑与操作：只要有一个时段不可用，座位就不可用
-        availabilityMap.set(seat.seatId, currentStatus && seat.isAvailable)
-        // 存储该时段中该座位的可用性
-        seatAvailMap.set(seat.seatId, seat.isAvailable)
-      })
-    }
-
-    slotAvailabilityMap.set(slotKey, seatAvailMap)
-  })
-
-  // 更新座位状态
-  seats.value.forEach((seat) => {
-    // 保持当前选中状态
-    if (seat.status === 'selected') return
-
-    const isAvailable = availabilityMap.get(seat.backendSeatId)
-    if (isAvailable !== undefined) {
-      seat.status = isAvailable ? 'available' : 'occupied'
-      seat.occupiedBy = isAvailable ? '' : '已预订'
-    }
-  })
-
-  // ========== 新增：根据选中座位更新时段的禁用状态 ==========
-  // 如果有选中的座位，检查该座位在每个时段是否可用，不可用时禁用该时段
+  // ========== 根据选中座位更新时段的禁用状态 ==========
   if (selectedSeat.value) {
     const selectedSeatObj = seats.value.find(s => s.id === selectedSeat.value)
     if (selectedSeatObj) {
       const seatBackendId = selectedSeatObj.backendSeatId
 
+      // 构建时段可用性映射
+      const slotAvailabilityMap = new Map<string, boolean>()
+      data.forEach(slotData => {
+        const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
+        const seatInfo = slotData.seats?.find((s: any) => s.seatId === seatBackendId)
+        slotAvailabilityMap.set(slotKey, seatInfo ? seatInfo.isAvailable : true)
+      })
+
       timeSlots.value.forEach(dateSlot => {
         dateSlot.times.forEach(time => {
           const slotKey = `${dateSlot.dateISO}_${time.id}`
-          const seatAvailMap = slotAvailabilityMap.get(slotKey)
+          const isAvailable = slotAvailabilityMap.get(slotKey)
 
-          if (seatAvailMap) {
-            const isAvailable = seatAvailMap.get(seatBackendId)
-            // 如果该座位在这个时段不可用，禁用该时段（除非已选中）
-            if (isAvailable === false && !time.selected) {
-              time.disabled = true
-            } else if (isAvailable === true) {
-              time.disabled = time.isExpiredToday || false
-            }
+          if (isAvailable === false && !time.selected) {
+            time.disabled = true
+          } else if (isAvailable === true) {
+            time.disabled = time.isExpiredToday || false
           }
         })
       })
@@ -713,6 +679,9 @@ const bookNow = async () => {
       if (selectedTimeSlots.value.length > 0) {
         await queryBatchSeatAvailability()
       }
+      
+      // 强制刷新座位图状态
+      await refreshData()
     } catch (error: any) {
       showError(error.message || '预订失败，请稍后重试')
     }
@@ -976,46 +945,102 @@ const goBack = () => {
         </div>
       </section>
 
-      <!-- ========== Booking Summary ========== -->
-      <section
-        v-if="(selectedSeat || myBookingInCurrentSlot) && selectedTimeSlots.length > 0"
-        class="bg-primary-light/30 rounded-2xl p-6"
-      >
-        <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">
-          {{ selectedSeat ? 'Booking Summary' : 'Current Booking' }}
-        </h3>
-        <div class="space-y-3 text-sm">
-          <div class="flex justify-between">
-            <span class="text-gray">Seat</span>
-            <span class="font-medium text-gray-dark">{{
-              selectedSeat || (myBookingInCurrentSlot as any)?.id
-            }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray">Time Slots</span>
-            <span class="font-medium text-gray-dark">{{ selectedTimeSlots.length }} 个时段</span>
-          </div>
-          <!-- 显示选中的时段列表 -->
-          <div class="space-y-1 pl-2">
-            <div
-              v-for="(slot, index) in selectedTimeSlots"
-              :key="index"
-              class="flex justify-between text-xs"
-            >
-              <span class="text-gray">{{ slot.date }}</span>
-              <span class="text-gray-dark">{{ slot.time }}</span>
+      <!-- ========== Current Booking Panel (Moved to Main Page) ========== -->
+      <section v-if="myBookingInCurrentSlot && !selectedSeat" class="mb-6 animate-fade-in">
+        <div class="bg-success rounded-[32px] p-8 text-white shadow-xl relative overflow-hidden">
+          <!-- Background Decoration -->
+          <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+          
+          <div class="relative z-10">
+            <div class="flex items-center justify-between mb-8">
+              <h3 class="text-2xl font-bold tracking-tight">Current Booking</h3>
+              <div class="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full border border-white/30">
+                <span class="text-xs font-bold uppercase tracking-widest">Confirmed</span>
+              </div>
+            </div>
+
+            <div class="space-y-6">
+              <!-- Seat Info -->
+              <div class="flex items-center gap-6">
+                <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-md">
+                  <span class="text-3xl font-black">{{ (myBookingInCurrentSlot as any)?.id }}</span>
+                </div>
+                <div class="flex-1">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div v-for="slot in selectedTimeSlots" :key="slot.key" class="flex items-center gap-2">
+                      <div class="w-1.5 h-1.5 rounded-full bg-white/60"></div>
+                      <span class="text-sm font-medium opacity-90">{{ slot.time }}</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Cancel Button (Only Cancel, No Swap) -->
+                <button 
+                  @click="cancelBookingById((myBookingInCurrentSlot as any).bookingId)"
+                  class="p-3 bg-white/10 hover:bg-red-500/20 rounded-xl transition-all group"
+                  title="Cancel Booking"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white group-hover:text-red-200">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Partners -->
+              <div v-if="invitedPartners.length > 0" class="pt-4 border-t border-white/10">
+                <p class="text-xs font-bold opacity-60 uppercase tracking-widest mb-3">Partners</p>
+                <div class="flex flex-wrap gap-2">
+                  <span v-for="p in invitedPartners" :key="p.id" class="px-3 py-1 bg-white/10 rounded-lg text-xs font-bold">
+                    {{ p.fullName }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-          <div v-if="selectedSeat" class="flex justify-between">
-            <span class="text-gray">Partners</span>
-            <span class="font-medium text-gray-dark">{{ invitedPartners.length }}</span>
-          </div>
-          <div v-if="selectedSeat" class="border-t border-primary/20 pt-3 mt-3"></div>
-          <div v-if="selectedSeat" class="flex justify-between items-center">
-            <span class="text-gray">Coins Used</span>
+        </div>
+      </section>
+
+      <!-- ========== Booking Summary Area (For New Selection) ========== -->
+      <section v-if="selectedSeat" class="mb-6 animate-slide-up">
+        <div class="bg-gray-50 rounded-[32px] p-8 border border-gray-100 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-bold text-gray-dark">Booking Summary</h3>
             <div class="flex items-center gap-2">
               <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
-              <span class="font-bold text-cyan text-lg">{{ coinCost * selectedTimeSlots.length }}</span>
+              <span class="text-lg font-bold text-cyan">{{ coinCost * selectedTimeSlots.length }}</span>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <!-- Selected Seat -->
+            <div class="flex items-center justify-between p-5 bg-white rounded-2xl border border-gray-100">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <span class="text-xl font-black text-primary">{{ selectedSeat }}</span>
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Selected Seat</p>
+                  <p class="text-sm font-medium text-gray-dark">Ready to book</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Partners -->
+            <div v-if="invitedPartners.length > 0" class="space-y-3">
+              <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Invited Partners</p>
+              <div class="flex flex-wrap gap-2">
+                <div 
+                  v-for="partner in invitedPartners" 
+                  :key="partner.id"
+                  class="px-4 py-2 bg-success/10 rounded-xl border border-success/20 flex items-center gap-3"
+                >
+                  <span class="text-sm font-bold text-success">{{ partner.fullName }}</span>
+                  <button @click="removePartner(partner)" class="text-success/40 hover:text-success">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

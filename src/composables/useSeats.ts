@@ -360,6 +360,9 @@ function createSeatsStore() {
       const bookingUserInfo = availability.bookingUserInfo
       const isBookedByMe = bookingUserInfo?.userId === currentUserId
 
+      // 获取 bookingId，可能在 bookingUserInfo.bookingId 或直接在 availability 中
+      const bookingId = isBookedByMe ? (bookingUserInfo?.bookingId || availability.bookingId) : null
+
       return {
         ...seat,
         status: isCurrentlySelected ? 'selected' : 'occupied',
@@ -367,7 +370,7 @@ function createSeatsStore() {
           ? bookingUserInfo.fullName || bookingUserInfo.username || '已预订'
           : '已预订',
         bookedByMe: isBookedByMe,
-        bookingId: isBookedByMe ? bookingUserInfo.bookingId : null,
+        bookingId: bookingId,
       }
     })
   }

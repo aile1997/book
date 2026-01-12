@@ -17,7 +17,7 @@ import BookingHistoryModal from '../components/modals/BookingHistoryModal.vue'
 import { formatDateISO, isBookingExpired } from '../utils/time'
 import type { TimeSlot, Partner, SelectedTimeSlot } from '../types/booking'
 import { MAX_TIME_SLOT_SELECTION } from '../types/booking'
-import { postSeatAvailability, getMyBookings, cancelBooking as cancelBookingAPI } from '../api'
+import { getMyBookings, cancelBooking as cancelBookingAPI } from '../api'
 
 const router = useRouter()
 const { error: showError, success: showSuccess } = useToast()
@@ -26,6 +26,7 @@ const { error: showError, success: showSuccess } = useToast()
 const {
   areas,
   seats,
+  seatAvailability,
   selectedSeat,
   selectSeat,
   clearSelection,
@@ -33,6 +34,7 @@ const {
   loadTimeSlots, // 导入 loadTimeSlots
   loadAreasWithCache, // 加载区域（带缓存）
   loadSeatMapWithCache, // 加载座位图（带缓存）
+  queryBatchSeatAvailability, // 导入批量查询座位可用性
 } = useSeats()
 
 // 使用预订管理组合式函数
@@ -416,124 +418,37 @@ const executeBatchSeatAvailabilityQuery = async () => {
 
   try {
     // 调用 composable 中的批量查询函数
-    const data = await postSeatAvailability(queryParams)
-    // 处理批量可用性数据（包含时段禁用逻辑）
-    handleBatchAvailabilityData(data)
+    // 这个函数会更新 seatAvailability.value，供 FindPartnerModal 使用
+    // 同时也会调用 updateSeatsStatus 更新 seats 状态
+    await queryBatchSeatAvailability(queryParams)
+
+    // 额外处理：根据选中座位更新时段的禁用状态
+    // 这部分逻辑是 BookingPage 特有的，需要保留在这里
+    if (selectedSeat.value) {
+      const selectedSeatObj = seats.value.find(s => s.id === selectedSeat.value)
+      if (selectedSeatObj) {
+        const seatBackendId = selectedSeatObj.backendSeatId
+
+        // 获取 seatAvailability 数据来检查每个时段该座位的可用性
+        if (seatAvailability.value && seatAvailability.value.length > 0) {
+          timeSlots.value.forEach(dateSlot => {
+            dateSlot.times.forEach(time => {
+              // 从 seatAvailability 中查找该座位在这个时段的可用性
+              const seatInfo = seatAvailability.value.find(s => s.backendSeatId === seatBackendId)
+              if (seatInfo && !seatInfo.isAvailable && !time.selected) {
+                time.disabled = true
+              } else if (seatInfo && seatInfo.isAvailable) {
+                time.disabled = time.isExpiredToday || false
+              }
+            })
+          })
+        }
+      }
+    }
   } catch (error: any) {
     console.error('批量查询座位可用性失败:', error)
     showError('查询座位可用性失败，请稍后重试')
   }
-}
-
-// 处理批量可用性数据
-const handleBatchAvailabilityData = (data: any[]) => {
-  if (!Array.isArray(data) || data.length === 0) {
-    console.warn('批量可用性数据格式不正确或为空')
-    return
-  }
-
-  // 合并所有时段的可用性状态
-  // 只有在所有时段都可用时，座位才可用
-  const availabilityMap = new Map<number, boolean>()
-  // 存储每个时段中每个座位的可用性：时段key -> 座位ID -> 是否可用
-  const slotAvailabilityMap = new Map<string, Map<number, boolean>>()
-
-  // 初始化所有座位为可用
-  seats.value.forEach(seat => {
-    availabilityMap.set(seat.backendSeatId, true)
-  })
-
-  // 存储每个座位在所有选定时段中是否都是由我预订的
-  const bookedByMeMap = new Map<number, boolean>()
-  // 存储每个座位在所有选定时段中是否都有预订 ID
-  const bookingIdMap = new Map<number, number | null>()
-
-  // 初始化
-  seats.value.forEach(seat => {
-    availabilityMap.set(seat.backendSeatId, true)
-    bookedByMeMap.set(seat.backendSeatId, true)
-    bookingIdMap.set(seat.backendSeatId, null)
-  })
-
-  // 遍历每个时段的数据
-  data.forEach((slotData) => {
-    const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
-    const seatAvailMap = new Map<number, boolean>()
-
-    if (slotData.seats && Array.isArray(slotData.seats)) {
-      slotData.seats.forEach((seat: any) => {
-        const currentStatus = availabilityMap.get(seat.seatId)
-        // 逻辑与操作：只要有一个时段不可用，座位就不可用
-        availabilityMap.set(seat.seatId, currentStatus && seat.isAvailable)
-        
-        // 逻辑与操作：只有所有时段都是我预订的，bookedByMe 才为 true
-        const currentBookedByMe = bookedByMeMap.get(seat.seatId)
-        const isMe = seat.bookingUserInfo?.userId === useAuth().user.value?.id
-        bookedByMeMap.set(seat.seatId, currentBookedByMe && isMe)
-        
-        // 记录 bookingId (假设多时段预订在后端是同一个 ID 或我们取其中一个用于换座)
-        // bookingId 可能在 seat.bookingId 或 seat.bookingUserInfo.bookingId 中
-        const bookingId = seat.bookingId || seat.bookingUserInfo?.bookingId
-        if (isMe && bookingId) {
-          bookingIdMap.set(seat.seatId, bookingId)
-        }
-
-        // 存储该时段中该座位的可用性
-        seatAvailMap.set(seat.seatId, seat.isAvailable)
-      })
-    }
-
-    slotAvailabilityMap.set(slotKey, seatAvailMap)
-  })
-
-  // 更新座位状态
-  seats.value.forEach((seat) => {
-    // 识别是否是我预订的
-    const isMe = bookedByMeMap.get(seat.backendSeatId)
-    seat.bookedByMe = isMe || false
-    if (isMe) {
-      (seat as any).bookingId = bookingIdMap.get(seat.backendSeatId)
-    }
-
-    // 保持当前选中状态
-    if (seat.status === 'selected') return
-
-    const isAvailable = availabilityMap.get(seat.backendSeatId)
-    if (isAvailable !== undefined) {
-      // 如果是我预订的，状态应视为可用（以便换座逻辑识别）或特殊处理
-      // 但为了 UI 显示，我预订的座位会显示为黑色，这里保持 occupied 逻辑但由 SeatMap 处理颜色
-      seat.status = isAvailable ? 'available' : 'occupied'
-      seat.occupiedBy = isAvailable ? '' : (isMe ? '我的预订' : '已预订')
-    }
-  })
-
-  // ========== 新增：根据选中座位更新时段的禁用状态 ==========
-  // 如果有选中的座位，检查该座位在每个时段是否可用，不可用时禁用该时段
-  if (selectedSeat.value) {
-    const selectedSeatObj = seats.value.find(s => s.id === selectedSeat.value)
-    if (selectedSeatObj) {
-      const seatBackendId = selectedSeatObj.backendSeatId
-
-      timeSlots.value.forEach(dateSlot => {
-        dateSlot.times.forEach(time => {
-          const slotKey = `${dateSlot.dateISO}_${time.id}`
-          const seatAvailMap = slotAvailabilityMap.get(slotKey)
-
-          if (seatAvailMap) {
-            const isAvailable = seatAvailMap.get(seatBackendId)
-            // 如果该座位在这个时段不可用，禁用该时段（除非已选中）
-            if (isAvailable === false && !time.selected) {
-              time.disabled = true
-            } else if (isAvailable === true) {
-              time.disabled = time.isExpiredToday || false
-            }
-          }
-        })
-      })
-    }
-  }
-
-  console.log('批量可用性查询完成，可用座位数量:', seats.value.filter(s => s.status === 'available').length)
 }
 
 // ========== 事件处理函数 ==========

@@ -13,11 +13,14 @@ import FindPartnerModal from '../components/modals/FindPartnerModal.vue'
 import SeatSelectionModal from '../components/modals/SeatSelectionModal.vue'
 import SuccessModal from '../components/modals/SuccessModal.vue'
 import ConfirmModal from '../components/modals/ConfirmModal.vue'
+import BookingHistoryModal from '../components/modals/BookingHistoryModal.vue'
 import { formatDateISO, isBookingExpired } from '../utils/time'
-import type { TimeSlot, Partner } from '../types/booking'
+import type { TimeSlot, Partner, SelectedTimeSlot } from '../types/booking'
+import { MAX_TIME_SLOT_SELECTION } from '../types/booking'
+import { postSeatAvailability, getMyBookings, cancelBooking as cancelBookingAPI, swapSeat } from '../api'
 
 const router = useRouter()
-const { error: showError } = useToast()
+const { error: showError, success: showSuccess } = useToast()
 
 // 使用座位管理组合式函数
 const {
@@ -27,23 +30,20 @@ const {
   selectSeat,
   clearSelection,
   isLoading: isLoadingSeats,
-  querySeatAvailability, // 查询可用性函数
   loadTimeSlots, // 导入 loadTimeSlots
   loadAreasWithCache, // 加载区域（带缓存）
   loadSeatMapWithCache, // 加载座位图（带缓存）
-  seatAvailability,
 } = useSeats()
 
 // 使用预订管理组合式函数
 const {
   makeBooking,
   isLoading: isBookingLoading,
-  error: bookingError,
   removeBooking,
 } = useBooking()
 
 // 使用认证组合式函数
-const { isAuthenticated, user } = useAuth()
+const { isAuthenticated } = useAuth()
 
 // ========== 状态管理 ==========
 
@@ -58,6 +58,7 @@ const showSeatModal = ref(false)
 const showFindPartnerModal = ref(false)
 const showSuccessModal = ref(false)
 const showConfirmModal = ref(false)
+const showBookingHistoryModal = ref(false)
 const confirmModalConfig = ref({
   title: '',
   message: '',
@@ -66,6 +67,106 @@ const confirmModalConfig = ref({
 
 // 高亮显示的伙伴（用于在座位图上显示tooltip）
 const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
+
+// ========== 多时段选择状态 ==========
+
+// 选中的时段列表（支持多选）
+const selectedTimeSlots = ref<SelectedTimeSlot[]>([])
+const maxTimeSlotSelection = MAX_TIME_SLOT_SELECTION
+
+// 检查是否可以继续选择时段
+const canSelectMoreTimeSlots = computed(() => {
+  return selectedTimeSlots.value.length < maxTimeSlotSelection
+})
+
+// 获取已选时段数量
+const selectedTimeSlotCount = computed(() => {
+  return selectedTimeSlots.value.length
+})
+
+// ========== 我的预订历史状态 ==========
+
+const bookingHistory = ref<any[]>([])
+const isLoadingHistory = ref(false)
+
+// 加载预订历史
+const loadBookingHistory = async () => {
+  isLoadingHistory.value = true
+  try {
+    const response = await getMyBookings({ skip: 0, limit: 20 })
+    bookingHistory.value = response.bookings || response.data?.bookings || []
+  } catch (error: any) {
+    console.error('加载预订历史失败:', error)
+  } finally {
+    isLoadingHistory.value = false
+  }
+}
+
+// 取消预订
+const cancelBookingById = async (bookingId: number) => {
+  try {
+    await cancelBookingAPI(bookingId)
+    showSuccess('预订已取消')
+    showBookingHistoryModal.value = false // 关闭弹框
+    await loadBookingHistory() // 刷新列表
+    await refreshData() // 刷新座位可用性
+  } catch (error: any) {
+    showError('取消预订失败')
+  }
+}
+
+// 打开预订历史弹框
+const openBookingHistory = async () => {
+  showBookingHistoryModal.value = true
+  // 刷新预订历史数据
+  await loadBookingHistory()
+}
+
+// 聚合显示预订信息（同一座位的多个时段聚合为一条记录）
+const aggregatedBookings = computed(() => {
+  const groups = new Map<number, any[]>()
+
+  bookingHistory.value.forEach((booking) => {
+    const key = booking.groupId || booking.id
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key)!.push(booking)
+  })
+
+  return Array.from(groups.entries()).map(([groupId, bookings]) => {
+    const firstBooking = bookings[0]
+    // 适配新的 API 数据格式：timeSlotDetails 数组
+    const timeSlotDetails = bookings.flatMap((b: any) => {
+      if (b.timeSlotDetails && Array.isArray(b.timeSlotDetails)) {
+        return b.timeSlotDetails.map((detail: any) => ({
+          bookingDate: detail.bookingDate,
+          startTime: detail.startTime || detail.timeSlotName?.split('-')[0]?.trim() || '',
+          endTime: detail.endTime || detail.timeSlotName?.split('-')[1]?.trim() || '',
+          timeSlotId: detail.timeSlotId
+        }))
+      }
+      // 兼容旧格式（如果有单个时段信息）
+      if (b.bookingDate && b.timeSlot) {
+        return [{
+          bookingDate: b.bookingDate,
+          startTime: b.timeSlot.startTime || '',
+          endTime: b.timeSlot.endTime || '',
+          timeSlotId: b.timeSlotId || 0
+        }]
+      }
+      return []
+    })
+
+    return {
+      groupId,
+      bookings,
+      seat: firstBooking.seatNumber || firstBooking.seat || '',
+      timeSlots: timeSlotDetails,
+      totalCredits: bookings.reduce((sum: number, b: any) => sum + (b.creditsUsed || b.totalCreditsUsed || 0), 0)
+    }
+  })
+})
 
 // ========== 时间段数据 ==========
 
@@ -155,6 +256,9 @@ onMounted(async () => {
       adaptTimeSlots(backendSlots)
     }
 
+    // 2.5 加载预订历史
+    await loadBookingHistory()
+
     // --- 新增：解析路由参数并自动选中 ---
     const targetDate = router.currentRoute.value.query.date as string
     const targetSlotId = router.currentRoute.value.query.slotId as string
@@ -162,36 +266,55 @@ onMounted(async () => {
     if (timeSlots.value.length > 0) {
       let found = false
 
-      // 如果有传入参数，尝试匹配
+      // 如果有传入参数，尝试匹配并添加到多选列表
       if (targetDate && targetSlotId) {
         timeSlots.value.forEach((dateSlot) => {
           if (dateSlot.dateISO === targetDate) {
             const timeSlot = dateSlot.times.find((t) => t.id === targetSlotId)
             if (timeSlot && !timeSlot.disabled) {
               timeSlot.selected = true
+              // 添加到多选列表
+              const key = `${dateSlot.dateISO}_${timeSlot.id}`
+              selectedTimeSlots.value.push({
+                key,
+                dateISO: dateSlot.dateISO,
+                date: dateSlot.date,
+                weekday: dateSlot.weekday,
+                timeSlotId: timeSlot.id,
+                time: timeSlot.time,
+                isExpired: timeSlot.disabled || false
+              })
               found = true
             }
           }
         })
       }
 
-      // 如果没传参数或匹配失败，执行原有的“选中第一个可用”逻辑
+      // 如果没传参数或匹配失败，执行原有的"选中第一个可用"逻辑
       if (!found) {
         for (const dateSlot of timeSlots.value) {
           const firstAvailable = dateSlot.times.find((time) => !time.disabled)
           if (firstAvailable) {
             firstAvailable.selected = true
+            // 添加到多选列表
+            const key = `${dateSlot.dateISO}_${firstAvailable.id}`
+            selectedTimeSlots.value.push({
+              key,
+              dateISO: dateSlot.dateISO,
+              date: dateSlot.date,
+              weekday: dateSlot.weekday,
+              timeSlotId: firstAvailable.id,
+              time: firstAvailable.time,
+              isExpired: firstAvailable.disabled || false
+            })
             break
           }
         }
       }
 
-      // 触发查询
-      if (selectedDateTime.value) {
-        await querySeatAvailability(
-          selectedDateTime.value.dateISO,
-          Number(selectedDateTime.value.timeSlotId),
-        )
+      // 如果有选中的时段，触发批量查询
+      if (selectedTimeSlots.value.length > 0) {
+        await queryBatchSeatAvailability()
       }
     }
 
@@ -238,22 +361,142 @@ const selectedDateTime = computed(() => {
   return null
 })
 
-// 切换时间段选择
-const toggleTimeSlot = (dateIndex: number, timeIndex: number) => {
-  // 先取消所有选择
-  timeSlots.value.forEach((slot) => {
-    slot.times.forEach((time) => {
-      time.selected = false
-    })
-  })
-  // 选中新的时间段
-  timeSlots.value[dateIndex].times[timeIndex].selected = true
+// 切换时间段选择（支持多选）
+const toggleTimeSlot = async (dateIndex: number, timeIndex: number) => {
+  const slot = timeSlots.value[dateIndex].times[timeIndex]
+  const key = `${timeSlots.value[dateIndex].dateISO}_${slot.id}`
 
-  // 触发可用性查询
-  if (selectedDateTime.value) {
-    // 查询所有区域的可用性
-    querySeatAvailability(selectedDateTime.value.dateISO, Number(selectedDateTime.value.timeSlotId)) // 不传 areaId，查询所有区域
+  const existingIndex = selectedTimeSlots.value.findIndex((s) => s.key === key)
+
+  if (existingIndex > -1) {
+    // 已选中，取消选择
+    selectedTimeSlots.value.splice(existingIndex, 1)
+    slot.selected = false
+  } else {
+    // 未选中，检查是否达到上限
+    if (!canSelectMoreTimeSlots.value) {
+      showError(`最多只能选择 ${maxTimeSlotSelection} 个时段`)
+      return
+    }
+    // 添加到选择列表
+    selectedTimeSlots.value.push({
+      key,
+      dateISO: timeSlots.value[dateIndex].dateISO,
+      date: timeSlots.value[dateIndex].date,
+      weekday: timeSlots.value[dateIndex].weekday,
+      timeSlotId: slot.id,
+      time: slot.time,
+      isExpired: slot.disabled || false
+    })
+    slot.selected = true
   }
+
+  // 触发批量可用性查询
+  if (selectedTimeSlots.value.length > 0) {
+    await queryBatchSeatAvailability()
+  } else {
+    // 如果没有选中任何时段，清空座位状态
+    clearSelection()
+  }
+}
+
+// 批量查询座位可用性
+const queryBatchSeatAvailability = async () => {
+  if (selectedTimeSlots.value.length === 0) return
+
+  // 构建批量查询参数
+  const queryParams = selectedTimeSlots.value.map((slot) => ({
+    areaId: areas.value[0]?.id,
+    bookingDate: slot.dateISO,
+    timeSlotId: Number(slot.timeSlotId)
+  }))
+
+  try {
+    // 调用新的批量查询 API
+    const data = await postSeatAvailability(queryParams)
+    // 处理批量可用性数据
+    handleBatchAvailabilityData(data)
+  } catch (error: any) {
+    console.error('批量查询座位可用性失败:', error)
+    showError('查询座位可用性失败，请稍后重试')
+  }
+}
+
+// 处理批量可用性数据
+const handleBatchAvailabilityData = (data: any[]) => {
+  if (!Array.isArray(data) || data.length === 0) {
+    console.warn('批量可用性数据格式不正确或为空')
+    return
+  }
+
+  // 合并所有时段的可用性状态
+  // 只有在所有时段都可用时，座位才可用
+  const availabilityMap = new Map<number, boolean>()
+  // 存储每个时段中每个座位的可用性：时段key -> 座位ID -> 是否可用
+  const slotAvailabilityMap = new Map<string, Map<number, boolean>>()
+
+  // 初始化所有座位为可用
+  seats.value.forEach(seat => {
+    availabilityMap.set(seat.backendSeatId, true)
+  })
+
+  // 遍历每个时段的数据
+  data.forEach((slotData) => {
+    const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
+    const seatAvailMap = new Map<number, boolean>()
+
+    if (slotData.seats && Array.isArray(slotData.seats)) {
+      slotData.seats.forEach((seat: any) => {
+        const currentStatus = availabilityMap.get(seat.seatId)
+        // 逻辑与操作：只要有一个时段不可用，座位就不可用
+        availabilityMap.set(seat.seatId, currentStatus && seat.isAvailable)
+        // 存储该时段中该座位的可用性
+        seatAvailMap.set(seat.seatId, seat.isAvailable)
+      })
+    }
+
+    slotAvailabilityMap.set(slotKey, seatAvailMap)
+  })
+
+  // 更新座位状态
+  seats.value.forEach((seat) => {
+    // 保持当前选中状态
+    if (seat.status === 'selected') return
+
+    const isAvailable = availabilityMap.get(seat.backendSeatId)
+    if (isAvailable !== undefined) {
+      seat.status = isAvailable ? 'available' : 'occupied'
+      seat.occupiedBy = isAvailable ? '' : '已预订'
+    }
+  })
+
+  // ========== 新增：根据选中座位更新时段的禁用状态 ==========
+  // 如果有选中的座位，检查该座位在每个时段是否可用，不可用时禁用该时段
+  if (selectedSeat.value) {
+    const selectedSeatObj = seats.value.find(s => s.id === selectedSeat.value)
+    if (selectedSeatObj) {
+      const seatBackendId = selectedSeatObj.backendSeatId
+
+      timeSlots.value.forEach(dateSlot => {
+        dateSlot.times.forEach(time => {
+          const slotKey = `${dateSlot.dateISO}_${time.id}`
+          const seatAvailMap = slotAvailabilityMap.get(slotKey)
+
+          if (seatAvailMap) {
+            const isAvailable = seatAvailMap.get(seatBackendId)
+            // 如果该座位在这个时段不可用，禁用该时段（除非已选中）
+            if (isAvailable === false && !time.selected) {
+              time.disabled = true
+            } else if (isAvailable === true) {
+              time.disabled = time.isExpiredToday || false
+            }
+          }
+        })
+      })
+    }
+  }
+
+  console.log('批量可用性查询完成，可用座位数量:', seats.value.filter(s => s.status === 'available').length)
 }
 
 // ========== 事件处理函数 ==========
@@ -340,72 +583,78 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
 }
 
 /**
- * 预订执行核心逻辑
+ * 预订执行核心逻辑（支持多时段）
  * 涵盖四种场景：切换座位、直接邀请好友、正常选座、正常选座邀请
  */
 const bookNow = async () => {
   // 基础校验：登录状态与时间段选择
   if (!isAuthenticated.value) return showError('请先登录才能进行预订操作')
-  if (!selectedDateTime.value) return showError('请先选择预订时间段')
+  if (selectedTimeSlots.value.length === 0) return showError('请先选择至少一个预订时间段')
 
   // 1. 确定目标座位
-  // 场景 1, 3, 4：使用新选中的座位 (selectedSeat)
-  // 场景 2：若未选新座但已有预订，则使用旧座位 (myBookingInCurrentSlot) 进行直接邀请
   const targetSeat = selectedSeat.value
     ? seats.value.find((s) => s.id === selectedSeat.value)
     : myBookingInCurrentSlot.value
 
   if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
 
-  // 2. 伙伴预订状态校验（调用新接口）
+  // 2. 伙伴预订状态校验（需要检查所有选定时段）
   if (invitedPartners.value.length > 0) {
     try {
-      const checkPromises = invitedPartners.value.map((partner) =>
-        checkUserExists({
-          feishuUserId: partner.id,
-          bookingDate: selectedDateTime.value.dateISO,
-          timeSlotId: Number(selectedDateTime.value.timeSlotId),
-          areaId: areas.value.length > 0 ? areas.value[0].id : undefined,
-        }).then((res) => ({
-          partner,
-          exists: res,
-        })),
+      // 对每个伙伴和每个时段的组合进行检查
+      const checkPromises = invitedPartners.value.flatMap((partner) =>
+        selectedTimeSlots.value.map((slot) =>
+          checkUserExists({
+            feishuUserId: partner.id,
+            bookingDate: slot.dateISO,
+            timeSlotId: Number(slot.timeSlotId),
+            areaId: areas.value.length > 0 ? areas.value[0].id : undefined
+          }).then((exists) => ({
+            partner,
+            slot,
+            exists
+          }))
+        )
       )
-      const results = await Promise.all(checkPromises)
-      const partnersWithBooking = results.filter((r) => r.exists).map((r) => r.partner)
-      console.log(results, partnersWithBooking)
 
-      if (partnersWithBooking.length > 0) {
-        const names = partnersWithBooking.map((p) => p.fullName).join(', ')
-        return showError(`伙伴 ${names} 在该时间段已有预订，无法重复邀请`)
+      const results = await Promise.all(checkPromises)
+      const conflicts = results.filter((r) => r.exists)
+
+      if (conflicts.length > 0) {
+        const details = conflicts
+          .map((c) => `${c.partner.fullName} (${c.slot.date} ${c.slot.time})`)
+          .join('\n')
+        return showError(`以下伙伴在相应时段已有预订：\n${details}`)
       }
     } catch (err) {
       console.error('校验伙伴状态失败:', err)
     }
   }
 
-  // 3. 准备预订数据与邻座分配
-  // 根据目标座位自动为伙伴分配最近的空闲邻座
-  const partnerAllocations = assignNearbySeats(targetSeat.id, invitedPartners.value.length)
+  // 3. 准备多时段预订数据与邻座分配
   const invitePartners = invitedPartners.value
-    .map((partner, index) => {
-      const assignedSeat = seats.value.find((s) => s.id === partnerAllocations[index])
+    .map((partner) => {
+      const assignedSeat = seats.value.find((s) => s.id === assignNearbySeats(targetSeat.id, 1)[0])
       return assignedSeat?.backendSeatId
         ? {
-            userId: partner.id,
+            userId: String(partner.id),
             openId: partner.openId || '',
             username: partner.username || partner.fullName,
-            seatId: assignedSeat.backendSeatId,
+            seatId: assignedSeat.backendSeatId
           }
         : null
     })
     .filter((p) => p !== null)
 
+  // 构建多时段预订数据
   const bookingData = {
+    areaId: areas.value[0]?.id,
     seatId: targetSeat.backendSeatId,
-    bookingDate: selectedDateTime.value.dateISO,
-    timeSlotId: Number(selectedDateTime.value.timeSlotId),
-    invitePartners,
+    timeSlots: selectedTimeSlots.value.map((slot) => ({
+      bookingDate: slot.dateISO,
+      timeSlotId: Number(slot.timeSlotId)
+    })),
+    invitePartners
   }
 
   /**
@@ -413,7 +662,7 @@ const bookNow = async () => {
    */
   const executeBooking = async () => {
     try {
-      // 如果当前时间段已有预订，必须先调用取消接口（后端 makeBooking 不支持直接覆盖）
+      // 如果当前有预订，先取消（后端 makeBooking 不支持直接覆盖）
       if (myBookingInCurrentSlot.value) {
         const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
         if (oldBookingId) {
@@ -421,14 +670,49 @@ const bookNow = async () => {
         }
       }
 
-      // 执行预订请求
+      // 执行多时段预订请求
       await makeBooking(bookingData)
 
       // 预订成功后的 UI 反馈与状态重置
       showSuccessModal.value = true
-      await refreshData() // 刷新座位图可用性
+      await loadBookingHistory() // 刷新预订历史
+
       clearSelection() // 清除当前选座状态
       invitedPartners.value = [] // 清空邀请列表
+
+      // 重置时段选择状态并重新选择第一个可用时段
+      timeSlots.value.forEach((slot) => {
+        slot.times.forEach((time) => {
+          time.selected = false
+          // 恢复时段禁用状态（只基于过期状态）
+          time.disabled = time.isExpiredToday || false
+        })
+      })
+      selectedTimeSlots.value = []
+
+      // 重新选择第一个可用时段
+      for (const dateSlot of timeSlots.value) {
+        const firstAvailable = dateSlot.times.find((time) => !time.disabled)
+        if (firstAvailable) {
+          firstAvailable.selected = true
+          const key = `${dateSlot.dateISO}_${firstAvailable.id}`
+          selectedTimeSlots.value.push({
+            key,
+            dateISO: dateSlot.dateISO,
+            date: dateSlot.date,
+            weekday: dateSlot.weekday,
+            timeSlotId: firstAvailable.id,
+            time: firstAvailable.time,
+            isExpired: firstAvailable.disabled || false
+          })
+          break
+        }
+      }
+
+      // 重新查询座位可用性（在重新选择时段之后）
+      if (selectedTimeSlots.value.length > 0) {
+        await queryBatchSeatAvailability()
+      }
     } catch (error: any) {
       showError(error.message || '预订失败，请稍后重试')
     }
@@ -436,30 +720,73 @@ const bookNow = async () => {
 
   // 4. 场景判断与弹窗交互
   if (myBookingInCurrentSlot.value) {
-    // 已有预订的情况：区分“切换座位”与“直接邀请”
     const isChangingSeat = !!selectedSeat.value
 
     confirmModalConfig.value = {
       title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
       message: isChangingSeat
-        ? 'You already have a booking in this slot. Do you want to change your seat?'
+        ? 'You already have a booking. Do you want to change your seat for all selected time slots?'
         : 'You already have a booking. Do you want to invite partners to join you?',
-      onConfirm: executeBooking,
+      onConfirm: executeBooking
     }
     showConfirmModal.value = true
   } else {
-    // 场景 3 & 4：无预订情况下的正常流程，无需二次确认
     await executeBooking()
   }
 }
 
-// 数据刷新封装
+// 数据刷新封装（支持多时段）
 async function refreshData() {
-  if (selectedDateTime.value) {
-    await querySeatAvailability(
-      selectedDateTime.value.dateISO,
-      Number(selectedDateTime.value.timeSlotId),
-    )
+  if (selectedTimeSlots.value.length > 0) {
+    await queryBatchSeatAvailability()
+  }
+}
+
+// ========== 批量换座逻辑 ==========
+
+/**
+ * 换座操作 - 应用到所有选定时段
+ * @param newSeatId - 新座位ID
+ */
+const swapSeatForAllSlots = async (newSeatId: number) => {
+  if (selectedTimeSlots.value.length === 0) {
+    return showError('请先选择时段')
+  }
+
+  // 查找当前预订
+  const currentBooking = myBookingInCurrentSlot.value
+  if (!currentBooking) {
+    return showError('没有找到当前预订')
+  }
+
+  try {
+    // 准备换座数据
+    const invitePartners = invitedPartners.value.length > 0
+      ? invitedPartners.value.map((partner) => {
+          const assignedSeat = seats.value.find((s) => s.id === assignNearbySeats(selectedSeat.value || '', 1)[0])
+          return assignedSeat?.backendSeatId
+            ? {
+                userId: String(partner.id),
+                openId: partner.openId || '',
+                username: partner.username || partner.fullName,
+                seatId: assignedSeat.backendSeatId
+              }
+            : null
+        }).filter((p) => p !== null)
+      : undefined
+
+    // 调用换座 API
+    await swapSeat({
+      bookingId: (currentBooking as any).bookingId,
+      newSeatId: newSeatId,
+      invitePartners
+    })
+
+    showSuccess('换座成功')
+    await loadBookingHistory() // 刷新预订历史
+    await refreshData() // 刷新座位可用性
+  } catch (error: any) {
+    showError('换座失败')
   }
 }
 
@@ -525,7 +852,7 @@ const goBack = () => {
           <div class="flex items-center gap-4">
             <span class="text-sm font-medium text-gray-dark tracking-tight">Your Seat</span>
             <span class="text-3xl font-bold text-gray-dark tracking-tighter">
-              {{ selectedSeat || myBookingInCurrentSlot.id }}
+              {{ selectedSeat || (myBookingInCurrentSlot as any)?.id }}
             </span>
           </div>
 
@@ -542,7 +869,12 @@ const goBack = () => {
 
       <!-- ========== Date and Time Selection ========== -->
       <section class="mb-8">
-        <h2 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">Date & Time</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-medium text-gray-dark tracking-tight">Date & Time</h2>
+          <div class="text-xs text-gray">
+            已选: {{ selectedTimeSlotCount }}/{{ maxTimeSlotSelection }}
+          </div>
+        </div>
 
         <div class="space-y-4">
           <div v-for="(slot, dateIndex) in timeSlots" :key="slot.id" class="flex gap-4 items-start">
@@ -568,7 +900,10 @@ const goBack = () => {
                       : 'border-gray-100 text-gray-dark hover:border-gray-dark',
                 ]"
               >
-                {{ time.time }}
+                <div class="flex items-center justify-between">
+                  <span>{{ time.time }}</span>
+                  <span v-if="time.selected" class="ml-2">✓</span>
+                </div>
               </button>
             </div>
           </div>
@@ -643,7 +978,7 @@ const goBack = () => {
 
       <!-- ========== Booking Summary ========== -->
       <section
-        v-if="(selectedSeat || myBookingInCurrentSlot) && selectedDateTime"
+        v-if="(selectedSeat || myBookingInCurrentSlot) && selectedTimeSlots.length > 0"
         class="bg-primary-light/30 rounded-2xl p-6"
       >
         <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">
@@ -653,18 +988,23 @@ const goBack = () => {
           <div class="flex justify-between">
             <span class="text-gray">Seat</span>
             <span class="font-medium text-gray-dark">{{
-              selectedSeat || myBookingInCurrentSlot.id
+              selectedSeat || (myBookingInCurrentSlot as any)?.id
             }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-gray">Date</span>
-            <span class="font-medium text-gray-dark"
-              >{{ selectedDateTime.date }} ({{ selectedDateTime.weekday }})</span
-            >
+            <span class="text-gray">Time Slots</span>
+            <span class="font-medium text-gray-dark">{{ selectedTimeSlots.length }} 个时段</span>
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray">Time</span>
-            <span class="font-medium text-gray-dark">{{ selectedDateTime.time }}</span>
+          <!-- 显示选中的时段列表 -->
+          <div class="space-y-1 pl-2">
+            <div
+              v-for="(slot, index) in selectedTimeSlots"
+              :key="index"
+              class="flex justify-between text-xs"
+            >
+              <span class="text-gray">{{ slot.date }}</span>
+              <span class="text-gray-dark">{{ slot.time }}</span>
+            </div>
           </div>
           <div v-if="selectedSeat" class="flex justify-between">
             <span class="text-gray">Partners</span>
@@ -675,7 +1015,7 @@ const goBack = () => {
             <span class="text-gray">Coins Used</span>
             <div class="flex items-center gap-2">
               <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
-              <span class="font-bold text-cyan text-lg">{{ coinCost }}</span>
+              <span class="font-bold text-cyan text-lg">{{ coinCost * selectedTimeSlots.length }}</span>
             </div>
           </div>
         </div>
@@ -684,20 +1024,28 @@ const goBack = () => {
 
     <!-- ========== Fixed Bottom Action Bar ========== -->
     <div class="fixed bottom-0 left-0 right-0 bg-white px-6 py-4 z-20 shadow-lg">
-      <div class="flex justify-end max-w-2xl mx-auto">
-        <div class="flex items-center gap-3 w-1/2">
-          <button
-            @click="bookNow"
-            :disabled="
-              isBookingLoading ||
-              isLoadingSeats ||
-              (!selectedSeat && !(myBookingInCurrentSlot && invitedPartners.length > 0))
-            "
-            class="w-full py-4 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-          >
-            {{ isBookingLoading ? 'Processing...' : 'Book Now' }}
-          </button>
-        </div>
+      <div class="flex justify-between items-center max-w-2xl mx-auto gap-3">
+        <!-- 我的预订按钮 -->
+        <button
+          @click="openBookingHistory"
+          class="flex-1 py-4 text-base font-medium text-gray-dark rounded-xl border-2 border-gray-200 hover:border-gray-dark hover:bg-gray-50 transition-colors"
+        >
+          我的预订
+        </button>
+
+        <!-- Book Now 按钮 -->
+        <button
+          @click="bookNow"
+          :disabled="
+            isBookingLoading ||
+            isLoadingSeats ||
+            selectedTimeSlots.length === 0 ||
+            (!selectedSeat && !(myBookingInCurrentSlot && invitedPartners.length > 0))
+          "
+          class="flex-1 py-4 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        >
+          {{ isBookingLoading ? 'Processing...' : 'Book Now' }}
+        </button>
       </div>
     </div>
 
@@ -720,6 +1068,7 @@ const goBack = () => {
       v-if="showSeatModal"
       v-model:visible="showFindPartnerModal"
       v-model:selected-partners="invitedPartners"
+      :selected-time-slots="selectedTimeSlots"
       @confirm="confirmPartnerInvite"
       @select-partner="handlePartnerSelect"
     />
@@ -733,6 +1082,14 @@ const goBack = () => {
 
     <!-- 成功模态框 -->
     <SuccessModal v-model:visible="showSuccessModal" />
+
+    <!-- 预订历史模态框 -->
+    <BookingHistoryModal
+      v-model:visible="showBookingHistoryModal"
+      :bookings="aggregatedBookings"
+      :is-loading="isLoadingHistory"
+      @cancel-booking="cancelBookingById"
+    />
 
     <!-- 确认模态框 -->
     <ConfirmModal

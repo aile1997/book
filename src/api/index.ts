@@ -334,14 +334,17 @@ export async function deleteSeat(seatId: number): Promise<any> {
 // -----------------------------------------------------------------------------
 
 /**
- * 创建预订
- * @param {object} bookingData - 预订数据，包含座位 ID 和时间等
+ * 创建预订（新版：支持多时段）
+ * @param {object} bookingData - 预订数据，包含座位 ID 和多时段数组等
  * @returns {Promise<object>} 预订成功的响应
  */
 export async function createBooking(bookingData: {
+  areaId: number
   seatId: number
-  bookingDate: string
-  timeSlotId: number
+  timeSlots: Array<{
+    bookingDate: string
+    timeSlotId: number
+  }>
   invitePartners?: {
     userId: string
     openId: string
@@ -350,6 +353,49 @@ export async function createBooking(bookingData: {
   }[]
 }): Promise<any> {
   return apiClient.post('/api/v1/bookings', bookingData)
+}
+
+/**
+ * 批量查询座位可用性（新版：POST 方法）
+ * @param {Array} queries - 查询参数数组
+ * @returns {Promise<object>} 座位可用性数据
+ */
+export async function postSeatAvailability(queries: Array<{
+  areaId: number
+  bookingDate: string
+  timeSlotId: number
+}>): Promise<any> {
+  return apiClient.post('/api/v1/seats/availability', queries)
+}
+
+/**
+ * 换座（新版：支持邀请伙伴）
+ * @param {object} request - 换座请求数据
+ * @returns {Promise<object>} 换座成功的响应
+ */
+export async function swapSeat(request: {
+  bookingId: number
+  newSeatId: number
+  invitePartners?: Array<{
+    userId: string
+    openId: string
+    username: string
+    seatId: number
+  }>
+}): Promise<any> {
+  return apiClient.put('/api/v1/bookings/swap-seat', request)
+}
+
+/**
+ * 获取我的预订列表（支持分页）
+ * @param {object} params - 分页参数
+ * @returns {Promise<object>} 预订列表
+ */
+export async function getMyBookings(params: {
+  skip: number
+  limit: number
+}): Promise<any> {
+  return apiClient.get('/api/v1/bookings', { params })
 }
 
 /**

@@ -57,17 +57,25 @@ const currentBooking = computed(() => {
   if (!bookings.value || bookings.value.length === 0) return null
   const booking = bookings.value[0]
 
-  // 适配后端真实字段名到 UI
+  // 适配新的多时段 API 数据格式
+  // 如果有 timeSlotDetails，使用第一个时段的数据
+  const timeSlotDetail = booking.timeSlotDetails && booking.timeSlotDetails.length > 0
+    ? booking.timeSlotDetails[0]
+    : null
+
   return {
-    id: booking.id,
-    date: booking.bookingDate,
+    id: booking.id || booking.bookingId,
+    date: timeSlotDetail?.bookingDate || booking.bookingDate,
     // 拼接开始和结束时间
-    time: `${booking.startTime} - ${booking.endTime}`,
-    seat: booking.seatNumber,
+    time: timeSlotDetail
+      ? `${timeSlotDetail.startTime} - ${timeSlotDetail.endTime}`
+      : (booking.timeSlot?.time || `${booking.startTime || ''} - ${booking.endTime || ''}`),
+    seat: booking.seatNumber || booking.seat,
+    timeSlotId: timeSlotDetail?.timeSlotId || booking.timeSlotId,
     // 映射合作伙伴
-    partners: booking.partners.map((p) => ({
-      name: p.partnerName,
-      status: p.invitationStatus || 'PENDING',
+    partners: (booking.partners || []).map((p: any) => ({
+      name: p.partnerName || p.fullName || p.username,
+      status: p.invitationStatus || p.status || 'PENDING',
     })),
   }
 })
@@ -133,16 +141,32 @@ onMounted(async () => {
 // --- 事件处理 ---
 const goBack = () => router.push('/')
 
+// 辅助函数：判断预订是否过期（适配多时段数据）
+const isBookingExpiredForBooking = (booking: any) => {
+  // 如果有 timeSlotDetails，检查第一个时段
+  if (booking.timeSlotDetails && booking.timeSlotDetails.length > 0) {
+    const firstSlot = booking.timeSlotDetails[0]
+    return isBookingExpired(firstSlot.bookingDate, firstSlot.startTime)
+  }
+  // 兼容旧格式
+  return isBookingExpired(booking.bookingDate, booking.startTime)
+}
+
 const handleChangeBooking = (booking: any) => {
-  if (isBookingExpired(booking.bookingDate, booking.startTime)) {
+  if (isBookingExpiredForBooking(booking)) {
     showError('This booking has started or expired.')
     return
   }
+
+  // 获取正确的日期和时段ID
+  const bookingDate = booking.timeSlotDetails?.[0]?.bookingDate || booking.bookingDate
+  const timeSlotId = booking.timeSlotDetails?.[0]?.timeSlotId || booking.timeSlotId
+
   router.push({
-    path: '/booking', // 确保路径与你的路由配置一致
+    path: '/booking',
     query: {
-      date: booking.bookingDate,
-      slotId: booking.timeSlotId, // 假设后端返回的对象中有 timeSlotId，或者从 booking 记录中获取
+      date: bookingDate,
+      slotId: String(timeSlotId),
     },
   })
 }
@@ -340,22 +364,45 @@ const validBookings = computed(() => {
             </div>
 
             <div class="flex-1 space-y-2">
-              <div class="flex items-center gap-2 text-xs text-gray-400">
-                <span>Date</span>
-                <span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
-              </div>
+              <!-- 适配多时段数据：显示第一个时段或所有时段 -->
+              <template v-if="booking.timeSlotDetails && booking.timeSlotDetails.length > 0">
+                <!-- 多时段显示 -->
+                <div class="flex items-center gap-2 text-xs text-gray-400">
+                  <span>Date</span>
+                  <span class="text-sm font-medium text-gray-dark">
+                    {{ booking.timeSlotDetails[0].bookingDate }}
+                    <span v-if="booking.timeSlotDetails.length > 1" class="text-xs">
+                      (+{{ booking.timeSlotDetails.length - 1 }})
+                    </span>
+                  </span>
+                </div>
 
-              <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
-                <span>Time</span>
-                <span class="text-sm font-medium text-gray-dark">
-                  {{ booking.startTime }} - {{ booking.endTime }}
-                </span>
-              </div>
+                <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
+                  <span>Time</span>
+                  <span class="text-sm font-medium text-gray-dark">
+                    {{ booking.timeSlotDetails[0].startTime }} - {{ booking.timeSlotDetails[0].endTime }}
+                  </span>
+                </div>
+              </template>
+              <template v-else>
+                <!-- 单时段显示（兼容旧格式） -->
+                <div class="flex items-center gap-2 text-xs text-gray-400">
+                  <span>Date</span>
+                  <span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
+                  <span>Time</span>
+                  <span class="text-sm font-medium text-gray-dark">
+                    {{ booking.startTime }} - {{ booking.endTime }}
+                  </span>
+                </div>
+              </template>
 
               <div class="flex items-center gap-3">
                 <span class="text-xs text-gray-400">Seat</span>
                 <span class="text-2xl font-bold text-gray-dark leading-none">
-                  {{ booking.seatNumber }}
+                  {{ booking.seatNumber || booking.seat }}
                 </span>
               </div>
 
@@ -365,7 +412,7 @@ const validBookings = computed(() => {
               >
                 <span>with</span>
                 <template v-for="(p, i) in booking.partners" :key="p.id">
-                  <span class="text-sm font-medium text-gray-dark">{{ p.partnerName }}</span>
+                  <span class="text-sm font-medium text-gray-dark">{{ p.partnerName || p.fullName || p.username }}</span>
                   <span
                     v-if="p.invitationStatus === 'PENDING' || p.invitationStatus === null"
                     class="text-xs text-gray-300"
@@ -390,10 +437,10 @@ const validBookings = computed(() => {
           <div class="flex gap-2">
             <button
               @click="() => handleChangeBooking(booking)"
-              :disabled="isBookingExpired(booking.bookingDate, booking.startTime)"
+              :disabled="isBookingExpiredForBooking(booking)"
               class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
               :class="[
-                isBookingExpired(booking.bookingDate, booking.startTime)
+                isBookingExpiredForBooking(booking)
                   ? 'border-gray-50 text-gray-300 cursor-not-allowed'
                   : 'border-gray-100 text-gray-500 hover:bg-gray-50',
               ]"
@@ -401,11 +448,11 @@ const validBookings = computed(() => {
               Change
             </button>
             <button
-              @click="() => handleCancelBooking(booking.id)"
-              :disabled="isCancelling || isBookingExpired(booking.bookingDate, booking.startTime)"
+              @click="() => handleCancelBooking(booking.id || booking.bookingId)"
+              :disabled="isCancelling || isBookingExpiredForBooking(booking)"
               class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
               :class="[
-                isBookingExpired(booking.bookingDate, booking.startTime)
+                isBookingExpiredForBooking(booking)
                   ? 'border-gray-50 text-gray-300 cursor-not-allowed'
                   : 'border-gray-100 text-gray-500 hover:bg-gray-50',
               ]"

@@ -206,7 +206,7 @@ const handleTooltipClick = () => {
                 <!-- 当前用户预订标记（人像图标） -->
                 <g v-if="(seat as any).bookedByMe">
                   <g
-                    :transform="`translate(${calculateCheckmarkPosition(table.seats.left, seat.index).cx - 8}, ${calculateCheckmarkPosition(table.seats.left, seat.index).cy - 6})`"
+                    :transform="`translate(${calculateCheckmarkPosition(table.seats.left, seat.index).cx - 8}, ${calculateCheckmarkPosition(table.seats.left, seat.index).cy - 6.5})`"
                   >
                     <svg
                       width="12"
@@ -295,7 +295,7 @@ const handleTooltipClick = () => {
                 <!-- 当前用户预订标记（人像图标） -->
                 <g v-if="(seat as any).bookedByMe">
                   <g
-                    :transform="`translate(${calculateCheckmarkPosition(table.seats.right, seat.index).cx - 4}, ${calculateCheckmarkPosition(table.seats.right, seat.index).cy - 6})`"
+                    :transform="`translate(${calculateCheckmarkPosition(table.seats.right, seat.index).cx - 4}, ${calculateCheckmarkPosition(table.seats.right, seat.index).cy - 6.5})`"
                   >
                     <svg
                       width="12"

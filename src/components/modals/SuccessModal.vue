@@ -21,7 +21,7 @@ const close = () => {
     <Transition name="slide-up">
       <div
         v-if="visible"
-        class="fixed bottom-0 left-0 right-0 z-50 bg-success rounded-t-[32px] px-6 py-8 shadow-2xl"
+        class="fixed bottom-0 left-0 right-0 z-50 bg-success rounded-t-[32px] px-6 py-10 pb-12 shadow-2xl"
       >
         <!-- 内容区域 -->
         <div class="flex flex-col items-center text-center">

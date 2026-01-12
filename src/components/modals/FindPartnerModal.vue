@@ -256,7 +256,7 @@ watch(
         <!-- 主模态框容器 -->
         <!-- 主模态框容器 -->
         <div
-          class="w-full max-w-[600px] rounded-t-[45px] bg-success px-6 pb-8 pt-10 animate-slide-up"
+          class="w-full max-w-[600px] rounded-t-[45px] bg-success px-6 pb-12 pt-10 animate-slide-up"
         >
           <!-- 标题 -->
           <h2
@@ -343,7 +343,7 @@ watch(
                 :class="[
                   'flex-1 text-base font-medium  border-t border-l border-r rounded-t-2xl relative',
                   selectedTable === table
-                    ? 'bg-white text-success border-gray-200 z-30 -mb-[1px]' // 选中：白色背景，z-index高，-mb-[1px] 覆盖下方边框线
+                    ? 'bg-white text-success  z-30 -mb-[1px]' // 选中：白色背景，z-index高，-mb-[1px] 覆盖下方边框线
                     : 'bg-transparent text-white/70 border-transparent z-10 hover:text-white', // 未选中：透明
                 ]"
               >
@@ -352,7 +352,7 @@ watch(
             </div>
 
             <div
-              class="bg-white border border-gray-200 p-8 min-h-[280px] shadow-sm relative z-20"
+              class="bg-white p-8 min-h-[260px] shadow-sm relative z-20"
               :class="[
                 'rounded-2xl', // 基础圆角
                 selectedTable === 'A' ? 'rounded-tl-none' : '', // 选中A，左上变直角
@@ -421,7 +421,7 @@ watch(
             </div>
 
             <!-- "返回搜索" 按钮 -->
-            <div class="flex items-center justify-center gap-2 pt-2">
+            <div class="flex items-center justify-center gap-2 pt-8">
               <svg
                 width="9"
                 height="18"
@@ -451,13 +451,13 @@ watch(
           <div class="flex gap-3 mt-8">
             <button
               @click="close"
-              class="flex-1 h-12 rounded-full border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
+              class="flex-1 h-12 rounded-xl border-2 border-white text-white text-base font-medium leading-[100%] tracking-[-0.16px] hover:bg-white/10 transition-colors"
             >
               Back
             </button>
             <button
               @click="confirm"
-              class="flex-1 h-12 rounded-full border-2 border-white bg-white text-success text-base font-medium leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
+              class="flex-1 h-12 rounded-xl border-2 border-white bg-white text-success text-base font-medium leading-[100%] tracking-[-0.16px] hover:opacity-90 transition-opacity"
             >
               Confirm
             </button>

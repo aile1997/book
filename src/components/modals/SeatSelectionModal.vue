@@ -131,30 +131,7 @@ const canConfirm = computed(() => !!props.selectedSeat)
                 @click="openFindPartner"
                 class="w-12 h-12 rounded-xl bg-gray-dark flex items-center justify-center hover:opacity-90 transition-opacity"
               >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <!-- 人物图标 -->
-                  <circle cx="9" cy="7" r="3" stroke="white" stroke-width="1.5" />
-                  <path
-                    d="M3 19C3 15.134 6.13401 12 10 12H8C11.866 12 15 15.134 15 19"
-                    stroke="white"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                  />
-                  <!-- 搜索图标 -->
-                  <circle cx="17" cy="11" r="3" stroke="white" stroke-width="1.5" />
-                  <path
-                    d="M19.5 13.5L22 16"
-                    stroke="white"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                  />
-                </svg>
+                <img src="@/assets/images/booking/Group 25.png" class="w-5 h-5" alt="" />
               </button>
 
               <!-- 确认按钮 -->

@@ -7,6 +7,7 @@ import { useAuth } from '../composables/useAuth'
 import { useBooking } from '../composables/useBooking'
 import { useInvitations } from '../composables/useInvitations'
 import { useToast } from '../composables/useToast'
+import { isBookingExpired } from '../utils/time' // 引入公共函数
 import type { Invitation } from '../composables/useInvitations'
 import ConfirmModal from '../components/modals/ConfirmModal.vue'
 
@@ -48,7 +49,7 @@ const showConfirmModal = ref(false)
 const confirmModalConfig = ref({
   title: '',
   message: '',
-  onConfirm: () => {}
+  onConfirm: () => {},
 })
 
 // 当前预订：取第一个预订作为展示用的当前预订
@@ -80,20 +81,20 @@ const adaptedTransactions = computed(() => {
     // 匹配格式：YYYY-MM-DD 和 XX时段
     const dateMatch = t.description?.match(/\d{4}-\d{2}-\d{2}/)
     const slotMatch = t.description?.match(/[上下]午时段/)
-    
-    const date = dateMatch ? dateMatch[0] : (t.createdAt ? t.createdAt.split('T')[0] : 'Unknown Date')
+
+    const date = dateMatch ? dateMatch[0] : t.createdAt ? t.createdAt.split('T')[0] : 'Unknown Date'
     const slot = slotMatch ? slotMatch[0] : ''
-    
+
     // 组合键：日期 + 下划线 + 时间段
-    const key = slot ? `${date} _ ${slot}` : date
-    
+    const key = slot ? `${date} ` : date
+
     if (!groups[key]) {
       groups[key] = []
     }
     groups[key].push({
       desc: t.description || 'Transaction',
       amount: t.amount || 0,
-      id: t.id
+      id: t.id,
     })
   })
 
@@ -131,6 +132,21 @@ onMounted(async () => {
 
 // --- 事件处理 ---
 const goBack = () => router.push('/')
+
+const handleChangeBooking = (booking: any) => {
+  if (isBookingExpired(booking.bookingDate, booking.startTime)) {
+    showError('This booking has started or expired.')
+    return
+  }
+  router.push({
+    path: '/booking', // 确保路径与你的路由配置一致
+    query: {
+      date: booking.bookingDate,
+      slotId: booking.timeSlotId, // 假设后端返回的对象中有 timeSlotId，或者从 booking 记录中获取
+    },
+  })
+}
+
 const logout = () => {
   confirmModalConfig.value = {
     title: 'Log Out',
@@ -138,7 +154,7 @@ const logout = () => {
     onConfirm: () => {
       signOut()
       router.push('/')
-    }
+    },
   }
   showConfirmModal.value = true
 }
@@ -147,7 +163,7 @@ const logout = () => {
 const handleAccept = async (invitation: Invitation) => {
   try {
     await accept(invitation.id)
-    success('已接受邀请！')
+    success('Has accepted the invitation！')
     // 刷新预订列表
     await loadBookings()
   } catch (error) {
@@ -159,7 +175,7 @@ const handleAccept = async (invitation: Invitation) => {
 const handleDecline = async (invitation: Invitation) => {
   try {
     await decline(invitation.id)
-    success('已拒绝邀请！')
+    success('Has declined the invitation！')
     // 不需要刷新预订列表
   } catch (error) {
     showError(error.message)
@@ -177,7 +193,7 @@ const handleCancelBooking = async (bookingId: number) => {
       isCancelling.value = true
       try {
         await removeBooking(bookingId)
-        success('预订已成功取消！')
+        success('Reservation has been successfully cancelled！')
         // 刷新积分
         await loadUserCredits()
       } catch (error: any) {
@@ -185,7 +201,7 @@ const handleCancelBooking = async (bookingId: number) => {
       } finally {
         isCancelling.value = false
       }
-    }
+    },
   }
   showConfirmModal.value = true
 }
@@ -208,11 +224,9 @@ const validBookings = computed(() => {
 <template>
   <div class="relative min-h-screen overflow-hidden AccountPage">
     <div class="absolute inset-0 w-full h-full">
-      <img
-        src="@/assets/images/home/all-background.png"
-        class="w-full h-full object-cover rotate-[-90deg] scale-150"
-      />
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-[12.5px]"></div>
+      <div
+        class="absolute inset-0 bg-gradient-to-b from-black via-black/50 to-transparent backdrop-blur-[12.5px]"
+      ></div>
     </div>
 
     <div class="relative z-10 px-8 py-16">
@@ -220,7 +234,7 @@ const validBookings = computed(() => {
         <RockBundLogo color="#ffffff" />
         <button
           @click="goBack"
-          class="w-[54px] h-[54px] rounded-full bg-gray-dark flex items-center justify-center hover:opacity-90"
+          class="w-[54px] h-[54px] rounded-full bg-[#323232] flex items-center justify-center hover:opacity-90"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M18 18L6 6M6 18L18 6" stroke="white" stroke-width="1.5" />
@@ -286,13 +300,13 @@ const validBookings = computed(() => {
           <div class="flex gap-2">
             <button
               @click="rejectInvitation(invitation)"
-              class="flex-1 py-2.5 rounded-lg border border-gray-100 text-sm font-medium text-gray-600"
+              class="flex-1 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-600"
             >
               Reject
             </button>
             <button
               @click="confirmInvitation(invitation)"
-              class="flex-1 py-2.5 rounded-lg bg-success text-sm font-medium text-white shadow-sm"
+              class="flex-1 py-2 rounded-lg bg-success text-sm font-medium text-white shadow-sm"
             >
               Confirm
             </button>
@@ -331,7 +345,7 @@ const validBookings = computed(() => {
                 <span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
               </div>
 
-              <div class="flex items-center gap-2 text-xs text-gray-400">
+              <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
                 <span>Time</span>
                 <span class="text-sm font-medium text-gray-dark">
                   {{ booking.startTime }} - {{ booking.endTime }}
@@ -373,11 +387,28 @@ const validBookings = computed(() => {
             </div>
           </div>
 
-          <div class="flex justify-end">
+          <div class="flex gap-2">
+            <button
+              @click="() => handleChangeBooking(booking)"
+              :disabled="isBookingExpired(booking.bookingDate, booking.startTime)"
+              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
+              :class="[
+                isBookingExpired(booking.bookingDate, booking.startTime)
+                  ? 'border-gray-50 text-gray-300 cursor-not-allowed'
+                  : 'border-gray-100 text-gray-500 hover:bg-gray-50',
+              ]"
+            >
+              Change
+            </button>
             <button
               @click="() => handleCancelBooking(booking.id)"
-              :disabled="isCancelling"
-              class="px-6 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+              :disabled="isCancelling || isBookingExpired(booking.bookingDate, booking.startTime)"
+              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
+              :class="[
+                isBookingExpired(booking.bookingDate, booking.startTime)
+                  ? 'border-gray-50 text-gray-300 cursor-not-allowed'
+                  : 'border-gray-100 text-gray-500 hover:bg-gray-50',
+              ]"
             >
               {{ isCancelling ? 'Cancelling...' : 'Cancel' }}
             </button>
@@ -389,11 +420,7 @@ const validBookings = computed(() => {
       <div class="bg-cyan rounded-[10px] p-5 mb-8 shadow-lg shadow-cyan/20">
         <h2 class="text-base font-semibold text-white mb-3">My Coins</h2>
         <div class="flex items-center gap-2 mb-6">
-          <svg width="24" height="24" viewBox="0 0 27 27" fill="white">
-            <path
-              d="M13.1 0C5.8 0 0 5.8 0 13.1s5.8 13.1 13.1 13.1 13.1-5.8 13.1-13.1S20.3 0 13.1 0zm4.9 12.1H8.5v.3c0 1.6 1.3 2.9 2.9 2.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-2.7 0-4.9-2.2-4.9-4.9v-2.6c0-2.7 2.2-4.9 4.9-4.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-1.6 0-2.9 1.3-2.9 2.9v.3h9.5c.5 0 .9.4.9.9s-.4.9-.9.9z"
-            />
-          </svg>
+          <img src="@/assets/images/home/Vector1.png" alt="" class="w-5 h-5" />
           <span class="text-2xl font-bold text-white">{{ coins }}</span>
         </div>
         <div class="flex gap-2">
@@ -453,14 +480,10 @@ const validBookings = computed(() => {
           class="w-full max-w-md bg-cyan rounded-t-[40px] p-8 pb-12 animate-slide-up h-[80vh] flex flex-col"
         >
           <h3 class="text-white text-[28px] font-medium text-center mb-2">Account History</h3>
-          <div class="flex items-center justify-center gap-2 mb-8">
-            <span class="text-white/80 text-sm">Balance</span>
+          <div class="flex items-center justify-center gap-2">
+            <span class="text-white/80 text-lg font-bold">Balance</span>
             <div class="flex items-center gap-1.5">
-              <svg width="18" height="18" viewBox="0 0 27 27" fill="white">
-                <path
-                  d="M13.1 0C5.8 0 0 5.8 0 13.1s5.8 13.1 13.1 13.1 13.1-5.8 13.1-13.1S20.3 0 13.1 0zm4.9 12.1H8.5v.3c0 1.6 1.3 2.9 2.9 2.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-2.7 0-4.9-2.2-4.9-4.9v-2.6c0-2.7 2.2-4.9 4.9-4.9h6.6c.5 0 .9.4.9.9s-.4.9-.9.9h-6.6c-1.6 0-2.9 1.3-2.9 2.9v.3h9.5c.5 0 .9.4.9.9s-.4.9-.9.9z"
-                />
-              </svg>
+              <img src="@/assets/images/home/Vector (1).png" alt="" class="w-5 h-5" />
               <span class="text-white text-lg font-bold">{{ coins }}</span>
             </div>
           </div>
@@ -468,8 +491,8 @@ const validBookings = computed(() => {
           <div class="overflow-y-auto flex-1 px-2">
             <div v-for="(group, gIdx) in adaptedTransactions" :key="group.date">
               <!-- 分隔线：除了第一组外，每组上方显示 -->
-              <div class="border-t border-white/30 my-6"></div>
-              
+              <div class="border-t border-white/50 my-6"></div>
+
               <div class="text-white/60 text-xs text-right mb-4 font-medium tracking-wider">
                 {{ group.date }}
               </div>
@@ -479,8 +502,10 @@ const validBookings = computed(() => {
                   :key="item.id"
                   class="flex justify-between items-center"
                 >
-                  <span class="text-white text-base font-medium opacity-90">{{ item.desc }}</span>
-                  <span class="text-white text-lg font-semibold">
+                  <span class="text-white text-base font-medium opacity-90 text-[15px]">{{
+                    item.desc
+                  }}</span>
+                  <span class="text-white text-lg font-semibold text-[15px]">
                     {{ item.amount > 0 ? '+' : '' }}{{ item.amount }}
                   </span>
                 </div>

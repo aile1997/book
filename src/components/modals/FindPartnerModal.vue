@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, watchEffect } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSeats } from '../../composables/useSeats'
-import { debounce } from '../../utils/debounce'
-import type { Partner, SelectedTimeSlot, BookingGroup } from '../../types/booking'
-import { useSeatConfig } from '../../composables/useSeatConfig'
-import { useGroupsSingleton } from '../../composables/useGroups'
+import type { Partner, SelectedTimeSlot } from '../../types/booking'
 import PinyinMatch from 'pinyin-match'
 
 interface Props {
@@ -55,8 +52,6 @@ const currentTimeSlot = computed(() => {
 })
 
 // ========== 组功能状态 ==========
-
-const useGroups = useGroupsSingleton()
 
 // 根据桌子获取座位布局，并关联伙伴数据和组信息
 const tableSeatMap = computed(() => {
@@ -114,9 +109,6 @@ function generateGroupColor(groupId: number): string {
   const lightness = 40 + (groupId % 4) * 10 // 40-70%
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
-
-// 加载全局座位配置
-const { getSeatGroupConfig, generateSeatPath, colors } = useSeatConfig()
 
 // 使用伙伴管理组合式函数
 const { seatAvailability } = useSeats()

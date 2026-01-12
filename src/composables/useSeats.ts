@@ -1,12 +1,12 @@
 import { ref, computed } from 'vue'
 import type { Seat } from '../types/booking'
 import { useAuth } from './useAuth'
-import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots } from '../api' // 导入 API 客户端 and 新 API
+import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots, postSeatAvailability } from '../api'
 import {
   convertBackendMapToFrontendSeats,
   convertBackendAvailabilityToFrontend,
-} from '../utils/dataAdapter' // 导入数据适配器
-import { cache, CacheKeys, CacheTTL } from '../utils/cache' // 导入缓存工具
+} from '../utils/dataAdapter'
+import { cache, CacheKeys, CacheTTL } from '../utils/cache'
 
 // 座位管理组合式函数 - 实现单例模式
 let seatsInstance: ReturnType<typeof createSeatsStore> | null = null
@@ -14,16 +14,15 @@ let seatsInstance: ReturnType<typeof createSeatsStore> | null = null
 function createSeatsStore() {
   // 所有座位数据 - 动态数据层
   const seats = ref<Seat[]>([])
-  const areas = ref<any[]>([]) // 区域列表
-  const timeSlots = ref<any[]>([]) // 时间段列表
-  const selectedTimeSlotId = ref<number | null>(null) // 默认选中的时间段 ID
+  const areas = ref<any[]>([])
+  const timeSlots = ref<any[]>([])
+  const selectedTimeSlotId = ref<number | null>(null)
 
-  const seatAvailability = ref<any[]>([]) // 新增：座位可用性数据
+  const seatAvailability = ref<any[]>([])
   const isLoading = ref(false)
   const isLoadingTimeSlots = ref(false)
   const isLoadingAreas = ref(false)
-
-  const isLoadingAvailability = ref(false) // 加载可用性状态
+  const isLoadingAvailability = ref(false)
   const error = ref<string | null>(null)
 
   // 请求时间戳，用于防止旧请求覆盖新请求的结果
@@ -161,7 +160,68 @@ function createSeatsStore() {
   }
 
   /**
-   * 查询座位可用性
+   * 批量查询座位可用性（多时段支持）
+   * @param queries - 查询参数数组
+   */
+  async function queryBatchSeatAvailability(queries: Array<{
+    areaId: number
+    bookingDate: string
+    timeSlotId: number
+  }>) {
+    if (!queries || queries.length === 0) {
+      console.warn('批量查询座位可用性失败：查询参数为空')
+      return
+    }
+
+    const requestTime = Date.now()
+    lastAvailabilityRequestTime = requestTime
+
+    isLoadingAvailability.value = true
+    error.value = null
+
+    try {
+      console.log('批量查询座位可用性，参数数量:', queries.length)
+      const data = await postSeatAvailability(queries)
+
+      if (requestTime < lastAvailabilityRequestTime) {
+        console.log('检测到更新的请求，丢弃旧请求结果')
+        return
+      }
+
+      console.log('批量查询到的座位可用性数据:', data)
+
+      // 更新 seatAvailability 以便 FindPartnerModal 可以使用
+      // 对于批量数据，我们使用第一个时段的数据填充 seatAvailability
+      if (Array.isArray(data) && data.length > 0) {
+        const firstSlotData = data[0]
+        if (firstSlotData.seats && Array.isArray(firstSlotData.seats)) {
+          seatAvailability.value = [...convertBackendAvailabilityToFrontend(firstSlotData.seats)]
+          console.log('更新 seatAvailability，座位数量:', seatAvailability.value.length)
+          // 触发座位状态更新
+          updateSeatsStatus(data, true)
+        }
+      } else {
+        seatAvailability.value = []
+        updateSeatsStatus([], true)
+      }
+    } catch (err: any) {
+      if (requestTime < lastAvailabilityRequestTime) {
+        console.log('检测到更新的请求，忽略旧请求的错误')
+        return
+      }
+      console.error('批量查询座位可用性失败:', err)
+      error.value = '批量查询座位可用性失败: ' + (err.message || '未知错误')
+      seatAvailability.value = []
+      updateSeatsStatus([], true)
+    } finally {
+      if (requestTime === lastAvailabilityRequestTime) {
+        isLoadingAvailability.value = false
+      }
+    }
+  }
+
+  /**
+   * 查询座位可用性（单时段，向后兼容）
    */
   async function querySeatAvailability(bookingDate: string, timeSlotId: number, areaId?: number) {
     if (!bookingDate) {
@@ -405,6 +465,7 @@ function createSeatsStore() {
     setAreasData,
     setSeatsData,
     querySeatAvailability,
+    queryBatchSeatAvailability,
     getSeatsByTable,
     selectSeat,
     clearSelection,

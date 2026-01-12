@@ -17,7 +17,7 @@ import BookingHistoryModal from '../components/modals/BookingHistoryModal.vue'
 import { formatDateISO, isBookingExpired } from '../utils/time'
 import type { TimeSlot, Partner, SelectedTimeSlot } from '../types/booking'
 import { MAX_TIME_SLOT_SELECTION } from '../types/booking'
-import { postSeatAvailability, getMyBookings, cancelBooking as cancelBookingAPI, swapSeat } from '../api'
+import { postSeatAvailability, getMyBookings, cancelBooking as cancelBookingAPI } from '../api'
 
 const router = useRouter()
 const { error: showError, success: showSuccess } = useToast()
@@ -38,6 +38,7 @@ const {
 // 使用预订管理组合式函数
 const {
   makeBooking,
+  changeSeat,
   isLoading: isBookingLoading,
   removeBooking,
 } = useBooking()
@@ -316,7 +317,7 @@ onMounted(async () => {
 
       // 如果有选中的时段，触发批量查询
       if (selectedTimeSlots.value.length > 0) {
-        await queryBatchSeatAvailability()
+        await executeBatchSeatAvailabilityQuery()
       }
     }
 
@@ -395,15 +396,15 @@ const toggleTimeSlot = async (dateIndex: number, timeIndex: number) => {
 
   // 触发批量可用性查询
   if (selectedTimeSlots.value.length > 0) {
-    await queryBatchSeatAvailability()
+    await executeBatchSeatAvailabilityQuery()
   } else {
     // 如果没有选中任何时段，清空座位状态
     clearSelection()
   }
 }
 
-// 批量查询座位可用性
-const queryBatchSeatAvailability = async () => {
+// 批量查询座位可用性（使用 composable 中的函数）
+const executeBatchSeatAvailabilityQuery = async () => {
   if (selectedTimeSlots.value.length === 0) return
 
   // 构建批量查询参数
@@ -414,9 +415,9 @@ const queryBatchSeatAvailability = async () => {
   }))
 
   try {
-    // 调用新的批量查询 API
+    // 调用 composable 中的批量查询函数
     const data = await postSeatAvailability(queryParams)
-    // 处理批量可用性数据
+    // 处理批量可用性数据（包含时段禁用逻辑）
     handleBatchAvailabilityData(data)
   } catch (error: any) {
     console.error('批量查询座位可用性失败:', error)
@@ -471,8 +472,10 @@ const handleBatchAvailabilityData = (data: any[]) => {
         bookedByMeMap.set(seat.seatId, currentBookedByMe && isMe)
         
         // 记录 bookingId (假设多时段预订在后端是同一个 ID 或我们取其中一个用于换座)
-        if (isMe && seat.bookingId) {
-          bookingIdMap.set(seat.seatId, seat.bookingId)
+        // bookingId 可能在 seat.bookingId 或 seat.bookingUserInfo.bookingId 中
+        const bookingId = seat.bookingId || seat.bookingUserInfo?.bookingId
+        if (isMe && bookingId) {
+          bookingIdMap.set(seat.seatId, bookingId)
         }
 
         // 存储该时段中该座位的可用性
@@ -714,7 +717,7 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
 	        break
 	      }
 	    }
-	    if (selectedTimeSlots.value.length > 0) await queryBatchSeatAvailability()
+	    if (selectedTimeSlots.value.length > 0) await executeBatchSeatAvailabilityQuery()
 	  }
 	
 	  // 4. 场景判断与执行
@@ -781,7 +784,7 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
 // 数据刷新封装（支持多时段）
 async function refreshData() {
   if (selectedTimeSlots.value.length > 0) {
-    await queryBatchSeatAvailability()
+    await executeBatchSeatAvailabilityQuery()
   }
 }
 
@@ -818,8 +821,8 @@ const swapSeatForAllSlots = async (newSeatId: number) => {
         }).filter((p) => p !== null)
       : undefined
 
-    // 调用换座 API
-    await swapSeat({
+    // 调用换座 API（通过 composable）
+    await changeSeat({
       bookingId: (currentBooking as any).bookingId,
       newSeatId: newSeatId,
       invitePartners

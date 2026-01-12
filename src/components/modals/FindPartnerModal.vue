@@ -43,6 +43,8 @@ watch(() => props.selectedTimeSlots, (newSlots) => {
     if (!selectedTimeSlotKey.value || !newSlots.find(s => s.key === selectedTimeSlotKey.value)) {
       selectedTimeSlotKey.value = newSlots[0].key
     }
+  } else {
+    selectedTimeSlotKey.value = null
   }
 }, { immediate: true })
 
@@ -89,11 +91,11 @@ const tableSeatMap = computed(() => {
     }
 
     // 添加组信息
+    // 凡是包含邀请人的订单即为一组
     if (seat.groupId !== null && seat.groupId !== undefined) {
       result.groupId = seat.groupId
-      // 为每个组生成一致的颜色
-      const groupColor = generateGroupColor(seat.groupId)
-      result.groupColor = groupColor
+      // 为每个组生成一致的颜色（高色差随机颜色）
+      result.groupColor = generateGroupColor(seat.groupId)
     }
 
     return result
@@ -105,9 +107,11 @@ const tableSeatMap = computed(() => {
 // 生成组颜色（基于 groupId）
 function generateGroupColor(groupId: number): string {
   // 使用 HSL 颜色空间生成色差较大的颜色
-  const hue = (groupId * 137.5) % 360  // 黄金角度，确保颜色分布均匀
-  const saturation = 70 + (groupId % 3) * 10  // 70-90%
-  const lightness = 45 + (groupId % 2) * 15    // 45-60%
+  // 137.5 是黄金角度，能有效分散色相
+  const hue = (groupId * 137.5) % 360
+  // 增加饱和度和亮度的随机性，确保色差更大
+  const saturation = 75 + (groupId % 5) * 5 // 75-95%
+  const lightness = 40 + (groupId % 4) * 10 // 40-70%
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
 

@@ -33,7 +33,6 @@ const {
   loadTimeSlots, // 导入 loadTimeSlots
   loadAreasWithCache, // 加载区域（带缓存）
   loadSeatMapWithCache, // 加载座位图（带缓存）
-  updateSeatsStatus,
 } = useSeats()
 
 // 使用预订管理组合式函数
@@ -73,7 +72,7 @@ const highlightedPartner = ref<{ name: string; seat: string } | null>(null)
 
 // 选中的时段列表（支持多选）
 const selectedTimeSlots = ref<SelectedTimeSlot[]>([])
-const maxTimeSlotSelection = MAX_TIME_SLOT_SELECTION
+const maxTimeSlotSelection = 4 // 明确限制为 4 个时段
 
 // 检查是否可以继续选择时段
 const canSelectMoreTimeSlots = computed(() => {
@@ -430,32 +429,67 @@ const handleBatchAvailabilityData = (data: any[]) => {
     return
   }
 
-  // 调用 useSeats 的统一状态更新方法
-  updateSeatsStatus(data, true)
+  // 合并所有时段的可用性状态
+  // 只有在所有时段都可用时，座位才可用
+  const availabilityMap = new Map<number, boolean>()
+  // 存储每个时段中每个座位的可用性：时段key -> 座位ID -> 是否可用
+  const slotAvailabilityMap = new Map<string, Map<number, boolean>>()
 
-  // ========== 根据选中座位更新时段的禁用状态 ==========
+  // 初始化所有座位为可用
+  seats.value.forEach(seat => {
+    availabilityMap.set(seat.backendSeatId, true)
+  })
+
+  // 遍历每个时段的数据
+  data.forEach((slotData) => {
+    const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
+    const seatAvailMap = new Map<number, boolean>()
+
+    if (slotData.seats && Array.isArray(slotData.seats)) {
+      slotData.seats.forEach((seat: any) => {
+        const currentStatus = availabilityMap.get(seat.seatId)
+        // 逻辑与操作：只要有一个时段不可用，座位就不可用
+        availabilityMap.set(seat.seatId, currentStatus && seat.isAvailable)
+        // 存储该时段中该座位的可用性
+        seatAvailMap.set(seat.seatId, seat.isAvailable)
+      })
+    }
+
+    slotAvailabilityMap.set(slotKey, seatAvailMap)
+  })
+
+  // 更新座位状态
+  seats.value.forEach((seat) => {
+    // 保持当前选中状态
+    if (seat.status === 'selected') return
+
+    const isAvailable = availabilityMap.get(seat.backendSeatId)
+    if (isAvailable !== undefined) {
+      seat.status = isAvailable ? 'available' : 'occupied'
+      seat.occupiedBy = isAvailable ? '' : '已预订'
+    }
+  })
+
+  // ========== 新增：根据选中座位更新时段的禁用状态 ==========
+  // 如果有选中的座位，检查该座位在每个时段是否可用，不可用时禁用该时段
   if (selectedSeat.value) {
     const selectedSeatObj = seats.value.find(s => s.id === selectedSeat.value)
     if (selectedSeatObj) {
       const seatBackendId = selectedSeatObj.backendSeatId
 
-      // 构建时段可用性映射
-      const slotAvailabilityMap = new Map<string, boolean>()
-      data.forEach(slotData => {
-        const slotKey = `${slotData.bookingDate}_${slotData.timeSlotId}`
-        const seatInfo = slotData.seats?.find((s: any) => s.seatId === seatBackendId)
-        slotAvailabilityMap.set(slotKey, seatInfo ? seatInfo.isAvailable : true)
-      })
-
       timeSlots.value.forEach(dateSlot => {
         dateSlot.times.forEach(time => {
           const slotKey = `${dateSlot.dateISO}_${time.id}`
-          const isAvailable = slotAvailabilityMap.get(slotKey)
+          const seatAvailMap = slotAvailabilityMap.get(slotKey)
 
-          if (isAvailable === false && !time.selected) {
-            time.disabled = true
-          } else if (isAvailable === true) {
-            time.disabled = time.isExpiredToday || false
+          if (seatAvailMap) {
+            const isAvailable = seatAvailMap.get(seatBackendId)
+            // 如果该座位在这个时段不可用，禁用该时段（除非已选中）
+            if (isAvailable === false && !time.selected) {
+              time.disabled = true
+            } else if (isAvailable === true) {
+              time.disabled = time.isExpiredToday || false
+            }
           }
         })
       })
@@ -628,15 +662,26 @@ const bookNow = async () => {
    */
   const executeBooking = async () => {
     try {
-      // 如果当前有预订，先取消（后端 makeBooking 不支持直接覆盖）
+      // 场景：全局批量换座或更新邀请
+      // 如果当前有预订，需要取消该座位在所有相关时段的预订
       if (myBookingInCurrentSlot.value) {
-        const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
-        if (oldBookingId) {
-          await removeBooking(oldBookingId)
+        const currentSeatId = (myBookingInCurrentSlot.value as any).id
+        // 从聚合预订中找到该座位的所有预订记录
+        const myCurrentBookings = aggregatedBookings.value.find(g => g.seat === currentSeatId)
+        
+        if (myCurrentBookings && myCurrentBookings.bookings) {
+          // 批量取消该座位的所有预订
+          for (const b of myCurrentBookings.bookings) {
+            await removeBooking(b.id)
+          }
+        } else {
+          // 兜底：仅取消当前时段
+          const oldBookingId = (myBookingInCurrentSlot.value as any).bookingId
+          if (oldBookingId) await removeBooking(oldBookingId)
         }
       }
 
-      // 执行多时段预订请求
+      // 执行多时段预订请求（新座位将应用到所有选定时段）
       await makeBooking(bookingData)
 
       // 预订成功后的 UI 反馈与状态重置
@@ -679,9 +724,6 @@ const bookNow = async () => {
       if (selectedTimeSlots.value.length > 0) {
         await queryBatchSeatAvailability()
       }
-      
-      // 强制刷新座位图状态
-      await refreshData()
     } catch (error: any) {
       showError(error.message || '预订失败，请稍后重试')
     }
@@ -694,8 +736,8 @@ const bookNow = async () => {
     confirmModalConfig.value = {
       title: isChangingSeat ? 'Change Seat' : 'Invite Partners',
       message: isChangingSeat
-        ? 'You already have a booking. Do you want to change your seat for all selected time slots?'
-        : 'You already have a booking. Do you want to invite partners to join you?',
+        ? 'You already have a booking. Changing your seat will apply to ALL your current bookings across all time slots. Do you want to proceed?'
+        : 'You already have a booking. Do you want to invite partners to join you for all selected time slots?',
       onConfirm: executeBooking
     }
     showConfirmModal.value = true
@@ -801,9 +843,57 @@ const goBack = () => {
     <!-- ========== 主要内容区域 ========== -->
     <div class="px-6 py-6 pb-28 max-w-2xl mx-auto">
       <!-- ========== Seat Selection Area ========== -->
-      <section class="mb-6">
+      <section class="mb-8">
         <div class="opacity-90 pointer-events-none">
           <SeatMap :seats="seats" :selected-seat="selectedSeat" @select-seat="() => {}" />
+        </div>
+      </section>
+
+      <!-- ========== My Bookings History (Home Page Integration) ========== -->
+      <section v-if="aggregatedBookings.length > 0" class="mb-10">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-gray-dark">My Bookings</h3>
+          <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">{{ aggregatedBookings.length }} Records</span>
+        </div>
+        
+        <div class="space-y-4">
+          <div 
+            v-for="group in aggregatedBookings" 
+            :key="group.groupId"
+            class="bg-white rounded-[24px] p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <span class="text-xl font-black text-primary">{{ group.seat }}</span>
+                </div>
+                <div>
+                  <div class="flex flex-wrap gap-x-2 gap-y-0.5">
+                    <div v-for="(slot, idx) in group.timeSlots" :key="idx" class="text-xs font-bold text-gray-dark">
+                      {{ slot.bookingDate }} {{ slot.startTime }}-{{ slot.endTime }}
+                    </div>
+                  </div>
+                  <div class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-1">
+                    Total Credits: {{ group.totalCredits }}
+                  </div>
+                </div>
+              </div>
+              
+              <button 
+                @click="cancelBookingById(group.bookings[0].id)"
+                class="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+                title="Cancel All Slots"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M21 5.97998C17.67 5.64998 14.32 5.47998 10.98 5.47998C9 5.47998 7.02 5.57998 5.04 5.77998L3 5.97998" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8.5 4.97L8.72 3.66C8.88 2.71 9 2 10.69 2H13.31C15 2 15.13 2.75 15.28 3.67L15.5 4.97" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M18.85 9.14001L18.2 19.21C18.09 20.78 18 22 15.21 22H8.79002C6.00002 22 5.91002 20.78 5.80002 19.21L5.15002 9.14001" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M10.33 16.5H13.66" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9.5 12.5H14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -945,101 +1035,52 @@ const goBack = () => {
         </div>
       </section>
 
-      <!-- ========== Current Booking Panel (Moved to Main Page) ========== -->
-      <section v-if="myBookingInCurrentSlot && !selectedSeat" class="mb-6 animate-fade-in">
-        <div class="bg-success rounded-[32px] p-8 text-white shadow-xl relative overflow-hidden">
-          <!-- Background Decoration -->
-          <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-          
-          <div class="relative z-10">
-            <div class="flex items-center justify-between mb-8">
-              <h3 class="text-2xl font-bold tracking-tight">Current Booking</h3>
-              <div class="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full border border-white/30">
-                <span class="text-xs font-bold uppercase tracking-widest">Confirmed</span>
+      <!-- ========== Booking Summary (Aggregated View) ========== -->
+      <section
+        v-if="(selectedSeat || myBookingInCurrentSlot) && selectedTimeSlots.length > 0"
+        class="bg-white rounded-[24px] p-6 border border-gray-100 shadow-sm"
+      >
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-bold text-gray-dark">
+            {{ selectedSeat ? 'Booking Summary' : 'Current Booking' }}
+          </h3>
+          <div v-if="selectedSeat" class="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full">
+            <span class="text-xs font-bold text-primary">{{ coinCost * selectedTimeSlots.length }} Coins</span>
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <!-- Aggregated Seat & Time Info -->
+          <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <div class="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <span class="text-2xl font-black text-primary">{{ selectedSeat || (myBookingInCurrentSlot as any)?.id }}</span>
+            </div>
+            <div class="flex-1">
+              <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Selected Seat</div>
+              <div class="flex flex-wrap gap-x-3 gap-y-1">
+                <div v-for="slot in selectedTimeSlots" :key="slot.key" class="flex items-center gap-1.5">
+                  <div class="w-1.5 h-1.5 rounded-full bg-primary/40"></div>
+                  <span class="text-xs font-bold text-gray-dark">{{ slot.date }} {{ slot.time }}</span>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="space-y-6">
-              <!-- Seat Info -->
-              <div class="flex items-center gap-6">
-                <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-md">
-                  <span class="text-3xl font-black">{{ (myBookingInCurrentSlot as any)?.id }}</span>
-                </div>
-                <div class="flex-1">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div v-for="slot in selectedTimeSlots" :key="slot.key" class="flex items-center gap-2">
-                      <div class="w-1.5 h-1.5 rounded-full bg-white/60"></div>
-                      <span class="text-sm font-medium opacity-90">{{ slot.time }}</span>
-                    </div>
-                  </div>
-                </div>
-                <!-- Cancel Button (Only Cancel, No Swap) -->
-                <button 
-                  @click="cancelBookingById((myBookingInCurrentSlot as any).bookingId)"
-                  class="p-3 bg-white/10 hover:bg-red-500/20 rounded-xl transition-all group"
-                  title="Cancel Booking"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white group-hover:text-red-200">
+          <!-- Partners Info -->
+          <div v-if="invitedPartners.length > 0" class="space-y-3">
+            <div class="text-xs font-bold text-gray-400 uppercase tracking-widest">Invited Partners</div>
+            <div class="flex flex-wrap gap-2">
+              <div 
+                v-for="partner in invitedPartners" 
+                :key="partner.id"
+                class="px-3.5 py-2 bg-success/10 rounded-xl border border-success/20 flex items-center gap-2"
+              >
+                <span class="text-sm font-bold text-success">{{ partner.fullName }}</span>
+                <button @click="removePartner(partner)" class="text-success/40 hover:text-success transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </button>
-              </div>
-
-              <!-- Partners -->
-              <div v-if="invitedPartners.length > 0" class="pt-4 border-t border-white/10">
-                <p class="text-xs font-bold opacity-60 uppercase tracking-widest mb-3">Partners</p>
-                <div class="flex flex-wrap gap-2">
-                  <span v-for="p in invitedPartners" :key="p.id" class="px-3 py-1 bg-white/10 rounded-lg text-xs font-bold">
-                    {{ p.fullName }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ========== Booking Summary Area (For New Selection) ========== -->
-      <section v-if="selectedSeat" class="mb-6 animate-slide-up">
-        <div class="bg-gray-50 rounded-[32px] p-8 border border-gray-100 shadow-sm">
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-bold text-gray-dark">Booking Summary</h3>
-            <div class="flex items-center gap-2">
-              <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
-              <span class="text-lg font-bold text-cyan">{{ coinCost * selectedTimeSlots.length }}</span>
-            </div>
-          </div>
-
-          <div class="space-y-6">
-            <!-- Selected Seat -->
-            <div class="flex items-center justify-between p-5 bg-white rounded-2xl border border-gray-100">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <span class="text-xl font-black text-primary">{{ selectedSeat }}</span>
-                </div>
-                <div>
-                  <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Selected Seat</p>
-                  <p class="text-sm font-medium text-gray-dark">Ready to book</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Partners -->
-            <div v-if="invitedPartners.length > 0" class="space-y-3">
-              <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Invited Partners</p>
-              <div class="flex flex-wrap gap-2">
-                <div 
-                  v-for="partner in invitedPartners" 
-                  :key="partner.id"
-                  class="px-4 py-2 bg-success/10 rounded-xl border border-success/20 flex items-center gap-3"
-                >
-                  <span class="text-sm font-bold text-success">{{ partner.fullName }}</span>
-                  <button @click="removePartner(partner)" class="text-success/40 hover:text-success">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
               </div>
             </div>
           </div>

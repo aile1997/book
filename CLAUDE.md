@@ -376,9 +376,26 @@ proxy: {
 - **tailwindcss**：实用优先 CSS 框架
 - **postcss**：CSS 处理（配合 autoprefixer）
 
+## 当前开发进度（Current Development Progress）
+
+### 最近完成
+- ✅ 修复 BookingPage 按钮禁用逻辑，严格匹配预订场景
+- ✅ 正确实现 UI 更新和伙伴检查 API 集成
+- ✅ 更新 UI 为深灰色风格
+- ✅ 集成用户存在性检查 API
+
+### 进行中
+- 🔄 **座位多选逻辑重构**：从单选升级为最多 6 个座位的多选功能
+
+### 计划中
+- 多选逻辑的完整实现（类型定义、状态管理、组件更新）
+- UI 增强以支持选择计数器和顺序显示
+- 预订流程适配多座位场景
+
 ## 相关文档（Related Documentation）
 
 - `API_INTEGRATION_GUIDE.md`：完整 API 参考和示例
 - `BOOKING_SYSTEM_README.md`：功能概览和组件文档
 - `QUICK_START.md`：用户指南和功能演示（中文）
 - `AGENTS.md`：项目元数据和架构说明
+- `.claude/project_context.md`：详细项目上下文和技术债务分析

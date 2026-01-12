@@ -7,7 +7,7 @@ import PinyinMatch from 'pinyin-match'
 interface Props {
   visible: boolean
   selectedPartners: Partner[]
-  selectedTimeSlots?: SelectedTimeSlot[]  // 新增：选中的时段列表
+  selectedTimeSlots?: SelectedTimeSlot[] // 新增：选中的时段列表
 }
 
 interface SeatWithGroup {
@@ -34,21 +34,31 @@ const emit = defineEmits<Emits>()
 const selectedTimeSlotKey = ref<string | null>(null)
 
 // 监听 selectedTimeSlots 变化，默认选中第一个（如果只有一个时段则不显示选择器）
-watch(() => props.selectedTimeSlots, (newSlots) => {
-  if (newSlots && newSlots.length > 0) {
-    // 默认选中第一个时段，不再支持“全部时段”以避免展示混乱
-    if (!selectedTimeSlotKey.value || !newSlots.find(s => s.key === selectedTimeSlotKey.value)) {
-      selectedTimeSlotKey.value = newSlots[0].key
+watch(
+  () => props.selectedTimeSlots,
+  (newSlots) => {
+    if (newSlots && newSlots.length > 0) {
+      // 默认选中第一个时段，不再支持“全部时段”以避免展示混乱
+      if (
+        !selectedTimeSlotKey.value ||
+        !newSlots.find((s) => s.key === selectedTimeSlotKey.value)
+      ) {
+        selectedTimeSlotKey.value = newSlots[0].key
+      }
+    } else {
+      selectedTimeSlotKey.value = null
     }
-  } else {
-    selectedTimeSlotKey.value = null
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+)
 
 // 获取当前选择的时间段信息
 const currentTimeSlot = computed(() => {
   if (!props.selectedTimeSlots || props.selectedTimeSlots.length === 0) return null
-  return props.selectedTimeSlots.find((slot) => slot.key === selectedTimeSlotKey.value) || props.selectedTimeSlots[0]
+  return (
+    props.selectedTimeSlots.find((slot) => slot.key === selectedTimeSlotKey.value) ||
+    props.selectedTimeSlots[0]
+  )
 })
 
 // ========== 组功能状态 ==========
@@ -56,13 +66,13 @@ const currentTimeSlot = computed(() => {
 // 根据桌子获取座位布局，并关联伙伴数据和组信息
 const tableSeatMap = computed(() => {
   // 1. 过滤出当前桌子的座位
-  if (!seatAvailability.value || seatAvailability.value.length === 0) {
+  if (!filteredSeatAvailability.value || filteredSeatAvailability.value.length === 0) {
     console.warn('Seats array is empty, cannot map table seatAvailability')
     return []
   }
 
   // 过滤出当前桌子的座位
-  let currentTableSeats = seatAvailability.value.filter((s) => s.table === selectedTable.value)
+  const currentTableSeats = filteredSeatAvailability.value.filter((s) => s.table === selectedTable.value)
 
   // 如果没有座位数据，返回空数组
   if (currentTableSeats.length === 0) {
@@ -82,7 +92,7 @@ const tableSeatMap = computed(() => {
             email: '', // 暂时留空
           }
         : null,
-      isAvailable: seat.isAvailable
+      isAvailable: seat.isAvailable,
     }
 
     // 添加组信息
@@ -111,7 +121,23 @@ function generateGroupColor(groupId: number): string {
 }
 
 // 使用伙伴管理组合式函数
-const { seatAvailability } = useSeats()
+const { seatAvailability, getSeatAvailabilityByTimeSlot } = useSeats()
+
+// 根据选中的时间段获取对应的座位可用性数据
+const filteredSeatAvailability = computed(() => {
+  // 如果只有一个时段或者没有选择时段，使用默认的 seatAvailability
+  if (!props.selectedTimeSlots || props.selectedTimeSlots.length <= 1) {
+    return seatAvailability.value
+  }
+
+  // 如果选择了特定时间段，使用批量数据中对应时段的数据
+  if (selectedTimeSlotKey.value) {
+    const slotData = getSeatAvailabilityByTimeSlot(selectedTimeSlotKey.value)
+    return slotData
+  }
+
+  return seatAvailability.value
+})
 
 // 视图模式: 'search' | 'table'
 const viewMode = ref<'search' | 'table'>('search')
@@ -149,10 +175,10 @@ const filteredPartners = computed(() => {
   if (!debouncedSearchQuery.value) return []
   const query = debouncedSearchQuery.value.trim()
 
-  if (!seatAvailability.value) return []
+  if (!filteredSeatAvailability.value) return []
 
   // 1. 提取并去重
-  const uniquePartners = seatAvailability.value
+  const uniquePartners = filteredSeatAvailability.value
     .filter((s) => s.bookingUserInfo)
     .reduce((acc, current) => {
       const userInfo = current.bookingUserInfo
@@ -213,7 +239,7 @@ const selectPartnerFromSearch = (partner: Partner) => {
 
   // 查找该伙伴预订的座位信息，以确保 partner.seat 字段存在
   // 注意：这里的 partner.id 应该对应 bookingUserInfo.userId
-  const seatInfo = seatAvailability.value.find((s) => s.bookingUserInfo?.userId === partner.id)
+  const seatInfo = filteredSeatAvailability.value.find((s) => s.bookingUserInfo?.userId === partner.id)
 
   if (seatInfo) {
     // 修复问题1: 点击名称后，并未在座位上显示对应的 Tooltip
@@ -325,10 +351,7 @@ watch(
           <!-- 搜索视图 -->
           <div v-if="viewMode === 'search'" class="space-y-4">
             <!-- 时间段选择器（仅在多时段模式下显示） -->
-            <div
-              v-if="selectedTimeSlots && selectedTimeSlots.length > 1"
-              class="mb-4"
-            >
+            <div v-if="selectedTimeSlots && selectedTimeSlots.length > 1" class="mb-4">
               <label class="block text-sm font-medium text-white/90 mb-2 text-center">
                 选择时间段
               </label>
@@ -336,11 +359,7 @@ watch(
                 v-model="selectedTimeSlotKey"
                 class="w-full px-4 py-2.5 rounded-lg border-0 text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-white/50"
               >
-                <option
-                  v-for="slot in selectedTimeSlots"
-                  :key="slot.key"
-                  :value="slot.key"
-                >
+                <option v-for="slot in selectedTimeSlots" :key="slot.key" :value="slot.key">
                   {{ slot.date }} {{ slot.time }}
                 </option>
               </select>
@@ -415,10 +434,7 @@ watch(
           <!-- 桌子视图 -->
           <div v-else class="flex flex-col">
             <!-- 时间段选择器（桌子视图，仅在多时段模式下显示） -->
-            <div
-              v-if="selectedTimeSlots && selectedTimeSlots.length > 1"
-              class="mb-3"
-            >
+            <div v-if="selectedTimeSlots && selectedTimeSlots.length > 1" class="mb-3">
               <label class="block text-sm font-medium text-white/90 mb-2 text-center">
                 选择时间段
               </label>
@@ -426,11 +442,7 @@ watch(
                 v-model="selectedTimeSlotKey"
                 class="w-full px-4 py-2.5 rounded-lg border-0 text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-white/50"
               >
-                <option
-                  v-for="slot in selectedTimeSlots"
-                  :key="slot.key"
-                  :value="slot.key"
-                >
+                <option v-for="slot in selectedTimeSlots" :key="slot.key" :value="slot.key">
                   {{ slot.date }} {{ slot.time }}
                 </option>
               </select>
@@ -467,15 +479,6 @@ watch(
                     :key="`left-${index}`"
                     class="flex items-center justify-end gap-3 h-6"
                   >
-                    <!-- 组标识（如果有组） -->
-                    <div
-                      v-if="!item.isAvailable && item.groupId !== undefined"
-                      class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                      :style="{ backgroundColor: item.groupColor }"
-                    >
-                      <span class="text-[10px] font-bold text-white">{{ item.groupId }}</span>
-                    </div>
-
                     <span
                       class="text-sm font-medium text-right"
                       :class="item.isAvailable ? 'text-gray-300' : 'text-gray-700'"
@@ -486,7 +489,13 @@ watch(
                     <svg width="16" height="16" viewBox="0 0 16 16" class="flex-shrink-0">
                       <path
                         :d="selectedTable === 'C' ? TABLE_C_SVG_PATH : getSemicirclePath(true)"
-                        :fill="!item.isAvailable && item.groupColor ? item.groupColor : (item.isAvailable ? '#E5E7EB' : '#10B981')"
+                        :fill="
+                          !item.isAvailable && item.groupColor
+                            ? item.groupColor
+                            : item.isAvailable
+                              ? '#E5E7EB'
+                              : '#10B981'
+                        "
                       />
                     </svg>
                   </div>
@@ -515,7 +524,13 @@ watch(
                     <svg width="16" height="16" viewBox="0 0 16 16" class="flex-shrink-0">
                       <path
                         :d="selectedTable === 'C' ? TABLE_C_SVG_PATH : getSemicirclePath(false)"
-                        :fill="!item.isAvailable && item.groupColor ? item.groupColor : (item.isAvailable ? '#E5E7EB' : '#10B981')"
+                        :fill="
+                          !item.isAvailable && item.groupColor
+                            ? item.groupColor
+                            : item.isAvailable
+                              ? '#E5E7EB'
+                              : '#10B981'
+                        "
                       />
                     </svg>
 
@@ -525,15 +540,6 @@ watch(
                     >
                       {{ item.partner?.fullName || item.seat }}
                     </span>
-
-                    <!-- 组标识（如果有组） -->
-                    <div
-                      v-if="!item.isAvailable && item.groupId !== undefined"
-                      class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                      :style="{ backgroundColor: item.groupColor }"
-                    >
-                      <span class="text-[10px] font-bold text-white">{{ item.groupId }}</span>
-                    </div>
                   </div>
                 </div>
               </div>

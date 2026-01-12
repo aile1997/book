@@ -378,11 +378,21 @@ proxy: {
 
 ## 当前开发进度（Current Development Progress）
 
-### 最近完成
-- ✅ 修复 BookingPage 按钮禁用逻辑，严格匹配预订场景
-- ✅ 正确实现 UI 更新和伙伴检查 API 集成
-- ✅ 更新 UI 为深灰色风格
-- ✅ 集成用户存在性检查 API
+### 最近完成（2026-01-13）
+- ✅ **多时段批量处理重构**：实现支持最多 4 个时段的批量预订系统
+  - 批量座位可用性查询 API 集成（`POST /api/v1/seats/availability`）
+  - 多时段选择逻辑（`selectedTimeSlots[]` 状态管理）
+  - 批量换座功能（应用到所有选定时段）
+  - 时段置灰逻辑（选中座位不可用时自动禁用）
+- ✅ **BookingHistoryModal 重构**
+  - 将 `aggregatedBookings` 逻辑从 BookingPage 移入组件内部
+  - 修复 seat 字段显示问题（分离 `seat` 和 `table` 字段）
+  - 绿色主题 UI（#39D37F）
+  - 支持按 groupId 聚合显示多时段预订
+- ✅ **API 集成优化**
+  - 创建预订支持多时段 `timeSlots[]` 参数
+  - 换座 API 支持邀请伙伴 `invitePartners[]` 参数
+  - 预订历史支持 `timeSlotDetails[]` 格式
 
 ### 进行中
 - 🔄 **座位多选逻辑重构**：从单选升级为最多 6 个座位的多选功能
@@ -391,6 +401,131 @@ proxy: {
 - 多选逻辑的完整实现（类型定义、状态管理、组件更新）
 - UI 增强以支持选择计数器和顺序显示
 - 预订流程适配多座位场景
+
+---
+
+## 多时段预订架构设计（Multi-Time Slot Booking Architecture）
+
+### 核心数据流
+
+```
+用户选择时段 → selectedTimeSlots[]
+    ↓
+批量查询可用性 → POST /api/v1/seats/availability
+    ↓
+batchAvailabilityData[] ← 存储所有时段的座位数据
+    ↓
+座位状态更新（AND 逻辑：所有时段都可用才算可用）
+    ↓
+用户选座 → 批量预订 → POST /api/v1/bookings
+```
+
+### 关键文件与职责
+
+| 文件 | 职责 |
+|------|------|
+| `src/pages/BookingPage.vue` | 时段选择 UI、批量查询触发、预订流程 |
+| `src/composables/useSeats.ts` | `queryBatchSeatAvailability()`、`updateSeatsStatus()`（批量模式） |
+| `src/components/modals/BookingHistoryModal.vue` | 内置 `aggregatedBookings` 计算属性，聚合展示多时段预订 |
+| `src/api/index.ts` | `postSeatAvailability()`、`createBooking()`、`swapSeat()` |
+
+### 多时段选择状态结构
+
+```typescript
+interface SelectedTimeSlot {
+  key: string          // 唯一标识："2026-01-15_1"
+  dateISO: string      // ISO 日期格式
+  date: string         // 显示日期："01.15"
+  weekday: string      // 星期："MON"
+  timeSlotId: string   // 时段 ID
+  time: string         // 时间范围："09:00 - 12:00"
+  isExpired: boolean   // 是否过期
+}
+
+// 最多选择 4 个时段
+const selectedTimeSlots = ref<SelectedTimeSlot[]>([])
+```
+
+### 批量查询响应结构
+
+```typescript
+// POST /api/v1/seats/availability 响应
+interface BatchSeatAvailabilityResponse {
+  bookingDate: string
+  timeSlotId: number
+  areaId: number
+  seats: Array<{
+    seatId: number
+    seatNumber: string
+    isAvailable: boolean
+    bookingUserInfo: { userId, userName, bookingId? } | null
+    groupId: number | null
+  }>
+}
+```
+
+### 座位状态更新逻辑（批量模式）
+
+**核心原则**：使用 AND 逻辑合并多个时段的可用性
+
+```typescript
+// 只要有一个时段不可用，座位整体就不可用
+existing.isAvailable = existing.isAvailable && seat.isAvailable
+
+// 如果是当前用户的预订，优先显示我的预订信息
+if (seat.bookingUserInfo?.userId === currentUserId) {
+  existing.bookingInfo = seat.bookingUserInfo
+  existing.bookingId = seat.bookingId || seat.bookingUserInfo?.bookingId
+}
+```
+
+### 预订历史聚合逻辑
+
+**关键**：`bookings[i]` 与 `timeSlots[i]` 保持一一对应
+
+```typescript
+// 1. 按 groupId 分组
+// 2. 展平 timeSlotDetails，创建 booking-timeSlot 配对
+// 3. 按日期和时间排序
+// 4. 提取 seat、table、totalCredits
+
+interface BookingGroup {
+  groupId: number
+  seat: string          // 完整座位号："A1"
+  table: string         // 桌号："A"
+  timeSlots: TimeSlotDetail[]  // 与 bookings[] 一一对应
+  totalCredits: number
+  bookings: RawBooking[]       // 与 timeSlots[] 一一对应
+}
+```
+
+### 取消预订逻辑
+
+**重要**：取消整组预订，取第一个 booking 的 ID
+
+```typescript
+const cancelBooking = (group: BookingGroup) => {
+  const target = group.bookings[0]  // 取第一个预订
+  const id = target?.id || target?.bookingId
+  emit('cancel-booking', id)
+}
+```
+
+### 时段置灰逻辑
+
+**触发时机**：用户选中座位后，批量查询其他时段的可用性
+
+**逻辑**：如果当前选中的座位在某个时段不可用，禁用该时段
+
+```typescript
+// 遍历所有时段，检查选中座位的可用性
+const seatInSlot = matchingSlot.seats.find(s => s.seatId === bookedSeatBackendId)
+if (seatInSlot && !seatInSlot.isAvailable) {
+  time.disabled = true  // 禁用该时段
+}
+```
+
+---
 
 ## 相关文档（Related Documentation）
 

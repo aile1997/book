@@ -1,5 +1,29 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import { isBookingExpired } from '../../utils/time'
+
+interface RawBooking {
+  id: number
+  bookingId?: number
+  groupId?: number
+  seatNumber?: string
+  seat?: string
+  creditsUsed?: number
+  totalCreditsUsed?: number
+  bookingDate?: string
+  startTime?: string
+  endTime?: string
+  timeSlotId?: number
+  timeSlot?: { startTime?: string; endTime?: string; time?: string }
+  timeSlotDetails?: Array<{
+    bookingDate: string
+    startTime: string
+    endTime: string
+    timeSlotId: number
+    timeSlotName?: string
+  }>
+  partners?: any[]
+}
 
 interface TimeSlotDetail {
   bookingDate: string
@@ -11,14 +35,15 @@ interface TimeSlotDetail {
 interface BookingGroup {
   groupId: number
   seat: string
+  table: string // 桌号（A、B、C）
   timeSlots: TimeSlotDetail[]
   totalCredits: number
-  bookings: any[]
+  bookings: RawBooking[]
 }
 
 interface Props {
   visible: boolean
-  bookings: BookingGroup[]
+  bookings: RawBooking[] // 接收原始预订数据
   isLoading: boolean
 }
 
@@ -30,24 +55,122 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// 关闭模态框
 const close = () => {
   emit('update:visible', false)
 }
 
-// 取消预订
-const cancelBooking = (bookingId: number) => {
-  emit('cancel-booking', bookingId)
+/**
+ * 聚合预订信息（同一座位的多个时段聚合为一条记录）
+ * bookings[i] 与 timeSlots[i] 保持一一对应关系
+ */
+const aggregatedBookings = computed<BookingGroup[]>(() => {
+  const groups = new Map<number, RawBooking[]>()
+
+  // 按 groupId 分组
+  props.bookings.forEach((booking) => {
+    const key = booking.groupId || booking.id
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key)!.push(booking)
+  })
+
+  return Array.from(groups.entries()).map(([groupId, bookings]) => {
+    const firstBooking = bookings[0]
+
+    // 将所有 bookings 和对应的 timeSlots 展平并配对
+    const pairedData: { timeSlot: TimeSlotDetail; booking: RawBooking }[] = []
+
+    bookings.forEach((b) => {
+      // 新格式：timeSlotDetails 数组
+      if (b.timeSlotDetails && Array.isArray(b.timeSlotDetails)) {
+        b.timeSlotDetails.forEach((detail) => {
+          // 解析时间：优先使用 startTime/endTime，否则从 timeSlotName 解析
+          let startTime = detail.startTime || ''
+          let endTime = detail.endTime || ''
+
+          if ((!startTime || !endTime) && detail.timeSlotName) {
+            const timeParts = detail.timeSlotName.split('-')
+            if (timeParts.length === 2) {
+              startTime = timeParts[0].trim()
+              endTime = timeParts[1].trim()
+            }
+          }
+
+          pairedData.push({
+            timeSlot: {
+              bookingDate: detail.bookingDate,
+              startTime,
+              endTime,
+              timeSlotId: detail.timeSlotId,
+            },
+            booking: b,
+          })
+        })
+      }
+      // 兼容旧格式：单个时段
+      else if (b.bookingDate && (b.timeSlot || b.startTime)) {
+        const startTime = b.timeSlot?.startTime || b.startTime || ''
+        const endTime = b.timeSlot?.endTime || b.endTime || ''
+
+        pairedData.push({
+          timeSlot: {
+            bookingDate: b.bookingDate,
+            startTime,
+            endTime,
+            timeSlotId: b.timeSlotId || 0,
+          },
+          booking: b,
+        })
+      }
+    })
+
+    // 按日期和时间排序
+    pairedData.sort((a, b) => {
+      const dateCompare = a.timeSlot.bookingDate.localeCompare(b.timeSlot.bookingDate)
+      if (dateCompare !== 0) return dateCompare
+      return a.timeSlot.startTime.localeCompare(b.timeSlot.startTime)
+    })
+
+    // 提取座位号和桌号
+    const seatNumber = firstBooking.seatNumber || firstBooking.seat || ''
+    const tableChar = seatNumber.charAt(0) || ''
+
+    return {
+      groupId,
+      bookings: pairedData.map((p) => p.booking),
+      seat: seatNumber,
+      table: tableChar,
+      timeSlots: pairedData.map((p) => p.timeSlot),
+      totalCredits: bookings.reduce(
+        (sum, b) => sum + (b.creditsUsed || b.totalCreditsUsed || 0),
+        0,
+      ),
+    }
+  })
+})
+
+// 核心逻辑：严格按照你提供的逻辑，取消整组（取第一个 booking 的 ID）
+const cancelBooking = (group: BookingGroup) => {
+  const target = group.bookings[0]
+  const id = target?.id || target?.bookingId
+  if (id) {
+    emit('cancel-booking', id)
+  }
 }
 
-// 格式化日期显示
 const formatDateDisplay = (dateString: string) => {
   const date = new Date(dateString)
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
   const weekday = weekdays[date.getDay()]
   return `${month}.${day} ${weekday}`
+}
+
+// 判断整组是否过期
+const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
+  return timeSlots.every((slot) => isBookingExpired(slot.bookingDate, slot.startTime))
 }
 </script>
 
@@ -56,109 +179,133 @@ const formatDateDisplay = (dateString: string) => {
     <Transition name="modal">
       <div
         v-if="visible"
-        class="fixed inset-0 z-50 flex items-center justify-center"
-        style="
-          background: linear-gradient(
-            180deg,
-            rgba(0, 0, 0, 0.62) 0%,
-            rgba(102, 102, 102, 0.62) 100%
-          );
-          backdrop-filter: blur(12.5px);
-        "
+        class="fixed inset-0 z-50 flex items-end justify-center"
+        style="background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(12px)"
         @click.self="close"
       >
         <div
-          class="w-full max-w-[420px] rounded-[32px] bg-white px-6 pb-10 pt-8 animate-slide-up max-h-[85vh] overflow-y-auto shadow-2xl"
+          class="w-full max-w-[440px] rounded-t-[44px] bg-[#39D37F] px-8 pb-14 pt-10 animate-slide-up max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
         >
-          <!-- 标题栏 -->
-          <div class="flex items-center justify-between mb-8">
-            <h2 class="text-2xl font-bold text-gray-dark tracking-tight">
+          <div class="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-8 shrink-0"></div>
+
+          <div class="text-center mb-8 shrink-0">
+            <h2 class="text-white text-[28px] font-black tracking-tighter italic uppercase">
               My Bookings
             </h2>
-            <button
-              @click="close"
-              class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 hover:bg-gray-100 transition-colors"
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18 6L6 18M6 6L18 18" stroke="#292D32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
           </div>
 
-          <!-- 加载状态 -->
-          <div v-if="isLoading" class="text-center py-16">
-            <div class="text-gray-400 text-base font-medium animate-pulse">Loading...</div>
-          </div>
-
-          <!-- 空状态 -->
-          <div v-else-if="bookings.length === 0" class="text-center py-16">
-            <div class="text-gray-400 text-base font-medium">No booking records found</div>
-          </div>
-
-          <!-- 预订列表 -->
-          <div v-else class="space-y-6">
+          <div class="flex-1 overflow-y-auto custom-scrollbar px-1">
             <div
-              v-for="group in bookings"
-              :key="group.groupId"
-              class="bg-white rounded-[24px] p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all"
+              v-if="isLoading"
+              class="text-center py-10 text-white/60 font-black tracking-widest italic animate-pulse"
             >
-              <!-- 预订头部 -->
-              <div class="flex items-start justify-between mb-5">
-                <div class="flex items-center gap-4">
-                  <div class="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <span class="text-2xl font-black text-primary">{{ group.seat }}</span>
-                  </div>
-                  <div>
-                    <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Your Seat</div>
-                    <div class="text-xl font-bold text-gray-dark tracking-tighter">{{ group.seat }}</div>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{{ group.timeSlots.length }} Slots</div>
-                  <div class="flex items-center gap-1 justify-end">
-                    <img src="@/assets/images/home/Vector.png" alt="" class="w-4 h-4" />
-                    <span class="text-lg font-black text-cyan">{{ group.totalCredits }}</span>
-                  </div>
-                </div>
-              </div>
+              LOADING...
+            </div>
 
-              <!-- 时间段列表 -->
-              <div class="space-y-2 mb-6">
-                <div
-                  v-for="(slot, index) in group.timeSlots"
-                  :key="index"
-                  class="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl border border-gray-100/50"
-                >
-                  <div class="flex items-center gap-3">
-                    <div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                    <span class="text-sm font-bold text-gray-dark">{{ formatDateDisplay(slot.bookingDate) }}</span>
-                  </div>
-                  <span class="text-sm font-medium text-gray-500">{{ slot.startTime }} - {{ slot.endTime }}</span>
-                </div>
-              </div>
+            <div
+              v-else-if="aggregatedBookings.length === 0"
+              class="text-center py-10 text-white/60 font-bold italic"
+            >
+              No active reservations.
+            </div>
 
-              <!-- 取消按钮 -->
-              <button
-                @click="cancelBooking(group.bookings[0].id || group.bookings[0].bookingId)"
-                class="w-full py-4 rounded-xl bg-red-50 text-red-500 text-sm font-bold hover:bg-red-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            <div v-else class="space-y-8">
+              <div
+                v-for="group in aggregatedBookings"
+                :key="group.groupId"
+                class="bg-white/10 rounded-[32px] p-6 border border-white/10 transition-all"
+                :class="[isGroupExpired(group.timeSlots) ? 'opacity-40 grayscale-[0.5]' : '']"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M21 5.97998C17.67 5.64998 14.32 5.47998 10.98 5.47998C9 5.47998 7.02 5.57998 5.04 5.77998L3 5.97998" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M8.5 4.97L8.72 3.66C8.88 2.71 9 2 10.69 2H13.31C15 2 15.13 2.75 15.28 3.67L15.5 4.97" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M18.85 9.14001L18.2 19.21C18.09 20.78 18 22 15.21 22H8.79002C6.00002 22 5.91002 20.78 5.80002 19.21L5.15002 9.14001" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Cancel Booking
-              </button>
+                <div class="flex items-start justify-between mb-6">
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg"
+                    >
+                      <span class="text-3xl font-black text-[#39D37F] italic tracking-tighter">{{
+                        group.seat || '--'
+                      }}</span>
+                    </div>
+                    <div class="flex flex-col">
+                      <span
+                        class="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1"
+                        >Your Seat</span
+                      >
+                      <span class="text-xl font-bold text-white tracking-tight">
+                        Table {{ group.table || '--' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="text-right">
+                    <div class="flex items-center gap-1.5 justify-end mb-1">
+                      <img
+                        src="@/assets/images/home/Vector.png"
+                        alt=""
+                        class="w-4 h-4 brightness-0 invert"
+                      />
+                      <span class="text-2xl font-black text-white tracking-tighter">{{
+                        group.totalCredits
+                      }}</span>
+                    </div>
+                    <span class="text-[9px] font-black text-white/50 uppercase tracking-widest"
+                      >Credits</span
+                    >
+                  </div>
+                </div>
+
+                <div class="space-y-2 mb-6">
+                  <div
+                    v-for="(slot, index) in group.timeSlots"
+                    :key="index"
+                    class="flex items-center justify-between py-3 px-4 bg-white/5 rounded-2xl border border-white/5"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                      <span class="text-sm font-black text-white italic tracking-tight">
+                        {{ formatDateDisplay(slot.bookingDate) }}
+                      </span>
+                    </div>
+                    <span class="text-sm font-bold text-white/80">
+                      {{ slot.startTime }} - {{ slot.endTime }}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  v-if="!isGroupExpired(group.timeSlots)"
+                  @click="cancelBooking(group)"
+                  class="w-full h-14 rounded-[20px] bg-white text-[#39D37F] text-sm font-black uppercase tracking-[0.2em] hover:bg-white/90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                  >
+                    <path d="M18 6L6 18M6 6L18 18" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  Cancel Booking
+                </button>
+                <div
+                  v-else
+                  class="text-center py-2 text-white/40 text-[10px] font-black uppercase tracking-widest"
+                >
+                  This reservation has expired
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- 底部关闭按钮 -->
-          <button
-            @click="close"
-            class="w-full mt-10 py-4 rounded-xl bg-gray-dark text-white text-base font-bold hover:bg-black active:scale-[0.98] transition-all shadow-lg"
-          >
-            Close
-          </button>
+          <div class="mt-10 shrink-0">
+            <button
+              @click="close"
+              class="w-full h-[68px] rounded-[24px] border-2 border-white/80 bg-transparent text-white text-xl font-black hover:bg-white/10 active:scale-[0.98] transition-all flex items-center justify-center uppercase tracking-[0.2em]"
+            >
+              Back
+            </button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -166,22 +313,27 @@ const formatDateDisplay = (dateString: string) => {
 </template>
 
 <style scoped>
-.modal-enter-active,
-.modal-leave-active {
-  transition: all 0.3s ease;
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
 .modal-enter-from,
 .modal-leave-to {
   opacity: 0;
 }
-
 .modal-enter-from .animate-slide-up,
 .modal-leave-to .animate-slide-up {
   transform: translateY(100%);
 }
-
 .animate-slide-up {
-  transition: transform 0.3s ease;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 </style>

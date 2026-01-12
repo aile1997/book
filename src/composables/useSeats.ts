@@ -19,6 +19,7 @@ function createSeatsStore() {
   const selectedTimeSlotId = ref<number | null>(null)
 
   const seatAvailability = ref<any[]>([])
+  const batchAvailabilityData = ref<any[]>([]) // 存储批量查询的原始数据（所有时段）
   const isLoading = ref(false)
   const isLoadingTimeSlots = ref(false)
   const isLoadingAreas = ref(false)
@@ -185,10 +186,13 @@ function createSeatsStore() {
 
       if (requestTime < lastAvailabilityRequestTime) {
         console.log('检测到更新的请求，丢弃旧请求结果')
-        return
+        return null
       }
 
       console.log('批量查询到的座位可用性数据:', data)
+
+      // 存储批量查询的原始数据（所有时段）
+      batchAvailabilityData.value = data
 
       // 更新 seatAvailability 以便 FindPartnerModal 可以使用
       // 对于批量数据，我们使用第一个时段的数据填充 seatAvailability
@@ -201,9 +205,13 @@ function createSeatsStore() {
           updateSeatsStatus(data, true)
         }
       } else {
+        batchAvailabilityData.value = []
         seatAvailability.value = []
         updateSeatsStatus([], true)
       }
+
+      // 返回批量数据供外部使用
+      return data
     } catch (err: any) {
       if (requestTime < lastAvailabilityRequestTime) {
         console.log('检测到更新的请求，忽略旧请求的错误')
@@ -211,6 +219,7 @@ function createSeatsStore() {
       }
       console.error('批量查询座位可用性失败:', err)
       error.value = '批量查询座位可用性失败: ' + (err.message || '未知错误')
+      batchAvailabilityData.value = []
       seatAvailability.value = []
       updateSeatsStatus([], true)
     } finally {
@@ -427,6 +436,39 @@ function createSeatsStore() {
     }
   }
 
+  /**
+   * 根据时间段 key 获取对应时段的座位可用性数据
+   * @param timeSlotKey - 时间段的唯一标识，格式为 "{bookingDate}_{timeSlotId}"
+   * @returns 该时段的座位可用性数据
+   */
+  const getSeatAvailabilityByTimeSlot = (timeSlotKey: string) => {
+    if (!batchAvailabilityData.value || batchAvailabilityData.value.length === 0) {
+      return seatAvailability.value // 回退到默认数据
+    }
+
+    // 解析 timeSlotKey，格式为 "{bookingDate}_{timeSlotId}"
+    const parts = timeSlotKey.split('_')
+    if (parts.length !== 2) {
+      console.warn('无效的 timeSlotKey 格式:', timeSlotKey)
+      return seatAvailability.value
+    }
+
+    const bookingDate = parts[0]
+    const timeSlotId = parts[1]
+
+    // 从批量数据中查找匹配的时段
+    const matchingSlot = batchAvailabilityData.value.find((slot: any) => {
+      return slot.bookingDate === bookingDate && String(slot.timeSlotId) === timeSlotId
+    })
+
+    if (matchingSlot && matchingSlot.seats && Array.isArray(matchingSlot.seats)) {
+      return convertBackendAvailabilityToFrontend(matchingSlot.seats)
+    }
+
+    console.warn('未找到匹配的时段数据:', timeSlotKey)
+    return seatAvailability.value // 回退到默认数据
+  }
+
   // 获取可用座位数量
   const availableSeatsCount = computed(() => {
     return seats.value.filter((s) => s.status === 'available').length
@@ -459,6 +501,7 @@ function createSeatsStore() {
     selectedTimeSlotId,
     initialize,
     seatAvailability,
+    batchAvailabilityData, // 导出批量数据
     selectedSeat,
     availableSeatsCount,
     isLoading,
@@ -480,6 +523,7 @@ function createSeatsStore() {
     clearSelection,
     getSeatColor,
     updateSeatsStatus,
+    getSeatAvailabilityByTimeSlot,
   }
 }
 

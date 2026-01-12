@@ -5,7 +5,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git config:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Read(//d/**)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run build)",
+      "Bash(git checkout:*)"
     ]
   }
 }

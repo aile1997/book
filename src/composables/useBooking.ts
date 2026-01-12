@@ -5,6 +5,7 @@ import {
   cancelBooking,
   getUserCredits,
   getUserTransactions,
+  swapSeat,
 } from '../api'
 import type { Booking } from '../types/booking'
 
@@ -136,13 +137,7 @@ export function useBooking() {
     }
   }
 
-  return {
-    bookings,
-    transactions,
-    coins,
-    isLoading,
-    error,
-    /**
+  /**
    * 更换座位
    * @param {object} swapData - 换座数据 (e.g., { bookingId: 1, newSeatId: 5, invitePartners: [] })
    */

@@ -9,7 +9,10 @@
       "Read(//d/**)",
       "Bash(npm run type-check:*)",
       "Bash(npm run build)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Skill(frontend-design)",
+      "Skill(frontend-design:*)",
+      "Bash(npx vue-tsc:*)"
     ]
   }
 }

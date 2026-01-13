@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import type { Seat } from '../types/booking'
+import type { Seat, Area, TimeSlotBackend, SeatAvailability } from '../types/booking'
 import { useAuth } from './useAuth'
 import { getSeatMap, getSeatAvailability, getAreas, getTimeSlots, postSeatAvailability } from '../api'
 import {
@@ -8,18 +8,33 @@ import {
 } from '../utils/dataAdapter'
 import { cache, CacheKeys, CacheTTL } from '../utils/cache'
 
+// 批量可用性查询响应项类型
+interface BatchAvailabilityItem {
+  bookingDate: string
+  timeSlotId: number
+  areaId: number
+  seats: SeatAvailability[]
+}
+
+// 座位预订用户信息类型
+interface BookingUserInfo {
+  userId: number
+  userName: string
+  bookingId?: number
+}
+
 // 座位管理组合式函数 - 实现单例模式
 let seatsInstance: ReturnType<typeof createSeatsStore> | null = null
 
 function createSeatsStore() {
   // 所有座位数据 - 动态数据层
   const seats = ref<Seat[]>([])
-  const areas = ref<any[]>([])
-  const timeSlots = ref<any[]>([])
+  const areas = ref<Area[]>([])
+  const timeSlots = ref<TimeSlotBackend[]>([])
   const selectedTimeSlotId = ref<number | null>(null)
 
-  const seatAvailability = ref<any[]>([])
-  const batchAvailabilityData = ref<any[]>([]) // 存储批量查询的原始数据（所有时段）
+  const seatAvailability = ref<SeatAvailability[]>([])
+  const batchAvailabilityData = ref<BatchAvailabilityItem[]>([]) // 存储批量查询的原始数据（所有时段）
   const isLoading = ref(false)
   const isLoadingTimeSlots = ref(false)
   const isLoadingAreas = ref(false)
@@ -172,6 +187,19 @@ function createSeatsStore() {
     if (!queries || queries.length === 0) {
       console.warn('批量查询座位可用性失败：查询参数为空')
       return
+    }
+
+    // 运行时类型检查（开发环境）
+    if (import.meta.env.DEV) {
+      const invalidQuery = queries.find(q =>
+        typeof q.areaId !== 'number' ||
+        typeof q.bookingDate !== 'string' ||
+        typeof q.timeSlotId !== 'number'
+      )
+      if (invalidQuery) {
+        console.error('无效的批量查询参数:', invalidQuery)
+        throw new Error('批量查询参数不合法')
+      }
     }
 
     const requestTime = Date.now()
@@ -346,46 +374,36 @@ function createSeatsStore() {
       })
     }
 
-    seats.value = seats.value.map((seat) => {
+    // 使用 forEach 直接修改，避免创建新数组，减少内存分配
+    seats.value.forEach((seat) => {
       const availability = availabilityMap.get(seat.backendSeatId)
 
       // 保持当前选中状态，但如果该座位在当前时段不可用，则需要处理（通常在外部逻辑处理）
       const isCurrentlySelected = seat.status === 'selected' && seat.id === selectedSeat.value
 
       if (!availability) {
-        return {
-          ...seat,
-          status: isCurrentlySelected ? 'selected' : 'available',
-          occupiedBy: '',
-          bookedByMe: false,
-          bookingId: null,
-        }
-      }
+        seat.status = isCurrentlySelected ? 'selected' : 'available'
+        seat.occupiedBy = ''
+        seat.bookedByMe = false
+        seat.bookingId = null
+      } else if (availability.isAvailable) {
+        seat.status = isCurrentlySelected ? 'selected' : 'available'
+        seat.occupiedBy = ''
+        seat.bookedByMe = false
+        seat.bookingId = null
+      } else {
+        const bookingUserInfo = availability.bookingUserInfo
+        const isBookedByMe = bookingUserInfo?.userId === currentUserId
 
-      if (availability.isAvailable) {
-        return {
-          ...seat,
-          status: isCurrentlySelected ? 'selected' : 'available',
-          occupiedBy: '',
-          bookedByMe: false,
-          bookingId: null,
-        }
-      }
+        // 获取 bookingId，已在批量模式中存储，或从单模式中获取
+        const bookingId = isBookedByMe ? (availability.bookingId || bookingUserInfo?.bookingId) : null
 
-      const bookingUserInfo = availability.bookingUserInfo
-      const isBookedByMe = bookingUserInfo?.userId === currentUserId
-
-      // 获取 bookingId，已在批量模式中存储，或从单模式中获取
-      const bookingId = isBookedByMe ? (availability.bookingId || bookingUserInfo?.bookingId) : null
-
-      return {
-        ...seat,
-        status: isCurrentlySelected ? 'selected' : 'occupied',
-        occupiedBy: bookingUserInfo
+        seat.status = isCurrentlySelected ? 'selected' : 'occupied'
+        seat.occupiedBy = bookingUserInfo
           ? bookingUserInfo.fullName || bookingUserInfo.username || '已预订'
-          : '已预订',
-        bookedByMe: isBookedByMe,
-        bookingId: bookingId,
+          : '已预订'
+        seat.bookedByMe = isBookedByMe
+        seat.bookingId = bookingId
       }
     })
   }

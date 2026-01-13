@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import NProgress from 'nprogress'
-import { ref, computed, onMounted, onBeforeMount, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import RockBundLogo from '../components/layout/RockBundLogo.vue'
 import { useAuth } from '../composables/useAuth'
@@ -58,10 +58,14 @@ const currentBooking = computed(() => {
   const booking = bookings.value[0]
 
   // 适配新的多时段 API 数据格式
-  // 如果有 timeSlotDetails，使用第一个时段的数据
-  const timeSlotDetail = booking.timeSlotDetails && booking.timeSlotDetails.length > 0
-    ? booking.timeSlotDetails[0]
-    : null
+  // seatNumber 现在在 timeSlotDetails 数组中
+  const timeSlotDetail =
+    booking.timeSlotDetails && booking.timeSlotDetails.length > 0
+      ? booking.timeSlotDetails[0]
+      : null
+
+  // 从 timeSlotDetails 中提取座位号
+  const seatNumber = timeSlotDetail?.seatNumber || booking.seatNumber || ''
 
   return {
     id: booking.id || booking.bookingId,
@@ -69,8 +73,8 @@ const currentBooking = computed(() => {
     // 拼接开始和结束时间
     time: timeSlotDetail
       ? `${timeSlotDetail.startTime} - ${timeSlotDetail.endTime}`
-      : (booking.timeSlot?.time || `${booking.startTime || ''} - ${booking.endTime || ''}`),
-    seat: booking.seatNumber || booking.seat,
+      : `${booking.startTime || ''} - ${booking.endTime || ''}`,
+    seat: seatNumber,
     timeSlotId: timeSlotDetail?.timeSlotId || booking.timeSlotId,
     // 映射合作伙伴
     partners: (booking.partners || []).map((p: any) => ({
@@ -289,30 +293,37 @@ const validBookings = computed(() => {
             index !== 0 ? 'mt-5 pt-5 border-t-2 border-gray-100' : '',
           ]"
         >
-          <div class="space-y-3 mb-3">
+          <div class="space-y-2 mb-3">
             <div class="flex items-start gap-3">
               <div class="w-4 h-4 rounded-full bg-warning mt-1 shrink-0"></div>
               <div class="flex-1 space-y-2">
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span>Date</span>
-                  <span class="text-sm font-medium text-gray-dark">{{
+                <!-- 日期和时间：四列紧凑格式 DATE | value | TIME | value -->
+                <div class="flex items-center gap-3 text-xs">
+                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
+                    >Date</span
+                  >
+                  <span class="text-sm font-medium text-gray-dark flex-1">{{
                     invitation.bookingDate
                   }}</span>
-                </div>
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span>Time</span>
-                  <span class="text-sm font-medium text-gray-dark">{{
+                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-12 shrink-0"
+                    >Time</span
+                  >
+                  <span class="text-sm font-medium text-gray-dark flex-1">{{
                     invitation.timeSlot.time
                   }}</span>
                 </div>
-                <div class="flex items-center gap-3">
-                  <span class="text-xs text-gray-400">Seat</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
+                    >Seat</span
+                  >
                   <span class="text-2xl font-bold text-gray-dark leading-none">{{
                     invitation.seat.seatNumber
                   }}</span>
                 </div>
-                <div class="flex items-center gap-2 text-xs text-gray-400 pt-1">
-                  <span>with</span>
+                <div class="flex items-center gap-2 text-xs text-gray-400">
+                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
+                    >From</span
+                  >
                   <span class="text-sm font-medium text-gray-dark">{{
                     invitation.inviter.fullName
                   }}</span>
@@ -363,46 +374,36 @@ const validBookings = computed(() => {
               </svg>
             </div>
 
-            <div class="flex-1 space-y-2">
-              <!-- 适配多时段数据：显示第一个时段或所有时段 -->
+            <div class="flex-1 space-y-3">
+              <!-- 适配多时段数据：每个时段一行，日期和时间合并显示 -->
               <template v-if="booking.timeSlotDetails && booking.timeSlotDetails.length > 0">
-                <!-- 多时段显示 -->
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span>Date</span>
+                <!-- 多时段显示：每个时段一行 -->
+                <div
+                  v-for="(slot, slotIndex) in booking.timeSlotDetails"
+                  :key="slotIndex"
+                  class="flex items-center justify-between text-xs text-gray-400 !mt-0"
+                >
+                  <span>Date-Time</span>
                   <span class="text-sm font-medium text-gray-dark">
-                    {{ booking.timeSlotDetails[0].bookingDate }}
-                    <span v-if="booking.timeSlotDetails.length > 1" class="text-xs">
-                      (+{{ booking.timeSlotDetails.length - 1 }})
-                    </span>
+                    {{ slot.bookingDate }} ( {{ slot.startTime }} - {{ slot.endTime }})
                   </span>
-                </div>
-
-                <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
-                  <span>Time</span>
-                  <span class="text-sm font-medium text-gray-dark">
-                    {{ booking.timeSlotDetails[0].startTime }} - {{ booking.timeSlotDetails[0].endTime }}
-                  </span>
+                  <span class="text-sm font-medium text-gray-dark"> </span>
                 </div>
               </template>
               <template v-else>
                 <!-- 单时段显示（兼容旧格式） -->
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span>Date</span>
+                <div class="flex items-center justify-between text-xs text-gray-400">
                   <span class="text-sm font-medium text-gray-dark">{{ booking.bookingDate }}</span>
-                </div>
-
-                <div class="flex items-center gap-2 text-xs text-gray-400 !mt-0">
-                  <span>Time</span>
                   <span class="text-sm font-medium text-gray-dark">
                     {{ booking.startTime }} - {{ booking.endTime }}
                   </span>
                 </div>
               </template>
 
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-3 pt-1">
                 <span class="text-xs text-gray-400">Seat</span>
                 <span class="text-2xl font-bold text-gray-dark leading-none">
-                  {{ booking.seatNumber || booking.seat }}
+                  {{ booking.timeSlotDetails?.[0]?.seatNumber || booking.seatNumber || '--' }}
                 </span>
               </div>
 
@@ -412,7 +413,9 @@ const validBookings = computed(() => {
               >
                 <span>with</span>
                 <template v-for="(p, i) in booking.partners" :key="p.id">
-                  <span class="text-sm font-medium text-gray-dark">{{ p.partnerName || p.fullName || p.username }}</span>
+                  <span class="text-sm font-medium text-gray-dark">{{
+                    p.partnerName || p.fullName || p.username
+                  }}</span>
                   <span
                     v-if="p.invitationStatus === 'PENDING' || p.invitationStatus === null"
                     class="text-xs text-gray-300"
@@ -536,7 +539,7 @@ const validBookings = computed(() => {
           </div>
 
           <div class="overflow-y-auto flex-1 px-2">
-            <div v-for="(group, gIdx) in adaptedTransactions" :key="group.date">
+            <div v-for="group in adaptedTransactions" :key="group.date">
               <!-- 分隔线：除了第一组外，每组上方显示 -->
               <div class="border-t border-white/50 my-6"></div>
 

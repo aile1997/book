@@ -2,6 +2,37 @@
 import { computed } from 'vue'
 import { isBookingExpired } from '../../utils/time'
 
+/**
+ * 解析时段时间字符串
+ * @param timeSlotName - 时间字符串，格式如 "09:00-12:00"
+ * @returns 解析后的开始和结束时间，或 null（解析失败时）
+ */
+function parseTimeSlotName(timeSlotName: string): { startTime: string; endTime: string } | null {
+  if (!timeSlotName) {
+    console.warn('timeSlotName 为空')
+    return null
+  }
+
+  const parts = timeSlotName.split('-')
+
+  if (parts.length !== 2) {
+    console.warn(`无效的 timeSlotName 格式: ${timeSlotName}`)
+    return null
+  }
+
+  const [start, end] = parts
+
+  if (!start || !end) {
+    console.warn(`timeSlotName 包含空值: ${timeSlotName}`)
+    return null
+  }
+
+  return {
+    startTime: start.trim(),
+    endTime: end.trim(),
+  }
+}
+
 interface RawBooking {
   id: number
   bookingId?: number
@@ -16,11 +47,18 @@ interface RawBooking {
   timeSlotId?: number
   timeSlot?: { startTime?: string; endTime?: string; time?: string }
   timeSlotDetails?: Array<{
+    id: number
     bookingDate: string
-    startTime: string
-    endTime: string
     timeSlotId: number
     timeSlotName?: string
+    startTime: string
+    endTime: string
+    creditsRequired?: number
+    slotStatus?: string
+    bookingId: number
+    seatId: number
+    areaId: number
+    seatNumber: string // 新增：座位号在 timeSlotDetails 中
   }>
   partners?: any[]
 }
@@ -62,6 +100,10 @@ const close = () => {
 /**
  * 聚合预订信息（同一座位的多个时段聚合为一条记录）
  * bookings[i] 与 timeSlots[i] 保持一一对应关系
+ *
+ * 新数据结构说明：
+ * - seatNumber 字段在 timeSlotDetails 数组的每一项中
+ * - 所有 timeSlotDetails 的 seatNumber 应该相同（同一组预订）
  */
 const aggregatedBookings = computed<BookingGroup[]>(() => {
   const groups = new Map<number, RawBooking[]>()
@@ -75,25 +117,48 @@ const aggregatedBookings = computed<BookingGroup[]>(() => {
     groups.get(key)!.push(booking)
   })
 
-  return Array.from(groups.entries()).map(([groupId, bookings]) => {
+  // 提取组的最新日期用于排序
+  const getGroupLatestDate = (bookings: RawBooking[]): string => {
+    for (const booking of bookings) {
+      if (booking.timeSlotDetails && booking.timeSlotDetails.length > 0) {
+        // 返回最新日期（已在 booking 内部排序）
+        return booking.timeSlotDetails[0].bookingDate
+      }
+      if (booking.bookingDate) {
+        return booking.bookingDate
+      }
+    }
+    return ''
+  }
+
+  // 按组排序：新日期在前（降序）
+  const sortedGroups = Array.from(groups.entries()).sort(([, bookingsA], [, bookingsB]) => {
+    const dateA = getGroupLatestDate(bookingsA)
+    const dateB = getGroupLatestDate(bookingsB)
+    // 降序：新日期在前
+    return dateB.localeCompare(dateA)
+  })
+
+  return sortedGroups.map(([groupId, bookings]) => {
     const firstBooking = bookings[0]
 
     // 将所有 bookings 和对应的 timeSlots 展平并配对
-    const pairedData: { timeSlot: TimeSlotDetail; booking: RawBooking }[] = []
+    const pairedData: { timeSlot: TimeSlotDetail; booking: RawBooking; seatNumber?: string }[] = []
 
     bookings.forEach((b) => {
-      // 新格式：timeSlotDetails 数组
+      // 新格式：timeSlotDetails 数组（包含 seatNumber）
       if (b.timeSlotDetails && Array.isArray(b.timeSlotDetails)) {
         b.timeSlotDetails.forEach((detail) => {
           // 解析时间：优先使用 startTime/endTime，否则从 timeSlotName 解析
           let startTime = detail.startTime || ''
           let endTime = detail.endTime || ''
 
+          // 使用类型安全的时间解析函数
           if ((!startTime || !endTime) && detail.timeSlotName) {
-            const timeParts = detail.timeSlotName.split('-')
-            if (timeParts.length === 2) {
-              startTime = timeParts[0].trim()
-              endTime = timeParts[1].trim()
+            const parsed = parseTimeSlotName(detail.timeSlotName)
+            if (parsed) {
+              startTime = parsed.startTime
+              endTime = parsed.endTime
             }
           }
 
@@ -105,6 +170,7 @@ const aggregatedBookings = computed<BookingGroup[]>(() => {
               timeSlotId: detail.timeSlotId,
             },
             booking: b,
+            seatNumber: detail.seatNumber, // 新数据结构：seatNumber 在 detail 中
           })
         })
       }
@@ -121,19 +187,24 @@ const aggregatedBookings = computed<BookingGroup[]>(() => {
             timeSlotId: b.timeSlotId || 0,
           },
           booking: b,
+          seatNumber: b.seatNumber || b.seat || '',
         })
       }
     })
 
-    // 按日期和时间排序
+    // 组内时段按日期降序排序（新日期在前）
     pairedData.sort((a, b) => {
-      const dateCompare = a.timeSlot.bookingDate.localeCompare(b.timeSlot.bookingDate)
+      const dateCompare = b.timeSlot.bookingDate.localeCompare(a.timeSlot.bookingDate)
       if (dateCompare !== 0) return dateCompare
-      return a.timeSlot.startTime.localeCompare(b.timeSlot.startTime)
+      return b.timeSlot.startTime.localeCompare(a.timeSlot.startTime)
     })
 
-    // 提取座位号和桌号
-    const seatNumber = firstBooking.seatNumber || firstBooking.seat || ''
+    // 从第一个有效的 timeSlot detail 中提取座位号和桌号
+    // 新数据结构：seatNumber 在 timeSlotDetails 中，格式为 "A-01"
+    const seatNumber =
+      pairedData[0]?.seatNumber || firstBooking.seatNumber || firstBooking.seat || ''
+
+    // 提取桌号：处理 "A-01" 格式，取第一个字符
     const tableChar = seatNumber.charAt(0) || ''
 
     return {
@@ -150,13 +221,34 @@ const aggregatedBookings = computed<BookingGroup[]>(() => {
   })
 })
 
-// 核心逻辑：严格按照你提供的逻辑，取消整组（取第一个 booking 的 ID）
+/**
+ * 取消预订
+ *
+ * 业务逻辑说明：
+ * - 对于多时段预订（有 groupId），取消任一时段都会取消整组
+ * - 后端使用第一个 booking 的 ID 作为组标识符
+ * - 因此取 group.bookings[0].id 作为取消目标的 ID
+ *
+ * @param group - 要取消的预订组
+ */
 const cancelBooking = (group: BookingGroup) => {
-  const target = group.bookings[0]
-  const id = target?.id || target?.bookingId
-  if (id) {
-    emit('cancel-booking', id)
+  // 明确逻辑：取第一个预订的 ID
+  const firstBooking = group.bookings[0]
+
+  if (!firstBooking) {
+    console.error('取消预订失败：组中没有有效预订', group)
+    return
   }
+
+  // 优先使用 id（主键），回退到 bookingId（兼容旧数据）
+  const bookingId = firstBooking.id ?? firstBooking.bookingId
+
+  if (!bookingId) {
+    console.error('取消预订失败：预订 ID 无效', firstBooking)
+    return
+  }
+
+  emit('cancel-booking', bookingId)
 }
 
 const formatDateDisplay = (dateString: string) => {
@@ -214,17 +306,10 @@ const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
                 v-for="group in aggregatedBookings"
                 :key="group.groupId"
                 class="bg-white/10 rounded-[32px] p-6 border border-white/10 transition-all"
-                :class="[isGroupExpired(group.timeSlots) ? 'opacity-40 grayscale-[0.5]' : '']"
+                :class="[isGroupExpired(group.timeSlots) ? 'opacity-60 grayscale-[0.5]' : '']"
               >
                 <div class="flex items-start justify-between mb-6">
                   <div class="flex items-center gap-4">
-                    <div
-                      class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg"
-                    >
-                      <span class="text-3xl font-black text-[#39D37F] italic tracking-tighter">{{
-                        group.seat || '--'
-                      }}</span>
-                    </div>
                     <div class="flex flex-col">
                       <span
                         class="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1"

@@ -59,16 +59,32 @@ let failedQueue: Array<{
   config: any
 }> = []
 
-const processQueue = (error: any = null) => {
+/**
+ * 处理队列中的请求
+ * 修复竞态条件：添加重试计数器和 token 检查
+ */
+const processQueue = (error: any = null, newToken?: string) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error)
     } else {
-      // 重新发送请求
-      const token = localStorage.getItem('authToken')
-      if (token) {
-        prom.config.headers.Authorization = `Bearer ${token}`
+      // 检查 token 是否存在
+      if (!newToken) {
+        prom.reject(new Error('刷新令牌失败：未获取到新令牌'))
+        return
       }
+
+      // 更新请求头
+      prom.config.headers.Authorization = `Bearer ${newToken}`
+
+      // 添加重试计数器，防止无限循环
+      prom.config._retryCount = (prom.config._retryCount || 0) + 1
+      if (prom.config._retryCount > 2) {
+        prom.reject(new Error('请求重试次数超限'))
+        return
+      }
+
+      // 重新发送请求
       apiClient(prom.config).then(prom.resolve).catch(prom.reject)
     }
   })
@@ -100,8 +116,6 @@ apiClient.interceptors.response.use(
 
     // 检查是否是 401 错误
     if (error.response && error.response.status === 401) {
-      // 临时解决方案
-
       // 如果已经在重登录，将当前请求加入队列
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -119,14 +133,16 @@ apiClient.interceptors.response.use(
         // 尝试静默登录获取新 Token
         await silentLoginWithFeishu()
 
-        // 重登录成功，处理队列中的请求
-        processQueue()
+        // 获取新 token 并传递给 processQueue
+        const newToken = localStorage.getItem('authToken')
+
+        // 重登录成功，处理队列中的请求（传递新 token）
+        processQueue(null, newToken || undefined)
         isRefreshing = false
 
         // 重新设置 Authorization header
-        const token = localStorage.getItem('authToken')
-        if (token) {
-          originalRequest.headers.Authorization = `Bearer ${token}`
+        if (newToken) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
         }
 
         // 使用新的 Token 重新发送当前请求
@@ -151,7 +167,7 @@ export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      return resolve('2ySry61A2H3zAcEFHE7HIax5aybz0zd2')
+      return resolve('5DOqJc1H3LL14AEa86G96LcF0cxC3Lc0')
     }
 
     // 飞书环境：正常获取 code
@@ -360,11 +376,13 @@ export async function createBooking(bookingData: {
  * @param {Array} queries - 查询参数数组
  * @returns {Promise<object>} 座位可用性数据
  */
-export async function postSeatAvailability(queries: Array<{
-  areaId: number
-  bookingDate: string
-  timeSlotId: number
-}>): Promise<any> {
+export async function postSeatAvailability(
+  queries: Array<{
+    areaId: number
+    bookingDate: string
+    timeSlotId: number
+  }>,
+): Promise<any> {
   return apiClient.post('/api/v1/seats/availability', queries)
 }
 
@@ -391,10 +409,7 @@ export async function swapSeat(request: {
  * @param {object} params - 分页参数
  * @returns {Promise<object>} 预订列表
  */
-export async function getMyBookings(params: {
-  skip: number
-  limit: number
-}): Promise<any> {
+export async function getMyBookings(params: { skip: number; limit: number }): Promise<any> {
   return apiClient.get('/api/v1/bookings', { params })
 }
 

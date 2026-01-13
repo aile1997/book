@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import {
   createBooking,
   getUserBookings,
@@ -115,16 +115,27 @@ export function useBooking() {
 
   /**
    * 启动轮询
+   * 添加内存泄漏保护：确保定时器在组件卸载时被清理
    */
   function startPolling() {
-    if (pollingTimer) return
+    if (pollingTimer) {
+      console.warn('轮询已在运行，跳过重复启动')
+      return
+    }
 
-    pollingTimer = window.setInterval(() => {
+    pollingTimer = window.setInterval(async () => {
       // 检查页面是否可见
       if (document.visibilityState === 'visible') {
-        refreshData()
+        try {
+          await refreshData()
+        } catch (error) {
+          console.error('轮询刷新失败:', error)
+          // 静默失败，不影响用户体验
+        }
       }
     }, pollingInterval)
+
+    console.log('轮询已启动')
   }
 
   /**
@@ -134,8 +145,14 @@ export function useBooking() {
     if (pollingTimer) {
       clearInterval(pollingTimer)
       pollingTimer = null
+      console.log('轮询已停止')
     }
   }
+
+  // 确保组件卸载时清理定时器，防止内存泄漏
+  onUnmounted(() => {
+    stopPolling()
+  })
 
   /**
    * 更换座位

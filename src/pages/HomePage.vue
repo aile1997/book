@@ -62,8 +62,14 @@ const featureCards = computed<FeatureCardData[]>(() => {
   } else if (bookings.value.length > 0) {
     // 如果有预订，显示最近的预订信息
     const latestBooking = bookings.value[0]
+
+    // 从 timeSlotDetails 中提取座位号和日期
+    const firstSlot = latestBooking.timeSlotDetails?.[0]
+    const seatNumber = firstSlot?.seatNumber || latestBooking.seatNumber || latestBooking.seat || '--'
+    const bookingDate = firstSlot?.bookingDate || latestBooking.bookingDate || '--'
+
     bookingStatus = 'Booked'
-    bookingSubtitle = `${latestBooking.seatNumber} - ${latestBooking.bookingDate}`
+    bookingSubtitle = `${seatNumber} - ${bookingDate}`
   }
 
   return [

@@ -15,7 +15,16 @@ import SuccessModal from '../components/modals/SuccessModal.vue'
 import ConfirmModal from '../components/modals/ConfirmModal.vue'
 import BookingHistoryModal from '../components/modals/BookingHistoryModal.vue'
 import { formatDateISO, isBookingExpired } from '../utils/time'
-import type { TimeSlot, Partner, SelectedTimeSlot } from '../types/booking'
+import { debounce } from '../utils/debounce'
+import { parseApiError } from '../utils/errorHandler'
+import type {
+  TimeSlot,
+  Partner,
+  SelectedTimeSlot,
+  TimeSlotBackend,
+  BatchAvailabilityItem,
+  Booking,
+} from '../types/booking'
 import { MAX_TIME_SLOT_SELECTION } from '../types/booking'
 import { getMyBookings, cancelBooking as cancelBookingAPI } from '../api'
 
@@ -26,7 +35,7 @@ const { error: showError, success: showSuccess } = useToast()
 const {
   areas,
   seats,
-  batchAvailabilityData, // 导入批量数据
+  // batchAvailabilityData - 不需要从 composable 导出，我们使用局部计算属性
   selectedSeat,
   selectSeat,
   clearSelection,
@@ -36,6 +45,33 @@ const {
   loadSeatMapWithCache, // 加载座位图（带缓存）
   queryBatchSeatAvailability, // 导入批量查询座位可用性
 } = useSeats()
+
+// ========== 双层数据管理架构 ==========
+
+/**
+ * 解决方案：使用两个独立的 ref 分别存储全时段数据和选中时段数据
+ *
+ * 数据流：
+ * 1. 页面加载 → queryAllTimeSlotsAvailability() → allTimeSlotsAvailability（全时段数据）
+ * 2. 用户勾选时段 → executeBatchSeatAvailabilityQuery() → selectedTimeSlotsAvailability（选中时段数据）
+ * 3. batchAvailabilityData 计算属性 → 智能组合两者
+ */
+
+// 1. 全时段可用性缓存（页面加载时查询，保持不变）
+const allTimeSlotsAvailability = ref<BatchAvailabilityItem[]>([])
+
+// 2. 选中时段可用性（用户勾选时实时更新）
+const selectedTimeSlotsAvailability = ref<BatchAvailabilityItem[]>([])
+
+// 3. 创建计算属性：智能组合两者
+// 这样所有使用 batchAvailabilityData 的代码都能无缝工作
+const batchAvailabilityData = computed<BatchAvailabilityItem[]>(() => {
+  // 策略：优先使用 selectedTimeSlotsAvailability（用户勾选时的最新数据）
+  // 如果为空（用户还没勾选任何时段），回退到 allTimeSlotsAvailability（页面加载时的初始数据）
+  return selectedTimeSlotsAvailability.value.length > 0
+    ? selectedTimeSlotsAvailability.value
+    : allTimeSlotsAvailability.value
+})
 
 // 使用预订管理组合式函数
 const { makeBooking, changeSeat, isLoading: isBookingLoading, removeBooking } = useBooking()
@@ -84,7 +120,7 @@ const selectedTimeSlotCount = computed(() => {
 
 // ========== 我的预订历史状态 ==========
 
-const bookingHistory = ref<any[]>([])
+const bookingHistory = ref<Booking[]>([])
 const isLoadingHistory = ref(false)
 
 // 加载预订历史
@@ -93,8 +129,10 @@ const loadBookingHistory = async () => {
   try {
     const response = await getMyBookings({ skip: 0, limit: 20 })
     bookingHistory.value = response.bookings || response.data?.bookings || []
-  } catch (error: any) {
-    console.error('加载预订历史失败:', error)
+  } catch (error) {
+    const errorMessage = parseApiError(error)
+    console.error('加载预订历史失败:', errorMessage)
+    // 静默失败，不阻塞用户操作（预订历史是次要功能）
   } finally {
     isLoadingHistory.value = false
   }
@@ -108,8 +146,9 @@ const cancelBookingById = async (bookingId: number) => {
     showBookingHistoryModal.value = false // 关闭弹框
     await loadBookingHistory() // 刷新列表
     await refreshData() // 刷新座位可用性
-  } catch (error: any) {
-    showError('取消预订失败')
+  } catch (error) {
+    const errorMessage = parseApiError(error)
+    showError(errorMessage || '取消预订失败')
   }
 }
 
@@ -138,8 +177,8 @@ const getWeekday = (date: Date) => {
 // 计算当前时间段是否有我的预订（在所有选定时段中）
 const myBookingInCurrentSlot = computed(() => {
   // 只有当用户在所有选定的时段都预订了同一个座位时，才认为当前有预订
-  // 这符合“单座位+多时段”的逻辑
-  return seats.value.find((s: any) => s.bookedByMe)
+  // 这符合"单座位+多时段"的逻辑
+  return seats.value.find((s) => s.bookedByMe)
 })
 
 // 获取今天和明天的 Date 对象，使用计算属性确保始终是最新的
@@ -153,14 +192,19 @@ const tomorrow = computed(() => {
 const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
 // 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
-const adaptTimeSlots = (backendSlots: any[]) => {
-  const backendTimeSlots = backendSlots.map((slot: any) => {
-    // 判断今天的时间段是否已过期 (超过开始时间即过期)
-    const isExpiredToday = isBookingExpired(formatDateISO(today.value), slot.startTime)
+const adaptTimeSlots = (backendSlots: TimeSlotBackend[]) => {
+  // 映射后的中间类型（添加 id、time、rawEndTime 字段）
+  interface AdaptedTimeSlot {
+    id: string
+    time: string
+    rawEndTime: string
+  }
+
+  // 基础映射（不包含 isExpiredToday，因为需要针对不同日期单独计算）
+  const backendTimeSlots = backendSlots.map((slot: TimeSlotBackend): AdaptedTimeSlot => {
     return {
       id: String(slot.id), // 确保是字符串
       time: `${slot.startTime} - ${slot.endTime}`,
-      isExpiredToday: isExpiredToday, // 标记今天的时间段是否已过期
       rawEndTime: slot.endTime, // 保留原始结束时间
     }
   })
@@ -172,22 +216,38 @@ const adaptTimeSlots = (backendSlots: any[]) => {
       date: formatDate(today.value),
       weekday: getWeekday(today.value),
       dateISO: formatDateISO(today.value),
-      times: backendTimeSlots.map((slot: any) => ({
-        ...slot,
-        selected: false, // 初始都不选中，稍后统一处理
-        disabled: slot.isExpiredToday, // 今天已过期的时间段禁用
-      })),
+      times: backendTimeSlots.map((slot: AdaptedTimeSlot) => {
+        // ✅ 为今天的时段单独计算 isExpiredToday
+        const isExpiredToday = isBookingExpired(
+          formatDateISO(today.value),
+          slot.time.split(' - ')[0],
+        )
+        return {
+          ...slot,
+          selected: false,
+          disabled: isExpiredToday, // 今天已过期的时间段禁用
+          isExpiredToday, // 标记今天的时间段是否已过期
+        }
+      }),
     },
     {
       id: '2',
       date: formatDate(tomorrow.value),
       weekday: getWeekday(tomorrow.value),
       dateISO: formatDateISO(tomorrow.value),
-      times: backendTimeSlots.map((slot: any) => ({
-        ...slot,
-        selected: false,
-        disabled: false, // 明天的时间段不禁用
-      })),
+      times: backendTimeSlots.map((slot: AdaptedTimeSlot) => {
+        // ✅ 为明天的时段单独计算 isExpiredToday
+        const isExpiredToday = isBookingExpired(
+          formatDateISO(tomorrow.value),
+          slot.time.split(' - ')[0],
+        )
+        return {
+          ...slot,
+          selected: false,
+          disabled: false, // 明天的时间段初始不禁用（后续根据实际可用性更新）
+          isExpiredToday, // 明天的时段通常应该是 false（除非明天已经过去了）
+        }
+      }),
     },
   ]
 }
@@ -270,6 +330,10 @@ onMounted(async () => {
       if (selectedTimeSlots.value.length > 0) {
         await executeBatchSeatAvailabilityQuery()
       }
+
+      // ✨ 新增：初始加载时查询所有时段的座位可用性
+      // 这样用户在勾选其他时段前，就能看到准确的座位状态
+      await queryAllTimeSlotsAvailability()
     }
 
     // // 3. 业务逻辑处理：默认选中并查询可用性
@@ -345,9 +409,9 @@ const toggleTimeSlot = async (dateIndex: number, timeIndex: number) => {
     slot.selected = true
   }
 
-  // 触发批量可用性查询
+  // 触发批量可用性查询（使用防抖）
   if (selectedTimeSlots.value.length > 0) {
-    await executeBatchSeatAvailabilityQuery()
+    debouncedBatchQuery()
   } else {
     // 如果没有选中任何时段，重置所有状态
     clearSelection()
@@ -356,19 +420,90 @@ const toggleTimeSlot = async (dateIndex: number, timeIndex: number) => {
       seat.status = 'available'
       seat.occupiedBy = ''
       // 清除动态添加的预订字段
-      delete (seat as any).bookedByMe
-      delete (seat as any).bookingId
+      seat.bookedByMe = undefined
+      seat.bookingId = null
     })
     // 重置所有非过期时间段的 disabled 状态
-    timeSlots.value.forEach((dateSlot) => {
-      dateSlot.times.forEach((time) => {
-        time.disabled = time.isExpiredToday || false
-      })
-    })
+    // timeSlots.value.forEach((dateSlot) => {
+    //   dateSlot.times.forEach((time) => {
+    //     time.disabled = time.isExpiredToday || false
+    //   })
+    // })
   }
 }
 
-// 批量查询座位可用性（使用 composable 中的函数）
+// 创建防抖版本的批量查询函数（100ms 延迟）
+const debouncedBatchQuery = debounce(() => {
+  executeBatchSeatAvailabilityQuery()
+}, 0)
+
+/**
+ * 根据批量数据更新时间段置灰状态
+ * @param targetSeatBackendId - 目标座位的后端 ID（用于检查可用性）
+ *
+ * 业务逻辑：
+ * - 遍历所有前端显示的时段
+ * - 对于 batchAvailabilityData 中存在的时段：根据实际可用性设置 disabled
+ * - 对于 batchAvailabilityData 中不存在的时段：保持原状态（理论上不应该发生，因为页面加载时已查询所有时段）
+ * - 已选中的时段和过期时段不受影响
+ *
+ * 数据流说明（双层数据管理架构）：
+ * 1. 页面初始加载 → queryAllTimeSlotsAvailability() → allTimeSlotsAvailability 存储所有时段数据
+ * 2. batchAvailabilityData 计算属性 → 返回 allTimeSlotsAvailability（因为 selectedTimeSlotsAvailability 为空）
+ * 3. 用户选中座位 A1 → 调用此函数 → 从 batchAvailabilityData 读取 A1 在所有时段的可用性
+ * 4. 用户勾选新时段 → executeBatchSeatAvailabilityQuery() → selectedTimeSlotsAvailability 更新
+ * 5. batchAvailabilityData 计算属性 → 自动切换到 selectedTimeSlotsAvailability（优先级更高）
+ *
+ * ✅ 优化后的优势：
+ * - 页面加载时已查询所有时段，batchAvailabilityData 通过计算属性智能切换数据源
+ * - 用户选中座位后，能立即看到该座位在所有时段的可用性状态
+ * - 不会出现"未选时段数据缺失"的问题
+ * - 用户勾选时段时，仍能获取最新数据（数据新鲜度）
+ */
+const updateTimeSlotsDisabledState = (targetSeatBackendId?: number) => {
+  if (!targetSeatBackendId || !batchAvailabilityData.value) return
+
+  // 构建快速查找映射：key = bookingDate_timeSlotId, value = seats数组
+  const availabilityMap = new Map<string, BatchAvailabilityItem['seats']>()
+  batchAvailabilityData.value.forEach((slot) => {
+    const key = `${slot.bookingDate}_${slot.timeSlotId}`
+    availabilityMap.set(key, slot.seats)
+  })
+
+  // 遍历所有前端显示的日期和时段
+  timeSlots.value.forEach((dateSlot) => {
+    dateSlot.times.forEach((time) => {
+      // 跳过已选中的时段和过期时段（不受影响）
+      if (time.selected || time.isExpiredToday) return
+
+      // 构建查找 key
+      const lookupKey = `${dateSlot.dateISO}_${time.id}`
+      const seatsInSlot = availabilityMap.get(lookupKey)
+
+      if (seatsInSlot) {
+        // ✅ 找到了该时段的座位数据：检查目标座位是否可用
+        const targetSeat = seatsInSlot.find((s) => s.seatId === targetSeatBackendId)
+        if (targetSeat) {
+          // 找到了目标座位：根据可用性设置置灰状态
+          time.disabled = !targetSeat.isAvailable
+        } else {
+          // 座位 ID 不在该时段的座位列表中（可能座位配置不同）
+          // 保持原状态不变
+        }
+      } else {
+        // ❌ 未找到该时段的数据（理论上不应该发生）
+        // 因为页面加载时已经查询了所有时段的座位可用性
+        // 如果进入此分支，说明：
+        // 1. queryAllTimeSlotsAvailability 调用失败
+        // 2. 或者时段数据结构不匹配
+        console.warn(`未找到时段 ${lookupKey} 的座位可用性数据，保持原状态`)
+        // 保持原 disabled 状态不变
+      }
+    })
+  })
+}
+
+// 批量查询座位可用性（用户勾选时段时调用）
 const executeBatchSeatAvailabilityQuery = async () => {
   if (selectedTimeSlots.value.length === 0) return
 
@@ -383,54 +518,85 @@ const executeBatchSeatAvailabilityQuery = async () => {
     // 调用 composable 中的批量查询函数
     // 这个函数会更新 seatAvailability.value，供 FindPartnerModal 使用
     // 同时也会调用 updateSeatsStatus 更新 seats 状态
-    await queryBatchSeatAvailability(queryParams)
+    const data = await queryBatchSeatAvailability(queryParams)
 
-    // 根据批量数据更新每个时间段的座位可用性（置灰逻辑）
-    // 遍历所有时间段，检查当前选中的座位在每个时段的可用性
-    if (
-      selectedSeat.value &&
-      batchAvailabilityData.value &&
-      Array.isArray(batchAvailabilityData.value)
-    ) {
+    // ✅ 关键修改：存储到 selectedTimeSlotsAvailability（触发计算属性优先级逻辑）
+    if (data && Array.isArray(data)) {
+      selectedTimeSlotsAvailability.value = data
+      console.log('选中时段查询成功，数据已存储到 selectedTimeSlotsAvailability')
+    }
+
+    // 使用提取的公共函数更新时段置灰状态
+    if (selectedSeat.value) {
       const selectedSeatObj = seats.value.find((s) => s.id === selectedSeat.value)
       if (selectedSeatObj) {
-        const seatBackendId = selectedSeatObj.backendSeatId
-
-        // 遍历所有时间段（不仅仅是选中的）
-        timeSlots.value.forEach((dateSlot) => {
-          dateSlot.times.forEach((time) => {
-            // 如果是过期时段，保持禁用状态
-            if (time.isExpiredToday) {
-              time.disabled = true
-              return
-            }
-
-            // 从批量数据中查找对应时段的座位信息
-            const matchingSlot = batchAvailabilityData.value.find((slot: any) => {
-              return slot.bookingDate === dateSlot.dateISO && String(slot.timeSlotId) === time.id
-            })
-
-            if (matchingSlot && matchingSlot.seats && Array.isArray(matchingSlot.seats)) {
-              // 在该时段的数据中查找当前选中的座位
-              const seatInSlot = matchingSlot.seats.find((s: any) => s.seatId === seatBackendId)
-
-              if (seatInSlot) {
-                // 如果座位不可用且未选中，禁用该时段
-                if (!seatInSlot.isAvailable && !time.selected) {
-                  time.disabled = true
-                } else if (seatInSlot.isAvailable) {
-                  // 座位可用，保持时段启用状态（除非是过期时段）
-                  time.disabled = false
-                }
-              }
-            }
-          })
-        })
+        updateTimeSlotsDisabledState(selectedSeatObj.backendSeatId)
       }
     }
-  } catch (error: any) {
-    console.error('批量查询座位可用性失败:', error)
-    showError('查询座位可用性失败，请稍后重试')
+  } catch (error) {
+    const errorMessage = parseApiError(error)
+    console.error('批量查询座位可用性失败:', errorMessage)
+    showError(errorMessage || '查询座位可用性失败，请稍后重试')
+  }
+}
+
+/**
+ * 查询所有时段的座位可用性（页面初始加载时调用）
+ *
+ * 业务逻辑：
+ * - 遍历 timeSlots 中**所有时段**（包括已过期时段）
+ * - 构建批量查询参数，一次性获取所有时段的座位可用性
+ * - 将结果存储到 allTimeSlotsAvailability（全时段缓存）
+ *
+ * 优势：
+ * - 用户进入页面就能看到准确的座位状态（包括已过期时段的座位状态）
+ * - 后续勾选时段时，可以直接从 allTimeSlotsAvailability 读取数据
+ * - 保持数据新鲜度：用户勾选时段时仍会重新查询最新数据（存储到 selectedTimeSlotsAvailability）
+ *
+ * 注意：即使时段已过期，仍然查询其座位可用性，以便用户了解座位的使用情况
+ */
+const queryAllTimeSlotsAvailability = async () => {
+  if (!areas.value || areas.value.length === 0) {
+    console.warn('区域数据未加载，跳过全时段查询')
+    return
+  }
+
+  // 收集**所有时段**的查询参数（包括已过期时段）
+  const allQueries: Array<{
+    areaId: number
+    bookingDate: string
+    timeSlotId: number
+  }> = []
+
+  timeSlots.value.forEach((dateSlot) => {
+    dateSlot.times.forEach((time) => {
+      // ✅ 修改：查询所有时段，不管是否过期
+      allQueries.push({
+        areaId: areas.value[0].id,
+        bookingDate: dateSlot.dateISO,
+        timeSlotId: Number(time.id),
+      })
+    })
+  })
+
+  if (allQueries.length === 0) {
+    console.warn('没有可查询的时段')
+    return
+  }
+
+  try {
+    console.log('初始加载：查询所有时段的座位可用性，时段数量:', allQueries.length)
+    const data = await queryBatchSeatAvailability(allQueries)
+
+    if (data && Array.isArray(data)) {
+      console.log('所有时段查询成功，数据已存储到 allTimeSlotsAvailability')
+      // 存储到全时段缓存（不触发计算属性的优先级逻辑）
+      allTimeSlotsAvailability.value = data
+    }
+  } catch (error) {
+    const errorMessage = parseApiError(error)
+    console.error('查询所有时段座位可用性失败:', errorMessage)
+    // 静默失败，不阻塞用户操作（用户仍可手动勾选时段触发查询）
   }
 }
 
@@ -452,6 +618,15 @@ const handleSeatSelect = (seatId: string) => {
 const confirmSeatSelection = () => {
   showSeatModal.value = false
   highlightedPartner.value = null
+
+  // 确认座位后，立即更新其他时段的置灰状态
+  // 检查当前选中的座位在其他时段是否可用
+  if (selectedSeat.value && batchAvailabilityData.value) {
+    const selectedSeatObj = seats.value.find((s) => s.id === selectedSeat.value)
+    if (selectedSeatObj) {
+      updateTimeSlotsDisabledState(selectedSeatObj.backendSeatId)
+    }
+  }
 }
 
 // 重新选择座位
@@ -561,7 +736,10 @@ const bookNow = async () => {
         return showError(`以下伙伴在相应时段已有预订：\n${details}`)
       }
     } catch (err) {
-      console.error('校验伙伴状态失败:', err)
+      const errorMessage = parseApiError(err)
+      console.error('校验伙伴状态失败:', errorMessage)
+      // 伙伴状态校验失败，阻止继续预订
+      return showError(errorMessage || '校验伙伴状态失败，请稍后重试')
     }
   }
 
@@ -582,18 +760,25 @@ const bookNow = async () => {
 
   /**
    * 成功后的清理与刷新逻辑
+   *
+   * 业务逻辑：
+   * 1. 显示成功弹窗
+   * 2. 刷新预订历史
+   * 3. 清空座位选择和伙伴邀请
+   * 4. 重置时段选择状态
+   * 5. 自动选择第一个可用时段并刷新可用性
    */
   const handleSuccess = async () => {
     showSuccessModal.value = true
     await loadBookingHistory()
 
-    // 保存当前选中的座位后端ID，用于后续置灰逻辑
+    // 保存当前预订的座位后端ID，用于后续置灰逻辑
     const bookedSeatBackendId = seats.value.find((s) => s.id === selectedSeat.value)?.backendSeatId
 
     clearSelection()
     invitedPartners.value = []
 
-    // 重置时段选择
+    // 重置所有时段选择状态
     timeSlots.value.forEach((slot) => {
       slot.times.forEach((time) => {
         time.selected = false
@@ -603,7 +788,11 @@ const bookNow = async () => {
     })
     selectedTimeSlots.value = []
 
-    // 重新选择第一个可用时段并刷新
+    // ✅ 关键修改：重置 selectedTimeSlotsAvailability（回到使用全时段数据）
+    selectedTimeSlotsAvailability.value = []
+    console.log('预订成功：重置 selectedTimeSlotsAvailability，回退到全时段数据')
+
+    // 自动选择第一个可用时段（提升用户体验）
     for (const dateSlot of timeSlots.value) {
       const firstAvailable = dateSlot.times.find((time) => !time.disabled)
       if (firstAvailable) {
@@ -623,7 +812,7 @@ const bookNow = async () => {
 
     // 执行批量查询，获取最新的座位可用性数据
     if (selectedTimeSlots.value.length > 0) {
-      await queryBatchSeatAvailability(
+      const data = await queryBatchSeatAvailability(
         selectedTimeSlots.value.map((slot) => ({
           areaId: areas.value[0]?.id,
           bookingDate: slot.dateISO,
@@ -631,38 +820,17 @@ const bookNow = async () => {
         })),
       )
 
-      // 查询完成后，根据批量数据更新时间段置灰状态
-      // 逻辑：如果刚才预订的座位在某个时段不可用，则禁用该时段
-      if (
-        bookedSeatBackendId &&
-        batchAvailabilityData.value &&
-        Array.isArray(batchAvailabilityData.value)
-      ) {
-        timeSlots.value.forEach((dateSlot) => {
-          dateSlot.times.forEach((time) => {
-            // 跳过已选中的时段和过期时段
-            if (time.selected || time.isExpiredToday) {
-              return
-            }
+      // ✅ 更新 selectedTimeSlotsAvailability（新的默认选中时段）
+      if (data && Array.isArray(data)) {
+        selectedTimeSlotsAvailability.value = data
+      }
 
-            // 从批量数据中查找对应时段的座位信息
-            const matchingSlot = batchAvailabilityData.value.find((slot: any) => {
-              return slot.bookingDate === dateSlot.dateISO && String(slot.timeSlotId) === time.id
-            })
-
-            if (matchingSlot && matchingSlot.seats && Array.isArray(matchingSlot.seats)) {
-              // 在该时段的数据中查找刚才预订的座位
-              const seatInSlot = matchingSlot.seats.find(
-                (s: any) => s.seatId === bookedSeatBackendId,
-              )
-
-              if (seatInSlot && !seatInSlot.isAvailable) {
-                // 座位不可用，禁用该时段
-                time.disabled = true
-              }
-            }
-          })
-        })
+      // 使用提取的公共函数更新时段置灰状态
+      // 注意：此时没有选中座位，所以不传入参数
+      // 这里实际上不需要置灰，因为没有选中任何座位
+      // 但为了代码一致性，保留调用
+      if (bookedSeatBackendId) {
+        updateTimeSlotsDisabledState(bookedSeatBackendId)
       }
     }
   }
@@ -679,15 +847,29 @@ const bookNow = async () => {
       message:
         'You already have a booking. Do you want to change your seat for all selected time slots?',
       onConfirm: async () => {
+        // 空值检查：确保 myBookingInCurrentSlot 存在且 bookingId 有效
+        const currentBooking = myBookingInCurrentSlot.value
+        if (!currentBooking) {
+          showError('未找到当前预订，请刷新页面重试')
+          return
+        }
+
+        const bookingId = currentBooking.bookingId
+        if (!bookingId) {
+          showError('预订 ID 无效，请刷新页面重试')
+          return
+        }
+
         try {
           await changeSeat({
-            bookingId: (myBookingInCurrentSlot.value as any).bookingId,
+            bookingId,
             newSeatId: targetSeat.backendSeatId,
             invitePartners,
           })
           await handleSuccess()
-        } catch (error: any) {
-          showError(error.message || '换座失败')
+        } catch (error) {
+          const errorMessage = parseApiError(error)
+          showError(errorMessage || '换座失败')
         }
       },
     }
@@ -698,15 +880,29 @@ const bookNow = async () => {
       title: 'Invite Partners',
       message: 'You already have a booking. Do you want to invite partners to join you?',
       onConfirm: async () => {
+        // 空值检查：确保 myBookingInCurrentSlot 存在且 bookingId 有效
+        const currentBooking = myBookingInCurrentSlot.value
+        if (!currentBooking) {
+          showError('未找到当前预订，请刷新页面重试')
+          return
+        }
+
+        const bookingId = currentBooking.bookingId
+        if (!bookingId) {
+          showError('预订 ID 无效，请刷新页面重试')
+          return
+        }
+
         try {
           await changeSeat({
-            bookingId: (myBookingInCurrentSlot.value as any).bookingId,
+            bookingId,
             newSeatId: targetSeat.backendSeatId,
             invitePartners,
           })
           await handleSuccess()
-        } catch (error: any) {
-          showError(error.message || '邀请失败')
+        } catch (error) {
+          const errorMessage = parseApiError(error)
+          showError(errorMessage || '邀请失败')
         }
       },
     }
@@ -724,8 +920,9 @@ const bookNow = async () => {
         invitePartners,
       })
       await handleSuccess()
-    } catch (error: any) {
-      showError(error.message || '预订失败')
+    } catch (error) {
+      const errorMessage = parseApiError(error)
+      showError(errorMessage || '预订失败')
     }
   }
 }
@@ -754,6 +951,13 @@ const swapSeatForAllSlots = async (newSeatId: number) => {
     return showError('没有找到当前预订')
   }
 
+  // 空值检查：确保 bookingId 有效
+  const bookingId = currentBooking.bookingId
+  if (!bookingId) {
+    showError('预订 ID 无效，请刷新页面重试')
+    return
+  }
+
   try {
     // 准备换座数据
     const invitePartners =
@@ -777,7 +981,7 @@ const swapSeatForAllSlots = async (newSeatId: number) => {
 
     // 调用换座 API（通过 composable）
     await changeSeat({
-      bookingId: (currentBooking as any).bookingId,
+      bookingId,
       newSeatId: newSeatId,
       invitePartners,
     })
@@ -785,8 +989,9 @@ const swapSeatForAllSlots = async (newSeatId: number) => {
     showSuccess('换座成功')
     await loadBookingHistory() // 刷新预订历史
     await refreshData() // 刷新座位可用性
-  } catch (error: any) {
-    showError('换座失败')
+  } catch (error) {
+    const errorMessage = parseApiError(error)
+    showError(errorMessage || '换座失败')
   }
 }
 
@@ -848,20 +1053,28 @@ const goBack = () => {
           {{ isLoadingSeats ? 'Loading Seats...' : 'Select Seat' }}
         </button>
 
-        <div v-else class="flex items-center justify-between w-full max-w-2xl">
-          <div class="flex items-center gap-4">
-            <span class="text-sm font-medium text-gray-dark tracking-tight">Your Seat</span>
-            <span class="text-3xl font-bold text-gray-dark tracking-tighter">
-              {{ selectedSeat || (myBookingInCurrentSlot as any)?.id }}
-            </span>
+        <div v-else class="flex flex-col items-end w-full max-w-2xl">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-4">
+              <span class="text-sm font-medium text-gray-dark opacity-60 tracking-tight"
+                >Your Seat</span
+              >
+              <span class="text-3xl font-black text-gray-dark tracking-tighter">
+                {{ selectedSeat || myBookingInCurrentSlot?.id || '--' }}
+              </span>
+            </div>
+
+            <button
+              @click="openSeatModal"
+              class="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-dark hover:bg-gray-50 transition-all"
+            >
+              Change Seat
+            </button>
           </div>
 
-          <button
-            @click="openSeatModal"
-            class="px-5 py-2.5 border-2 border-gray-100 rounded-xl text-sm font-semibold text-gray-dark hover:bg-gray-50 active:scale-95 transition-all"
-          >
-            Change Seat
-          </button>
+          <p class="mt-2 text-[10px] font-bold text-gray-400 italic uppercase tracking-wider">
+            * Operation applied to all booked slots
+          </p>
         </div>
       </div>
       <!-- ========== Divider ========== -->
@@ -985,15 +1198,15 @@ const goBack = () => {
           <div class="flex justify-between">
             <span class="text-gray">Seat</span>
             <span class="font-medium text-gray-dark">{{
-              selectedSeat || (myBookingInCurrentSlot as any)?.id
+              selectedSeat || myBookingInCurrentSlot?.id || '--'
             }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray">Time Slots</span>
-            <span class="font-medium text-gray-dark">{{ selectedTimeSlots.length }} 个时段</span>
+            <span class="font-medium text-gray-dark">{{ selectedTimeSlots.length }} selected</span>
           </div>
           <!-- 显示选中的时段列表 -->
-          <div class="space-y-1 pl-2">
+          <div class="space-y-1">
             <div
               v-for="(slot, index) in selectedTimeSlots"
               :key="index"
@@ -1025,28 +1238,21 @@ const goBack = () => {
     <div class="fixed bottom-0 left-0 right-0 bg-white px-6 py-4 z-20 shadow-lg">
       <div class="flex justify-between items-center max-w-2xl mx-auto gap-3">
         <!-- 我的预订按钮 -->
-        <button
-          @click="openBookingHistory"
-          class="flex-1 py-4 text-base font-bold text-gray-dark rounded-xl border-2 border-gray-100 hover:border-gray-dark hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
+        <div class="relative">
+          <button
+            @click="openBookingHistory"
+            class="w-12 h-12 flex items-center justify-center rounded-2xl border-2 border-gray-100 bg-white hover:bg-gray-50 active:scale-95 transition-all shadow-sm"
           >
-            <path
-              d="M8 2V5M16 2V5M3.5 9.09H20.5M21 8.5V17C21 20 19.5 22 16 22H8C4.5 22 3 20 3 17V8.5C3 5.5 4.5 3.5 8 3.5H16C19.5 3.5 21 5.5 21 8.5Z"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-miterlimit="10"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          My Bookings
-        </button>
+            <img src="@/assets/images/booking/History.png" alt="" class="w-6 h-6" />
+          </button>
+
+          <div
+            v-if="bookingHistory.length > 0"
+            class="absolute -top-2 -right-2 w-7 h-7 bg-[#39D37F] border-4 border-white rounded-full flex items-center justify-center text-white text-xs font-black shadow-sm"
+          >
+            {{ bookingHistory.length }}
+          </div>
+        </div>
 
         <!-- Book Now 按钮 -->
         <button
@@ -1057,7 +1263,7 @@ const goBack = () => {
             selectedTimeSlots.length === 0 ||
             (!selectedSeat && !(myBookingInCurrentSlot && invitedPartners.length > 0))
           "
-          class="flex-1 py-4 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          class="w-1/2 py-2.5 text-lg font-bold text-white rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
           {{ isBookingLoading ? 'Processing...' : 'Book Now' }}
         </button>

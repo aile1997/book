@@ -192,6 +192,7 @@ const tomorrow = computed(() => {
 const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
 // 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
+// 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
 const adaptTimeSlots = (backendSlots: TimeSlotBackend[]) => {
   // 映射后的中间类型（添加 id、time、rawEndTime 字段）
   interface AdaptedTimeSlot {
@@ -333,7 +334,7 @@ onMounted(async () => {
 
       // ✨ 新增：初始加载时查询所有时段的座位可用性
       // 这样用户在勾选其他时段前，就能看到准确的座位状态
-      await queryAllTimeSlotsAvailability()
+      // await queryAllTimeSlotsAvailability()
     }
 
     // // 3. 业务逻辑处理：默认选中并查询可用性
@@ -514,11 +515,78 @@ const executeBatchSeatAvailabilityQuery = async () => {
     timeSlotId: Number(slot.timeSlotId),
   }))
 
+  // 记录当前选中的座位信息，用于后续检查
+  const currentlySelectedSeatId = selectedSeat.value
+  const currentlySelectedSeatObj = currentlySelectedSeatId
+    ? seats.value.find((s) => s.id === currentlySelectedSeatId)
+    : null
+
   try {
     // 调用 composable 中的批量查询函数
     // 这个函数会更新 seatAvailability.value，供 FindPartnerModal 使用
     // 同时也会调用 updateSeatsStatus 更新 seats 状态
     const data = await queryBatchSeatAvailability(queryParams)
+
+    // ✅ 最小改动：检查当前选中的座位在新勾选时段是否可用
+    if (currentlySelectedSeatObj && data && Array.isArray(data)) {
+      // 遍历查询结果，找出不可用的时段
+      const unavailableSlots: Array<{ date: string; time: string; key: string }> = []
+
+      data.forEach((slotData) => {
+        // 查找当前选中座位在该时段的可用性
+        const seatInSlot = slotData.seats?.find(
+          (s) => s.seatId === currentlySelectedSeatObj.backendSeatId,
+        )
+
+        // 如果座位在该时段不可用，记录该时段信息
+        if (seatInSlot && !seatInSlot.isAvailable) {
+          const slotInfo = selectedTimeSlots.value.find(
+            (s) =>
+              s.dateISO === slotData.bookingDate && s.timeSlotId === String(slotData.timeSlotId),
+          )
+
+          if (slotInfo) {
+            unavailableSlots.push({
+              date: slotInfo.date,
+              time: slotInfo.time,
+              key: slotInfo.key,
+            })
+          }
+        }
+      })
+
+      // 如果有不可用的时段，显示提示并还原选中状态
+      if (unavailableSlots.length > 0) {
+        const slotDetails = unavailableSlots.map((s) => `${s.date} ${s.time}`).join('、')
+        showError(
+          `${currentlySelectedSeatObj.id} 座位在以下时段已被占用：\n${slotDetails}\n\n请选择其它时间段或重新选择座位`,
+        )
+
+        // 还原选中状态：移除不可用时段
+        unavailableSlots.forEach((slot) => {
+          const index = selectedTimeSlots.value.findIndex((s) => s.key === slot.key)
+          if (index > -1) {
+            selectedTimeSlots.value.splice(index, 1)
+          }
+          // 同步更新 timeSlots 中的 selected 状态
+          timeSlots.value.forEach((dateSlot) => {
+            const timeSlot = dateSlot.times.find(
+              (t) => t.selected && `${dateSlot.dateISO}_${t.id}` === slot.key,
+            )
+            if (timeSlot) timeSlot.selected = false
+          })
+        })
+
+        // 如果还有选中时段，重新查询；否则重置状态
+        if (selectedTimeSlots.value.length > 0) {
+          await executeBatchSeatAvailabilityQuery()
+        } else {
+          clearSelection()
+          selectedTimeSlotsAvailability.value = []
+        }
+        return
+      }
+    }
 
     // ✅ 关键修改：存储到 selectedTimeSlotsAvailability（触发计算属性优先级逻辑）
     if (data && Array.isArray(data)) {
@@ -530,7 +598,7 @@ const executeBatchSeatAvailabilityQuery = async () => {
     if (selectedSeat.value) {
       const selectedSeatObj = seats.value.find((s) => s.id === selectedSeat.value)
       if (selectedSeatObj) {
-        updateTimeSlotsDisabledState(selectedSeatObj.backendSeatId)
+        // updateTimeSlotsDisabledState(selectedSeatObj.backendSeatId)
       }
     }
   } catch (error) {
@@ -624,7 +692,7 @@ const confirmSeatSelection = () => {
   if (selectedSeat.value && batchAvailabilityData.value) {
     const selectedSeatObj = seats.value.find((s) => s.id === selectedSeat.value)
     if (selectedSeatObj) {
-      updateTimeSlotsDisabledState(selectedSeatObj.backendSeatId)
+      // updateTimeSlotsDisabledState(selectedSeatObj.backendSeatId)
     }
   }
 }
@@ -830,7 +898,7 @@ const bookNow = async () => {
       // 这里实际上不需要置灰，因为没有选中任何座位
       // 但为了代码一致性，保留调用
       if (bookedSeatBackendId) {
-        updateTimeSlotsDisabledState(bookedSeatBackendId)
+        // updateTimeSlotsDisabledState(bookedSeatBackendId)
       }
     }
   }

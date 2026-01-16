@@ -45,7 +45,7 @@ const handleConfirm = () => {
           class="w-full max-w-[320px] bg-[#2C2C2C] rounded-[24px] p-6 shadow-2xl animate-scale-in flex flex-col items-center text-center"
         >
           <h3 class="text-white text-xl font-bold mb-3">{{ title }}</h3>
-          <p class="text-white/70 text-sm mb-8 leading-relaxed">
+          <p class="text-white/70 text-sm mb-8 leading-relaxed whitespace-pre-line">
             {{ message }}
           </p>
 

@@ -221,6 +221,16 @@ const aggregatedBookings = computed<BookingGroup[]>(() => {
   })
 })
 
+const groupByDate = (timeSlots: TimeSlotDetail[]) => {
+  const map: Record<string, TimeSlotDetail[]> = {}
+  timeSlots.forEach((slot) => {
+    const displayDate = formatDateDisplay(slot.bookingDate) // 例如 "01.10 MON"
+    if (!map[displayDate]) map[displayDate] = []
+    map[displayDate].push(slot)
+  })
+  return map
+}
+
 /**
  * 取消预订
  *
@@ -276,117 +286,97 @@ const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
         @click.self="close"
       >
         <div
-          class="w-full max-w-[440px] rounded-t-[44px] bg-[#39D37F] px-8 pb-14 pt-10 animate-slide-up max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+          class="w-full rounded-t-[40px] bg-[#39D37F] px-6 pb-10 pt-8 animate-slide-up max-h-[75vh] flex flex-col shadow-2xl overflow-hidden"
         >
-          <div class="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-8 shrink-0"></div>
-
-          <div class="text-center mb-8 shrink-0">
-            <h2 class="text-white text-[28px] font-black tracking-tighter italic uppercase">
-              My Bookings
-            </h2>
+          <div class="text-center mb-6 shrink-0">
+            <h2 class="text-white text-xl font-medium tracking-tight">My Bookings</h2>
           </div>
 
-          <div class="flex-1 overflow-y-auto custom-scrollbar px-1">
-            <div
-              v-if="isLoading"
-              class="text-center py-10 text-white/60 font-black tracking-widest italic animate-pulse"
-            >
+          <div class="flex-1 overflow-y-auto custom-scrollbar">
+            <div v-if="isLoading" class="text-center py-6 text-white/60 text-sm animate-pulse">
               LOADING...
             </div>
 
-            <div
-              v-else-if="aggregatedBookings.length === 0"
-              class="text-center py-10 text-white/60 font-bold italic"
-            >
-              No active reservations.
-            </div>
-
-            <div v-else class="space-y-8">
+            <div v-else class="space-y-4">
               <div
                 v-for="group in aggregatedBookings"
                 :key="group.groupId"
-                class="bg-white/10 rounded-[32px] p-6 border border-white/10 transition-all"
-                :class="[isGroupExpired(group.timeSlots) ? 'opacity-60 grayscale-[0.5]' : '']"
+                class="bg-white/10 rounded-[8px] p-3 border border-white/5 transition-all"
+                :class="[isGroupExpired(group.timeSlots) ? 'opacity-50 grayscale' : '']"
               >
-                <div class="flex items-start justify-between mb-6">
-                  <div class="flex items-center gap-4">
-                    <div class="flex flex-col">
-                      <span
-                        class="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1"
-                        >Your Seat</span
-                      >
-                      <span class="text-xl font-bold text-white tracking-tight">
-                        Table {{ group.table || '--' }}
-                      </span>
-                    </div>
-                  </div>
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-2xl font-medium text-white tracking-tighter">
+                    {{ group.seat || '--' }}
+                  </span>
 
-                  <div class="text-right">
-                    <div class="flex items-center gap-1.5 justify-end mb-1">
-                      <img
-                        src="@/assets/images/home/Vector.png"
-                        alt=""
-                        class="w-4 h-4 brightness-0 invert"
-                      />
-                      <span class="text-2xl font-black text-white tracking-tighter">{{
-                        group.totalCredits
-                      }}</span>
-                    </div>
-                    <span class="text-[9px] font-black text-white/50 uppercase tracking-widest"
-                      >Credits</span
+                  <button
+                    v-if="!isGroupExpired(group.timeSlots)"
+                    @click="cancelBooking(group)"
+                    class="flex items-center gap-1 px-3 py-1 rounded-[4px] bg-white/10 border border-white/20 text-white text-[10px] font-medium hover:bg-white/20 active:scale-95 transition-all"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
                     >
-                  </div>
+                      <path
+                        d="M18 6L6 18M6 6L18 18"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    Cancel
+                  </button>
                 </div>
 
-                <div class="space-y-2 mb-6">
+                <div class="w-full h-[0.5px] bg-white/10 mb-2"></div>
+
+                <div
+                  class="flex justify-between text-[10px] font-medium tracking-widest text-white/30 mb-3"
+                >
+                  <span>Date</span>
+                  <span>Slot</span>
+                </div>
+
+                <div class="space-y-2">
                   <div
-                    v-for="(slot, index) in group.timeSlots"
-                    :key="index"
-                    class="flex items-center justify-between py-3 px-4 bg-white/5 rounded-2xl border border-white/5"
+                    v-for="(slotsByDate, dateLabel) in groupByDate(group.timeSlots)"
+                    :key="dateLabel"
+                    class="flex justify-between items-start"
                   >
-                    <div class="flex items-center gap-3">
-                      <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                      <span class="text-sm font-black text-white italic tracking-tight">
-                        {{ formatDateDisplay(slot.bookingDate) }}
+                    <div class="flex items-center gap-2">
+                      <span class="text-base font-medium text-white tracking-tight">
+                        {{ dateLabel.split(' ')[0] }}
+                      </span>
+                      <span
+                        class="px-1.2 py-0.2 rounded bg-white/10 text-[8px] text-white font-medium"
+                      >
+                        {{ dateLabel.split(' ')[1] }}
                       </span>
                     </div>
-                    <span class="text-sm font-bold text-white/80">
-                      {{ slot.startTime }} - {{ slot.endTime }}
-                    </span>
-                  </div>
-                </div>
 
-                <button
-                  v-if="!isGroupExpired(group.timeSlots)"
-                  @click="cancelBooking(group)"
-                  class="w-full h-14 rounded-[20px] bg-white text-[#39D37F] text-sm font-black uppercase tracking-[0.2em] hover:bg-white/90 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                  >
-                    <path d="M18 6L6 18M6 6L18 18" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  Cancel Booking
-                </button>
-                <div
-                  v-else
-                  class="text-center py-2 text-white/40 text-[10px] font-black uppercase tracking-widest"
-                >
-                  This reservation has expired
+                    <div class="flex flex-col items-end gap-0">
+                      <span
+                        v-for="(slot, idx) in slotsByDate"
+                        :key="idx"
+                        class="text-[14px] font-medium text-white tracking-tighter"
+                      >
+                        {{ slot.startTime }}-{{ slot.endTime }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="mt-10 shrink-0">
+          <div class="mt-8 flex justify-center shrink-0">
             <button
               @click="close"
-              class="w-full h-[68px] rounded-[24px] border-2 border-white/80 bg-transparent text-white text-xl font-black hover:bg-white/10 active:scale-[0.98] transition-all flex items-center justify-center uppercase tracking-[0.2em]"
+              class="w-[200px] px-8 py-3 bg-transparent border-2 border-white text-white text-lg font-medium rounded-xl hover:bg-white/10 transition-all"
             >
               Back
             </button>
@@ -396,7 +386,6 @@ const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
     </Transition>
   </Teleport>
 </template>
-
 <style scoped>
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;

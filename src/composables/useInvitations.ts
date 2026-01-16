@@ -2,23 +2,49 @@ import { ref, onUnmounted } from 'vue'
 import { getUpcomingInvitations, acceptInvitation, declineInvitation } from '../api'
 import { useBooking } from './useBooking'
 
-// 定义邀请的类型 (使用 useInvitations.ts 的更详细类型)
+/**
+ * 时段详情（与 booking.timeSlotDetails 格式一致）
+ */
+export interface TimeSlotDetail {
+  id: number
+  bookingDate: string
+  timeSlotId: number
+  timeSlotName?: string
+  startTime: string
+  endTime: string
+  creditsRequired?: number
+  slotStatus?: string
+  bookingId: number
+  seatId: number
+  areaId: number
+  seatNumber: string
+}
+
+/**
+ * 邀请类型（与 booking 数据格式一致，支持多时段）
+ */
 export interface Invitation {
   id: number
+  groupId?: number
   inviter: {
     userId: number
     fullName: string
   }
-  seat: {
-    seatNumber: string
-    areaName: string
+  seatNumber?: string
+  seat?: string
+  bookingDate?: string // 单时段格式（兼容旧数据）
+  startTime?: string // 单时段格式
+  endTime?: string // 单时段格式
+  timeSlot?: {
+    // 单时段格式（兼容旧数据）
+    id?: number
+    time?: string
+    startTime?: string
+    endTime?: string
   }
-  bookingDate: string
-  timeSlot: {
-    id: number
-    time: string
-  }
-  status: 'PENDING' | 'ACCEPTED' | 'DECLINED'
+  timeSlotDetails?: TimeSlotDetail[] // 多时段格式（与 booking 一致）
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED'
+  invitationStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' // 别名
 }
 
 const { loadBookings } = useBooking()
@@ -34,35 +60,52 @@ let isPollingActive = false // 轮询是否激活
 
 /**
  * 获取未来邀请列表
+ * 支持新的多时段数据格式（timeSlotDetails）和旧的单时段格式
  */
 async function fetchInvitations() {
   isLoadingInvitations.value = true
   try {
     const response = await getUpcomingInvitations()
-    // 假设后端返回的数据结构与 Invitation 接口兼容
-    // 注意：这里需要根据实际 API 返回结构进行适配，但为了重构，我们假设 API 返回的是 Invitation[]
-    // 适配新的 API 返回结构
-    // 后端返回: { id, inviterName, seatNumber, areaName, bookingDate, timeRange, invitationStatus }
     const rawData = response.data || response || []
-    const invitations = rawData.invitations || rawData // 假设 response.data.invitations 或 response 是数组
+    const invitations = rawData.invitations || rawData
 
-    upcomingInvitations.value = invitations.map((inv: any) => ({
-      id: inv.id,
-      inviter: {
-        userId: inv.inviterUserId, // 使用 inviterUserId
-        fullName: inv.inviterName, // 使用 inviterName
-      },
-      seat: {
-        seatNumber: inv.seatNumber, // 使用 seatNumber
-        areaName: inv.areaName, // 使用 areaName
-      },
-      bookingDate: inv.bookingDate, // 使用 bookingDate
-      timeSlot: {
-        id: 0, // 新 API 结构中没有 timeSlotId，使用默认值
-        time: inv.timeRange, // 使用 timeRange
-      },
-      status: inv.invitationStatus || 'PENDING', // 使用 invitationStatus
-    }))
+    upcomingInvitations.value = invitations.map((inv: any) => {
+      // 优先使用新的多时段格式
+      if (inv.timeSlotDetails && Array.isArray(inv.timeSlotDetails) && inv.timeSlotDetails.length > 0) {
+        return {
+          id: inv.id,
+          groupId: inv.groupId,
+          inviter: {
+            userId: inv.inviterUserId || inv.inviter?.userId,
+            fullName: inv.inviterName || inv.inviter?.fullName,
+          },
+          seatNumber: inv.timeSlotDetails[0]?.seatNumber || inv.seatNumber,
+          timeSlotDetails: inv.timeSlotDetails,
+          status: inv.invitationStatus || inv.status || 'PENDING',
+        }
+      }
+
+      // 回退到旧的单时段格式
+      return {
+        id: inv.id,
+        inviter: {
+          userId: inv.inviterUserId || inv.inviter?.userId,
+          fullName: inv.inviterName || inv.inviter?.fullName,
+        },
+        seat: {
+          seatNumber: inv.seatNumber,
+          areaName: inv.areaName,
+        },
+        bookingDate: inv.bookingDate,
+        timeSlot: {
+          id: inv.timeSlotId || 0,
+          time: inv.timeRange || inv.timeSlot?.time,
+          startTime: inv.timeSlot?.startTime || inv.startTime,
+          endTime: inv.timeSlot?.endTime || inv.endTime,
+        },
+        status: inv.invitationStatus || inv.status || 'PENDING',
+      }
+    })
   } catch (error) {
     console.error('获取邀请列表失败:', error)
   } finally {

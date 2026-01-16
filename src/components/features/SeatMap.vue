@@ -45,7 +45,7 @@ const getAdjustedCheckmarkPath = (
   tableId: string,
 ) => {
   const { cx, cy } = calculateCheckmarkPosition(config, index)
-  // 计算“向内靠”的偏移量
+  // 计算"向内靠"的偏移量
   // 标准座位偏移 1.5，C区异形座位偏移量加大（约 3.5）以适应其形状
   const innerOffset = tableId === 'C' ? (side === 'left' ? -2 : 17) : -3
   const dx = side === 'left' ? innerOffset : -innerOffset
@@ -53,6 +53,46 @@ const getAdjustedCheckmarkPath = (
   const adjCx = cx + dx
   // 返回路径字符串
   return `M ${adjCx - 2} ${cy} L ${adjCx - 0.5} ${cy + 1.5} L ${adjCx + 2} ${cy - 1.5}`
+}
+
+// 新增：计算校准后人像图标位置
+const getUserIconPosition = (
+  config: any,
+  index: number,
+  side: 'left' | 'right',
+  tableId: string,
+) => {
+  const { cx, cy } = calculateCheckmarkPosition(config, index)
+
+  // C 区异形座位的偏移量（与勾选标记保持一致）
+  // 普通区域（A/B）的偏移量
+  const xOffset =
+    tableId === 'C'
+      ? side === 'left'
+        ? -1
+        : -16.5 // C 区
+      : side === 'left'
+        ? -2
+        : 3 // A/B 区
+
+  const adjCx = cx + xOffset
+
+  const yOffset =
+    tableId === 'C'
+      ? side === 'left'
+        ? -1
+        : -1 // C 区
+      : side === 'left'
+        ? 0
+        : 0 // A/B 区
+
+  const adjCy = cy + yOffset
+
+  // 图标尺寸为 8x8，需要减去一半以居中
+  return {
+    x: adjCx - 4,
+    y: adjCy - 4,
+  }
 }
 
 const hoveredSeat = ref<string | null>(null)
@@ -187,7 +227,7 @@ const handleTooltipClick = () => {
                     :fill="getSeatColor(seat)"
                     :stroke="getSeatColor(seat)"
                     stroke-width="2"
-                    stroke-miterlimit="10"
+                    stroke-miterlimit="8"
                   />
                 </g>
 
@@ -205,32 +245,13 @@ const handleTooltipClick = () => {
 
                 <!-- 当前用户预订标记（人像图标） -->
                 <g v-if="(seat as any).bookedByMe">
-                  <g
-                    :transform="`translate(${calculateCheckmarkPosition(table.seats.left, seat.index).cx - 8}, ${calculateCheckmarkPosition(table.seats.left, seat.index).cy - 6.5})`"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"
-                        stroke="white"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                      <path
-                        d="M6 20C6 17.2386 8.68629 15 12 15C15.3137 15 18 17.2386 18 20"
-                        stroke="white"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </g>
+                  <image
+                    :x="getUserIconPosition(table.seats.left, seat.index, 'left', table.id).x"
+                    :y="getUserIconPosition(table.seats.left, seat.index, 'left', table.id).y"
+                    width="8"
+                    height="8"
+                    href="@/assets/images/booking/user-square.svg"
+                  />
                 </g>
               </g>
             </g>
@@ -276,7 +297,7 @@ const handleTooltipClick = () => {
                     :fill="getSeatColor(seat)"
                     :stroke="getSeatColor(seat)"
                     stroke-width="2"
-                    stroke-miterlimit="10"
+                    stroke-miterlimit="8"
                   />
                 </g>
 
@@ -294,32 +315,13 @@ const handleTooltipClick = () => {
 
                 <!-- 当前用户预订标记（人像图标） -->
                 <g v-if="(seat as any).bookedByMe">
-                  <g
-                    :transform="`translate(${calculateCheckmarkPosition(table.seats.right, seat.index).cx - 4}, ${calculateCheckmarkPosition(table.seats.right, seat.index).cy - 6.5})`"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"
-                        stroke="white"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                      <path
-                        d="M6 20C6 17.2386 8.68629 15 12 15C15.3137 15 18 17.2386 18 20"
-                        stroke="white"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </g>
+                  <image
+                    :x="getUserIconPosition(table.seats.right, seat.index, 'right', table.id).x"
+                    :y="getUserIconPosition(table.seats.right, seat.index, 'right', table.id).y"
+                    width="8"
+                    height="8"
+                    href="@/assets/images/booking/user-square.svg"
+                  />
                 </g>
               </g>
             </g>
@@ -344,7 +346,7 @@ const handleTooltipClick = () => {
 
             <!-- Tooltip箭头 -->
             <path
-              :d="`M ${tooltipPosition.x - 5} ${tooltipPosition.y - 10} L ${tooltipPosition.x} ${tooltipPosition.y - 5} L ${tooltipPosition.x + 5} ${tooltipPosition.y - 10}`"
+              :d="`M ${tooltipPosition.x - 5} ${tooltipPosition.y - 8} L ${tooltipPosition.x} ${tooltipPosition.y - 5} L ${tooltipPosition.x + 5} ${tooltipPosition.y - 8}`"
               fill="#333333"
               opacity="0.9"
             />
@@ -354,7 +356,7 @@ const handleTooltipClick = () => {
               :x="tooltipPosition.x"
               :y="tooltipPosition.y - 20"
               fill="white"
-              font-size="10"
+              font-size="8"
               font-weight="500"
               text-anchor="middle"
               dominant-baseline="middle"

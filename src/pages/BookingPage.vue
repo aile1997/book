@@ -96,6 +96,7 @@ const showBookingHistoryModal = ref(false)
 const confirmModalConfig = ref({
   title: '',
   message: '',
+  data: {},
   onConfirm: () => {},
 })
 
@@ -181,6 +182,39 @@ const myBookingInCurrentSlot = computed(() => {
   return seats.value.find((s) => s.bookedByMe)
 })
 
+// 获取当前预订组的时段信息（用于 Current Booking 显示）
+const currentBookingTimeSlots = computed(() => {
+  const currentBooking = myBookingInCurrentSlot.value
+  if (!currentBooking || !currentBooking.bookingId) return []
+
+  // 从 bookingHistory 中查找该组的所有预订记录
+  const groupBookings = bookingHistory.value.filter(
+    (b) => b.bookingId === currentBooking.bookingId || b.id === currentBooking.bookingId,
+  )
+
+  // 如果预订包含 timeSlotDetails，使用该数据；否则从预订记录本身提取
+  if (groupBookings.length > 0 && groupBookings[0].timeSlotDetails) {
+    return groupBookings[0].timeSlotDetails.map((slot) => {
+      const date = new Date(slot.bookingDate)
+      const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`
+      return {
+        date: dateStr,
+        time: `${slot.startTime} - ${slot.endTime}`,
+      }
+    })
+  }
+
+  // 回退：从预订记录本身提取时段信息（兼容旧数据结构）
+  return groupBookings.map((b) => {
+    const date = new Date(b.bookingDate)
+    const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`
+    return {
+      date: dateStr,
+      time: `${b.startTime} - ${b.endTime}`,
+    }
+  })
+})
+
 // 获取今天和明天的 Date 对象，使用计算属性确保始终是最新的
 const today = computed(() => new Date())
 const tomorrow = computed(() => {
@@ -188,6 +222,45 @@ const tomorrow = computed(() => {
   date.setDate(date.getDate() + 1)
   return date
 })
+
+// ========== 时段显示工具函数 ==========
+
+/**
+ * 格式化日期显示（例如：01.15 MON）
+ */
+const formatDateDisplay = (dateString: string) => {
+  const date = new Date(dateString)
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+  const weekday = weekdays[date.getDay()]
+  return `${month}.${day} ${weekday}`
+}
+
+/**
+ * 按日期分组时段（用于按日期显示）
+ * @param slots - 时段数组
+ * @returns 按日期分组的映射，key 为 "01.15 MON" 格式
+ */
+const groupSlotsByDate = (slots: Array<{ date: string; time: string }>) => {
+  const map: Record<string, Array<{ date: string; time: string }>> = {}
+
+  slots.forEach((slot) => {
+    // 从 date 中提取日期部分（格式：MM.DD）
+    const datePart = slot.date.split(' ')[0] || slot.date
+    // 获取完整的日期+星期显示
+    const displayDate = slot.date.includes(' ')
+      ? slot.date // 如果已包含星期，直接使用
+      : formatDateDisplay(datePart) // 否则格式化为 "MM.DD WEEKDAY"
+
+    if (!map[displayDate]) {
+      map[displayDate] = []
+    }
+    map[displayDate].push(slot)
+  })
+
+  return map
+}
 
 const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
@@ -911,9 +984,12 @@ const bookNow = async () => {
   if (isChangingSeat) {
     // 场景 1：切换座位 -> 调用 swap-seat 接口
     confirmModalConfig.value = {
-      title: 'Change Seat',
-      message:
-        'You already have a booking. Do you want to change your seat for all selected time slots?',
+      title: 'Confirm Changing', // 对应 Group 93.png
+      // 注入 UI 所需的详情数据
+      data: {
+        seatNumber: targetSeat.id,
+        timeSlots: currentBookingTimeSlots.value,
+      },
       onConfirm: async () => {
         // 空值检查：确保 myBookingInCurrentSlot 存在且 bookingId 有效
         const currentBooking = myBookingInCurrentSlot.value
@@ -1260,7 +1336,13 @@ const goBack = () => {
         class="bg-primary-light/30 rounded-2xl p-6"
       >
         <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">
-          {{ selectedSeat ? 'Booking Summary' : 'Current Booking' }}
+          {{
+            selectedSeat && myBookingInCurrentSlot
+              ? 'Changing Seat For'
+              : myBookingInCurrentSlot
+                ? 'Current Booking'
+                : 'Booking Summary'
+          }}
         </h3>
         <div class="space-y-3 text-sm">
           <div class="flex justify-between">
@@ -1269,27 +1351,72 @@ const goBack = () => {
               selectedSeat || myBookingInCurrentSlot?.id || '--'
             }}</span>
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray">Time Slots</span>
-            <span class="font-medium text-gray-dark">{{ selectedTimeSlots.length }} selected</span>
-          </div>
-          <!-- 显示选中的时段列表 -->
-          <div class="space-y-1">
+          <div v-if="selectedSeat" class="border-t border-primary/20 pt-3 mt-3"></div>
+          <!-- 显示时段列表：
+               - 换座模式：显示 currentBookingTimeSlots（当前预订的时段组）
+               - 新预订模式：显示 selectedTimeSlots（用户选择的时段）
+          -->
+          <div
+            v-if="
+              (selectedSeat && myBookingInCurrentSlot ? currentBookingTimeSlots : selectedTimeSlots)
+                .length > 0
+            "
+            class="space-y-2"
+          >
+            <!-- 表头：Date | Slot -->
             <div
-              v-for="(slot, index) in selectedTimeSlots"
-              :key="index"
-              class="flex justify-between text-xs"
+              class="flex justify-between text-[10px] font-medium tracking-widest text-gray-400 mb-3"
             >
-              <span class="text-gray">{{ slot.date }}</span>
-              <span class="text-gray-dark">{{ slot.time }}</span>
+              <span>Date</span>
+              <span>Slot</span>
+            </div>
+            <!-- 按日期分组的时段列表 -->
+            <div class="space-y-2">
+              <div
+                v-for="(slotsByDate, dateLabel) in groupSlotsByDate(
+                  selectedSeat && myBookingInCurrentSlot
+                    ? currentBookingTimeSlots
+                    : selectedTimeSlots,
+                )"
+                :key="dateLabel"
+                class="flex justify-between items-start"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-gray-dark tracking-tight">
+                    {{ dateLabel.split(' ')[0] }}
+                  </span>
+                  <span
+                    class="px-1.2 py-0.2 rounded bg-gray-100 text-[8px] text-gray-500 font-medium"
+                  >
+                    {{ dateLabel.split(' ')[1] }}
+                  </span>
+                </div>
+
+                <div class="flex flex-col items-end gap-0.5">
+                  <span
+                    v-for="(slot, idx) in slotsByDate"
+                    :key="idx"
+                    class="text-sm font-medium text-gray-dark tracking-tighter"
+                  >
+                    {{ slot.time }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           <div v-if="selectedSeat" class="flex justify-between">
             <span class="text-gray">Partners</span>
             <span class="font-medium text-gray-dark">{{ invitedPartners.length }}</span>
           </div>
-          <div v-if="selectedSeat" class="border-t border-primary/20 pt-3 mt-3"></div>
-          <div v-if="selectedSeat" class="flex justify-between items-center">
+          <!-- 只有新预订模式才显示积分消耗，换座不显示 -->
+          <div
+            v-if="selectedSeat && !myBookingInCurrentSlot"
+            class="border-t border-primary/20 pt-3 mt-3"
+          ></div>
+          <div
+            v-if="selectedSeat && !myBookingInCurrentSlot"
+            class="flex justify-between items-center"
+          >
             <span class="text-gray">Coins Used</span>
             <div class="flex items-center gap-2">
               <img src="@/assets/images/home/Vector.png" alt="" class="w-5 h-5" />
@@ -1385,6 +1512,7 @@ const goBack = () => {
       v-model:visible="showConfirmModal"
       :title="confirmModalConfig.title"
       :message="confirmModalConfig.message"
+      :data="confirmModalConfig.data"
       @confirm="confirmModalConfig.onConfirm"
     />
   </div>

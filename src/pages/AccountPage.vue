@@ -247,6 +247,39 @@ const pendingInvitations = computed(() => {
 const validBookings = computed(() => {
   return bookings.value // 最多显示2个
 })
+
+// 获取星期几的简写
+const getDayOfWeek = (dateStr: string) => {
+  if (!dateStr) return ''
+  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+  const date = new Date(dateStr)
+  return isNaN(date.getTime()) ? '' : days[date.getDay()]
+}
+
+// 格式化日期显示（例如 "01.10 MON"）
+const formatDateDisplay = (dateString: string) => {
+  const date = new Date(dateString)
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+  const weekday = weekdays[date.getDay()]
+  return `${month}.${day} ${weekday}`
+}
+
+// 按日期分组时段（用于 My Bookings 显示）
+const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
+  if (!timeSlotDetails || timeSlotDetails.length === 0) return {}
+
+  const map: Record<string, any[]> = {}
+  timeSlotDetails.forEach((slot) => {
+    const displayDate = formatDateDisplay(slot.bookingDate)
+    if (!map[displayDate]) {
+      map[displayDate] = []
+    }
+    map[displayDate].push(slot)
+  })
+  return map
+}
 </script>
 
 <template>
@@ -288,46 +321,92 @@ const validBookings = computed(() => {
           v-for="(invitation, index) in pendingInvitations"
           :key="invitation.id"
           :class="[
-            'animate-in fade-in slide-in-from-bottom-4 duration-500',
-            /* 3. 多条记录之间的明显分隔线：2px粗度，浅灰色，保持视觉连续性 */
+            'flex flex-col',
+            /* index !== 0 表示从第二个邀请开始，上方增加明显的分隔线 */
             index !== 0 ? 'mt-5 pt-5 border-t-2 border-gray-100' : '',
           ]"
         >
-          <div class="space-y-2 mb-3">
-            <div class="flex items-start gap-3">
-              <div class="w-4 h-4 rounded-full bg-warning mt-1 shrink-0"></div>
-              <div class="flex-1 space-y-2">
-                <!-- 日期和时间：四列紧凑格式 DATE | value | TIME | value -->
-                <div class="flex items-center gap-3 text-xs">
-                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
-                    >Date</span
-                  >
-                  <span class="text-sm font-medium text-gray-dark flex-1">{{
-                    invitation.bookingDate
-                  }}</span>
-                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-12 shrink-0"
-                    >Time</span
-                  >
-                  <span class="text-sm font-medium text-gray-dark flex-1">{{
+          <div class="flex items-start gap-3 mb-2">
+            <!-- 状态图标：Pending（时钟图标） -->
+            <div
+              class="w-4 h-4 rounded-full bg-warning mt-1 flex items-center justify-center shrink-0"
+            >
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                <circle cx="4" cy="4" r="3" stroke="white" stroke-width="0.8" />
+                <path d="M4 2v2h1.5" stroke="white" stroke-width="0.8" stroke-linecap="round" />
+              </svg>
+            </div>
+
+            <div class="flex-1 space-y-3">
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-400">Seat</span>
+                <span class="text-2xl font-bold text-gray-dark leading-none">{{
+                  invitation.seat.seatNumber
+                }}</span>
+              </div>
+
+              <!-- 适配多时段数据：按日期分组显示时段 -->
+              <!-- 假设 invitation.timeSlotDetails 存在，否则回退到单时段显示 -->
+              <template
+                v-if="
+                  (invitation as any).timeSlotDetails &&
+                  (invitation as any).timeSlotDetails.length > 0
+                "
+              >
+                <div
+                  v-for="(slotsByDate, dateLabel) in groupTimeSlotsByDate(
+                    (invitation as any).timeSlotDetails,
+                  )"
+                  :key="dateLabel"
+                  class="flex justify-between items-start"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="text-base font-medium text-gray-dark">{{
+                      dateLabel.split(' ')[0]
+                    }}</span>
+                    <span
+                      class="px-1.2 py-0.2 rounded bg-gray-100 text-[8px] text-gray-500 font-medium"
+                    >
+                      {{ dateLabel.split(' ')[1] }}
+                    </span>
+                  </div>
+                  <div class="flex flex-col items-end gap-0.5 pl-8">
+                    <span
+                      v-for="(slot, idx) in slotsByDate"
+                      :key="idx"
+                      class="text-sm font-medium text-gray-dark"
+                    >
+                      {{ slot.startTime }}-{{ slot.endTime }}
+                    </span>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <!-- 单时段显示（兼容旧格式） -->
+                <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-2">
+                    <span class="text-base font-medium text-gray-dark">{{
+                      formatDateDisplay(invitation.bookingDate).split(' ')[0]
+                    }}</span>
+                    <span
+                      class="px-1.2 py-0.2 rounded bg-warning/10 text-[8px] text-warning font-medium"
+                    >
+                      {{ formatDateDisplay(invitation.bookingDate).split(' ')[1] }}
+                    </span>
+                  </div>
+                  <span class="text-sm font-medium text-gray-dark">{{
                     invitation.timeSlot.time
                   }}</span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
-                    >Seat</span
-                  >
-                  <span class="text-2xl font-bold text-gray-dark leading-none">{{
-                    invitation.seat.seatNumber
-                  }}</span>
-                </div>
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
-                    >From</span
-                  >
-                  <span class="text-sm font-medium text-gray-dark">{{
-                    invitation.inviter.fullName
-                  }}</span>
-                </div>
+              </template>
+
+              <div class="flex items-center gap-2 text-xs text-gray-400">
+                <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
+                  >From</span
+                >
+                <span class="text-sm font-medium text-gray-dark">{{
+                  invitation.inviter.fullName
+                }}</span>
               </div>
             </div>
           </div>
@@ -365,7 +444,7 @@ const validBookings = computed(() => {
             index !== 0 ? 'mt-5 pt-5 border-t-2 border-gray-100' : '',
           ]"
         >
-          <div class="flex items-start gap-3 mb-3">
+          <div class="flex items-start gap-3 mb-2">
             <div
               class="w-4 h-4 rounded-full bg-success mt-1 flex items-center justify-center shrink-0"
             >
@@ -375,19 +454,54 @@ const validBookings = computed(() => {
             </div>
 
             <div class="flex-1 space-y-3">
-              <!-- 适配多时段数据：每个时段一行，日期和时间合并显示 -->
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-400">Seat</span>
+                <span class="text-2xl font-bold text-gray-dark leading-none">
+                  {{ booking.timeSlotDetails?.[0]?.seatNumber || booking.seatNumber || '--' }}
+                </span>
+              </div>
+
+              <!-- 适配多时段数据：按日期分组显示时段 -->
               <template v-if="booking.timeSlotDetails && booking.timeSlotDetails.length > 0">
-                <!-- 多时段显示：每个时段一行 -->
+                <!-- 按日期分组显示 -->
                 <div
-                  v-for="(slot, slotIndex) in booking.timeSlotDetails"
-                  :key="slotIndex"
-                  class="flex items-center justify-between text-xs text-gray-400 !mt-0"
+                  v-for="(slotsByDate, dateLabel, index) in groupTimeSlotsByDate(
+                    booking.timeSlotDetails,
+                  )"
+                  :key="dateLabel"
+                  class="flex items-start mb-2 last:mb-0 gap-3"
                 >
-                  <span>Date-Time</span>
-                  <span class="text-sm font-medium text-gray-dark">
-                    {{ slot.bookingDate }} ( {{ slot.startTime }} - {{ slot.endTime }})
-                  </span>
-                  <span class="text-sm font-medium text-gray-dark"> </span>
+                  <div class="shrink-0">
+                    <span
+                      v-if="index === 0"
+                      class="text-[10px] font-medium tracking-widest text-gray-400"
+                    >
+                      Date
+                    </span>
+                  </div>
+
+                  <div class="flex-1 flex justify-between items-start">
+                    <div class="flex items-center gap-2">
+                      <span class="text-base font-medium text-gray-dark">
+                        {{ dateLabel.split(' ')[0] }}
+                      </span>
+                      <span
+                        class="px-1.2 py-0.2 rounded bg-gray-100 text-[8px] text-gray-500 font-medium"
+                      >
+                        {{ dateLabel.split(' ')[1] }}
+                      </span>
+                    </div>
+
+                    <div class="flex flex-col items-end gap-0.5">
+                      <span
+                        v-for="(slot, idx) in slotsByDate"
+                        :key="idx"
+                        class="text-sm font-medium text-gray-dark tracking-tighter"
+                      >
+                        {{ slot.startTime }}-{{ slot.endTime }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </template>
               <template v-else>
@@ -400,36 +514,92 @@ const validBookings = computed(() => {
                 </div>
               </template>
 
-              <div class="flex items-center gap-3 pt-1">
-                <span class="text-xs text-gray-400">Seat</span>
-                <span class="text-2xl font-bold text-gray-dark leading-none">
-                  {{ booking.timeSlotDetails?.[0]?.seatNumber || booking.seatNumber || '--' }}
-                </span>
-              </div>
-
               <div
                 v-if="booking.partners && booking.partners.length > 0"
-                class="flex items-center gap-2 text-xs text-gray-400 flex-wrap pt-1"
+                class="flex items-center gap-3 text-xs text-gray-400 flex-wrap"
               >
                 <span>with</span>
                 <template v-for="(p, i) in booking.partners" :key="p.id">
                   <span class="text-sm font-medium text-gray-dark">{{
-                    p.partnerName || p.fullName || p.username
+                    (p as any).partnerName || p.fullName || p.username
                   }}</span>
+                  <!-- 状态图标 -->
                   <span
                     v-if="p.invitationStatus === 'PENDING' || p.invitationStatus === null"
-                    class="text-xs text-gray-300"
+                    class="flex items-center"
+                    title="Pending"
                   >
-                    (Pending)
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <circle
+                        cx="6"
+                        cy="6"
+                        r="5"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        class="text-gray-300"
+                      />
+                      <path
+                        d="M6 3v3h2"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        stroke-linecap="round"
+                        class="text-gray-300"
+                      />
+                    </svg>
                   </span>
-                  <span v-else-if="p.invitationStatus === 'ACCEPTED'" class="text-xs text-success">
-                    (Accepted)
+                  <span
+                    v-else-if="p.invitationStatus === 'ACCEPTED'"
+                    class="flex items-center"
+                    title="Accepted"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path
+                        d="M2 6l3 3L10 4"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="text-success"
+                      />
+                    </svg>
                   </span>
-                  <span v-else-if="p.invitationStatus === 'DECLINED'" class="text-xs text-red-500">
-                    (Declined)
+                  <span
+                    v-else-if="p.invitationStatus === 'DECLINED'"
+                    class="flex items-center"
+                    title="Declined"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path
+                        d="M3 3l6 6M9 3l-6 6"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        class="text-red-500"
+                      />
+                    </svg>
                   </span>
-                  <span v-else-if="p.invitationStatus === 'EXPIRED'" class="text-xs text-gray-300">
-                    (Dxpired)
+                  <span
+                    v-else-if="p.invitationStatus === 'EXPIRED'"
+                    class="flex items-center"
+                    title="Expired"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <circle
+                        cx="6"
+                        cy="6"
+                        r="5"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        class="text-gray-300"
+                      />
+                      <path
+                        d="M6 4v2M6 8h.01"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        stroke-linecap="round"
+                        class="text-gray-300"
+                      />
+                    </svg>
                   </span>
                   <span v-if="i < booking.partners.length - 1" class="mx-0.5">,</span>
                 </template>
@@ -468,7 +638,7 @@ const validBookings = computed(() => {
 
       <!-- 积分和历史记录 -->
       <div class="bg-cyan rounded-[10px] p-5 mb-8 shadow-lg shadow-cyan/20">
-        <h2 class="text-base font-semibold text-white mb-3">My Coins</h2>
+        <h2 class="text-base font-semibold text-white mb-2">My Coins</h2>
         <div class="flex items-center gap-2 mb-6">
           <img src="@/assets/images/home/Vector1.png" alt="" class="w-5 h-5" />
           <span class="text-2xl font-bold text-white">{{ coins }}</span>

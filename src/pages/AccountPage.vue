@@ -7,7 +7,8 @@ import { useAuth } from '../composables/useAuth'
 import { useBooking } from '../composables/useBooking'
 import { useInvitations } from '../composables/useInvitations'
 import { useToast } from '../composables/useToast'
-import { isBookingExpired } from '../utils/time' // 引入公共函数
+import { isBookingExpired } from '../utils/time'
+import { formatDateFull, getWeekday } from '../utils/formatters'
 import type { Invitation } from '../composables/useInvitations'
 import ConfirmModal from '../components/modals/ConfirmModal.vue'
 
@@ -247,31 +248,13 @@ const validBookings = computed(() => {
   return bookings.value // 最多显示2个
 })
 
-// 获取星期几的简写
-const getDayOfWeek = (dateStr: string) => {
-  if (!dateStr) return ''
-  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-  const date = new Date(dateStr)
-  return isNaN(date.getTime()) ? '' : days[date.getDay()]
-}
-
-// 格式化日期显示（例如 "01.10 MON"）
-const formatDateDisplay = (dateString: string) => {
-  const date = new Date(dateString)
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-  const weekday = weekdays[date.getDay()]
-  return `${month}.${day} ${weekday}`
-}
-
 // 按日期分组时段（用于 My Bookings 显示）
 const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
   if (!timeSlotDetails || timeSlotDetails.length === 0) return {}
 
   const map: Record<string, any[]> = {}
   timeSlotDetails.forEach((slot) => {
-    const displayDate = formatDateDisplay(slot.bookingDate)
+    const displayDate = formatDateFull(slot.bookingDate)
     if (!map[displayDate]) {
       map[displayDate] = []
     }
@@ -360,12 +343,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                   class="flex items-start mb-2 last:mb-0 gap-3"
                 >
                   <div class="shrink-0">
-                    <span
-                      v-if="index === 0"
-                      class="text-[10px] font-medium tracking-widest text-gray-400"
-                    >
-                      Date
-                    </span>
+                    <span v-if="index === 0" class="text-xs text-gray-400"> Date </span>
                   </div>
 
                   <div class="flex-1 flex justify-between items-start">
@@ -380,7 +358,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                       </span>
                     </div>
 
-                    <div class="flex flex-col items-end gap-0.5 mt-[1px]">
+                    <div class="flex flex-col items-end mt-[1px]">
                       <span
                         v-for="(slot, idx) in slotsByDate"
                         :key="idx"
@@ -400,12 +378,12 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                   </span>
                   <div class="flex items-center gap-2">
                     <span class="text-base font-medium text-gray-dark">{{
-                      formatDateDisplay(invitation.bookingDate).split(' ')[0]
+                      formatDateFull(invitation.bookingDate).split(' ')[0]
                     }}</span>
                     <span
                       class="px-1.2 py-0.2 rounded bg-warning/10 text-[8px] text-warning font-medium"
                     >
-                      {{ formatDateDisplay(invitation.bookingDate).split(' ')[1] }}
+                      {{ getWeekday(invitation.bookingDate) }}
                     </span>
                   </div>
                   <span class="text-sm font-medium text-gray-dark tracking-tighter">{{
@@ -415,7 +393,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
               </template>
 
               <div class="flex items-center gap-3 text-xs text-gray-400">
-                <span class="text-gray-400 text-[11px] tracking-wider shrink-0">From</span>
+                <span class="text-xs text-gray-400">From</span>
                 <span class="text-sm font-medium text-gray-dark">{{
                   invitation.inviter.fullName
                 }}</span>
@@ -428,7 +406,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
               @click="rejectInvitation(invitation)"
               class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95 border-gray-100 text-gray-600 hover:bg-gray-50"
             >
-              Reject
+              Decline
             </button>
             <button
               @click="confirmInvitation(invitation)"
@@ -484,12 +462,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                   class="flex items-start mb-2 last:mb-0 gap-3"
                 >
                   <div class="shrink-0">
-                    <span
-                      v-if="index === 0"
-                      class="text-[10px] font-medium tracking-widest text-gray-400"
-                    >
-                      Date
-                    </span>
+                    <span v-if="index === 0" class="text-xs text-gray-400"> Date </span>
                   </div>
 
                   <div class="flex-1 flex justify-between items-start">
@@ -504,7 +477,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                       </span>
                     </div>
 
-                    <div class="flex flex-col items-end gap-0.5 mt-[1px]">
+                    <div class="flex flex-col items-end mt-[1px]">
                       <span
                         v-for="(slot, idx) in slotsByDate"
                         :key="idx"
@@ -530,7 +503,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                 v-if="booking.partners && booking.partners.length > 0"
                 class="flex items-center gap-3 text-xs text-gray-400 flex-wrap"
               >
-                <span class="text-gray-400 text-[11px] tracking-wider shrink-0"> With </span>
+                <span class="text-xs text-gray-400"> With </span>
                 <template v-for="(p, i) in booking.partners" :key="p.id">
                   <span class="text-sm font-medium text-gray-dark">{{
                     (p as any).partnerName || p.fullName || p.username
@@ -579,7 +552,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                   </span>
                   <span
                     v-else-if="p.invitationStatus === 'DECLINED'"
-                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-200"
                     title="Declined"
                   >
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -588,10 +561,10 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                         stroke="currentColor"
                         stroke-width="2"
                         stroke-linecap="round"
-                        class="text-red-500"
+                        class="text-gray-400"
                       />
                     </svg>
-                    <span class="text-[9px] font-medium text-red-500 leading-none">Declined</span>
+                    <span class="text-[9px] font-medium text-gray-400 leading-none">Declined</span>
                   </span>
                   <span
                     v-else-if="p.invitationStatus === 'EXPIRED'"

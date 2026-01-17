@@ -15,6 +15,7 @@ import SuccessModal from '../components/modals/SuccessModal.vue'
 import ConfirmModal from '../components/modals/ConfirmModal.vue'
 import BookingHistoryModal from '../components/modals/BookingHistoryModal.vue'
 import { formatDateISO, isBookingExpired } from '../utils/time'
+import { formatDateShort, formatDateFull, getWeekdayFromDate } from '../utils/formatters'
 import { debounce } from '../utils/debounce'
 import { parseApiError } from '../utils/errorHandler'
 import type {
@@ -162,19 +163,6 @@ const openBookingHistory = async () => {
 
 // ========== 时间段数据 ==========
 
-// 辅助函数：格式化日期为 11.20 这种格式
-const formatDate = (date: Date) => {
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-  return `${month}.${day}`
-}
-
-// 辅助函数：获取星期缩写
-const getWeekday = (date: Date) => {
-  const weekdays = ['Sun.', 'Mon.', 'Tue.', 'Wed.', 'Thu.', 'Fri.', 'Sat.']
-  return weekdays[date.getDay()]
-}
-
 // 计算当前时间段是否有我的预订（在所有选定时段中）
 const myBookingInCurrentSlot = computed(() => {
   // 只有当用户在所有选定的时段都预订了同一个座位时，才认为当前有预订
@@ -195,10 +183,8 @@ const currentBookingTimeSlots = computed(() => {
   // 如果预订包含 timeSlotDetails，使用该数据；否则从预订记录本身提取
   if (groupBookings.length > 0 && groupBookings[0].timeSlotDetails) {
     return groupBookings[0].timeSlotDetails.map((slot) => {
-      const date = new Date(slot.bookingDate)
-      const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`
       return {
-        date: dateStr,
+        date: formatDateShort(new Date(slot.bookingDate)),
         time: `${slot.startTime} - ${slot.endTime}`,
         dateISO: slot.bookingDate,
       }
@@ -207,10 +193,8 @@ const currentBookingTimeSlots = computed(() => {
 
   // 回退：从预订记录本身提取时段信息（兼容旧数据结构）
   return groupBookings.map((b) => {
-    const date = new Date(b.bookingDate)
-    const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`
     return {
-      date: dateStr,
+      date: formatDateShort(new Date(b.bookingDate)),
       time: `${b.startTime} - ${b.endTime}`,
       dateISO: b.bookingDate,
     }
@@ -227,27 +211,14 @@ const tomorrow = computed(() => {
 
 // ========== 时段显示工具函数 ==========
 
-/**
- * 格式化日期显示（例如：01.15 MON）
- */
-const formatDateDisplay = (dateString: string) => {
-  const date = new Date(dateString)
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  console.log(month)
-  const day = date.getDate().toString().padStart(2, '0')
-  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-  const weekday = weekdays[date.getDay()]
-  return `${month}.${day} ${weekday}`
-}
+const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
 /**
- * 按日期分组时段（用于按日期显示）
- * @param slots - 时段数组
- * @returns 按日期分组的映射，key 为 "01.15 MON" 格式
+ * 按日期分组时段（用于模板显示）
+ * 兼容已包含星期的格式和需要格式化的格式
  */
-const groupSlotsByDate = (slots: Array<{ date: string; time: string }>) => {
+const groupSlotsByDate = (slots: Array<{ date: string; time: string; dateISO?: string }>) => {
   const map: Record<string, Array<{ date: string; time: string }>> = {}
-  console.log(slots)
 
   slots.forEach((slot) => {
     let displayDate: string
@@ -257,9 +228,8 @@ const groupSlotsByDate = (slots: Array<{ date: string; time: string }>) => {
       displayDate = slot.date
     } else {
       // 否则从 dateISO 中提取日期并格式化
-      // 优先使用 dateISO，如果没有则回退到 date
-      const dateSource = (slot as any).dateISO || slot.date
-      displayDate = formatDateDisplay(dateSource)
+      const dateSource = slot.dateISO || slot.date
+      displayDate = formatDateFull(dateSource)
     }
 
     if (!map[displayDate]) {
@@ -270,8 +240,6 @@ const groupSlotsByDate = (slots: Array<{ date: string; time: string }>) => {
 
   return map
 }
-
-const timeSlots = ref<TimeSlot[]>([]) // 初始为空，等待加载
 
 // 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
 // 辅助函数：将后端时间段数据适配到前端 TimeSlot 结构
@@ -296,8 +264,8 @@ const adaptTimeSlots = (backendSlots: TimeSlotBackend[]) => {
   timeSlots.value = [
     {
       id: '1',
-      date: formatDate(today.value),
-      weekday: getWeekday(today.value),
+      date: formatDateShort(today.value),
+      weekday: getWeekdayFromDate(today.value),
       dateISO: formatDateISO(today.value),
       times: backendTimeSlots.map((slot: AdaptedTimeSlot) => {
         // ✅ 为今天的时段单独计算 isExpiredToday
@@ -315,8 +283,8 @@ const adaptTimeSlots = (backendSlots: TimeSlotBackend[]) => {
     },
     {
       id: '2',
-      date: formatDate(tomorrow.value),
-      weekday: getWeekday(tomorrow.value),
+      date: formatDateShort(tomorrow.value),
+      weekday: getWeekdayFromDate(tomorrow.value),
       dateISO: formatDateISO(tomorrow.value),
       times: backendTimeSlots.map((slot: AdaptedTimeSlot) => {
         // ✅ 为明天的时段单独计算 isExpiredToday
@@ -1374,7 +1342,7 @@ const goBack = () => {
           >
             <!-- 表头：Date | Slot -->
             <div
-              class="flex justify-between text-[10px] font-medium tracking-widest text-gray-400 mb-3"
+              class="flex justify-between text-[12px] font-medium tracking-widest text-gray mb-3"
             >
               <span>Date</span>
               <span>Slot</span>
@@ -1401,7 +1369,7 @@ const goBack = () => {
                   </span>
                 </div>
 
-                <div class="flex flex-col items-end gap-0.5">
+                <div class="flex flex-col items-end">
                   <span
                     v-for="(slot, idx) in slotsByDate"
                     :key="idx"

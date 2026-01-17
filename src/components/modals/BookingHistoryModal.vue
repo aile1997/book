@@ -1,37 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { isBookingExpired } from '../../utils/time'
-
-/**
- * 解析时段时间字符串
- * @param timeSlotName - 时间字符串，格式如 "09:00-12:00"
- * @returns 解析后的开始和结束时间，或 null（解析失败时）
- */
-function parseTimeSlotName(timeSlotName: string): { startTime: string; endTime: string } | null {
-  if (!timeSlotName) {
-    console.warn('timeSlotName 为空')
-    return null
-  }
-
-  const parts = timeSlotName.split('-')
-
-  if (parts.length !== 2) {
-    console.warn(`无效的 timeSlotName 格式: ${timeSlotName}`)
-    return null
-  }
-
-  const [start, end] = parts
-
-  if (!start || !end) {
-    console.warn(`timeSlotName 包含空值: ${timeSlotName}`)
-    return null
-  }
-
-  return {
-    startTime: start.trim(),
-    endTime: end.trim(),
-  }
-}
+import { formatDateFull } from '../../utils/formatters'
+import { parseTimeSlotName } from '../../utils/bookingHelpers'
 
 interface RawBooking {
   id: number
@@ -224,7 +195,7 @@ const aggregatedBookings = computed<BookingGroup[]>(() => {
 const groupByDate = (timeSlots: TimeSlotDetail[]) => {
   const map: Record<string, TimeSlotDetail[]> = {}
   timeSlots.forEach((slot) => {
-    const displayDate = formatDateDisplay(slot.bookingDate) // 例如 "01.10 MON"
+    const displayDate = formatDateFull(slot.bookingDate) // 例如 "01.10 MON"
     if (!map[displayDate]) map[displayDate] = []
     map[displayDate].push(slot)
   })
@@ -259,15 +230,6 @@ const cancelBooking = (group: BookingGroup) => {
   }
 
   emit('cancel-booking', bookingId)
-}
-
-const formatDateDisplay = (dateString: string) => {
-  const date = new Date(dateString)
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-  const weekday = weekdays[date.getDay()]
-  return `${month}.${day} ${weekday}`
 }
 
 // 判断整组是否过期
@@ -312,11 +274,11 @@ const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
                   <button
                     v-if="!isGroupExpired(group.timeSlots)"
                     @click="cancelBooking(group)"
-                    class="flex items-center gap-1 px-3 py-1 rounded-[4px] bg-white/10 border border-white/20 text-white text-[10px] font-medium hover:bg-white/20 active:scale-95 transition-all"
+                    class="flex items-center gap-1 px-3 py-1 rounded-[4px] bg-white/10 border border-white/20 text-white text-[14px] font-medium hover:bg-white/20 active:scale-95 transition-all"
                   >
                     <svg
-                      width="12"
-                      height="12"
+                      width="14"
+                      height="14"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -335,7 +297,7 @@ const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
                 <div class="w-full h-[0.5px] bg-white/10 mb-2"></div>
 
                 <div
-                  class="flex justify-between text-[10px] font-medium tracking-widest text-white/30 mb-3"
+                  class="flex justify-between text-[12px] font-medium tracking-widest text-white/75 mb-3"
                 >
                   <span>Date</span>
                   <span>Slot</span>
@@ -362,7 +324,7 @@ const isGroupExpired = (timeSlots: TimeSlotDetail[]) => {
                       <span
                         v-for="(slot, idx) in slotsByDate"
                         :key="idx"
-                        class="text-[14px] font-medium text-white tracking-tighter"
+                        class="text-sm font-medium text-white tracking-tighter"
                       >
                         {{ slot.startTime }}-{{ slot.endTime }}
                       </span>

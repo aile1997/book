@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-
-interface TimeSlotData {
-  bookingDate: string
-  startTime: string
-  endTime: string
-}
+import { getWeekday } from '../../utils/formatters'
+import { transformTimeSlots, type TimeSlotData } from '../../utils/bookingHelpers'
 
 interface Props {
   visible: boolean
@@ -34,35 +30,7 @@ const props = withDefaults(defineProps<Props>(), {
   cancelText: 'Cancel',
 })
 
-/**
- * 转换时间段数据格式
- * 兼容两种格式：
- * 1. selectedTimeSlots 格式：{ key, dateISO, date, time, timeSlotId, ... }
- * 2. timeSlotDetails 格式：{ bookingDate, startTime, endTime, ... }
- */
-const transformTimeSlots = (slots: any[]): TimeSlotData[] => {
-  if (!slots || !Array.isArray(slots)) return []
-
-  return slots.map((slot) => {
-    // 如果已经是标准格式（有 bookingDate、startTime、endTime）
-    if (slot.bookingDate && slot.startTime && slot.endTime) {
-      return slot
-    }
-
-    // 转换 selectedTimeSlots 格式
-    // time 格式为 "09:00 - 12:00"，需要解析
-    const timeRange = slot.time || slot.timeRange || ''
-    const [startTime, endTime] = timeRange.split(' - ').map((t: string) => t.trim())
-
-    return {
-      bookingDate: slot.dateISO || slot.date,
-      startTime,
-      endTime,
-    }
-  })
-}
-
-// 辅助函数：按日期分组（保持与 AccountPage 一致）
+// 辅助函数：按日期分组（使用 ISO 日期作为 key）
 const groupByDate = (slots: any[]) => {
   // 先转换数据格式
   const transformedSlots = transformTimeSlots(slots)
@@ -74,14 +42,6 @@ const groupByDate = (slots: any[]) => {
     map[d].push(slot)
   })
   return map
-}
-
-// 获取星期几的简写
-const getDayOfWeek = (dateStr: string) => {
-  if (!dateStr) return ''
-  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-  const date = new Date(dateStr)
-  return isNaN(date.getTime()) ? '' : days[date.getDay()]
 }
 
 // 计算是否应该显示详细数据模式
@@ -139,10 +99,10 @@ const handleConfirm = () => {
                 <div class="flex items-center gap-2">
                   <span class="text-base font-medium">{{ date }}</span>
                   <span class="px-1.2 py-0.2 rounded bg-white/10 text-[8px] font-medium">
-                    {{ getDayOfWeek(date) }}
+                    {{ getWeekday(date) }}
                   </span>
                 </div>
-                <div class="flex flex-col items-end gap-0.5">
+                <div class="flex flex-col items-end">
                   <span
                     v-for="(slot, idx) in slots"
                     :key="idx"

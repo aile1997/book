@@ -52,7 +52,6 @@ const confirmModalConfig = ref({
   onConfirm: () => {},
 })
 
-// 当前预订：取第一个预订作为展示用的当前预订
 const currentBooking = computed(() => {
   if (!bookings.value || bookings.value.length === 0) return null
   const booking = bookings.value[0]
@@ -191,7 +190,7 @@ const logout = () => {
 const handleAccept = async (invitation: Invitation) => {
   try {
     await accept(invitation.id)
-    success('Has accepted the invitation！')
+    success('Invitation accepted successfully')
     // 刷新预订列表
     await loadBookings()
   } catch (error) {
@@ -203,7 +202,7 @@ const handleAccept = async (invitation: Invitation) => {
 const handleDecline = async (invitation: Invitation) => {
   try {
     await decline(invitation.id)
-    success('Has declined the invitation！')
+    success('Invitation declined successfully')
     // 不需要刷新预订列表
   } catch (error) {
     showError(error.message)
@@ -341,7 +340,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
               <div class="flex items-center gap-3">
                 <span class="text-xs text-gray-400">Seat</span>
                 <span class="text-2xl font-bold text-gray-dark leading-none">{{
-                  invitation.seat.seatNumber
+                  invitation.timeSlotDetails[0].seatNumber
                 }}</span>
               </div>
 
@@ -354,36 +353,51 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                 "
               >
                 <div
-                  v-for="(slotsByDate, dateLabel) in groupTimeSlotsByDate(
+                  v-for="(slotsByDate, dateLabel, index) in groupTimeSlotsByDate(
                     (invitation as any).timeSlotDetails,
                   )"
                   :key="dateLabel"
-                  class="flex justify-between items-start"
+                  class="flex items-start mb-2 last:mb-0 gap-3"
                 >
-                  <div class="flex items-center gap-2">
-                    <span class="text-base font-medium text-gray-dark">{{
-                      dateLabel.split(' ')[0]
-                    }}</span>
+                  <div class="shrink-0">
                     <span
-                      class="px-1.2 py-0.2 rounded bg-gray-100 text-[8px] text-gray-500 font-medium"
+                      v-if="index === 0"
+                      class="text-[10px] font-medium tracking-widest text-gray-400"
                     >
-                      {{ dateLabel.split(' ')[1] }}
+                      Date
                     </span>
                   </div>
-                  <div class="flex flex-col items-end gap-0.5 pl-8">
-                    <span
-                      v-for="(slot, idx) in slotsByDate"
-                      :key="idx"
-                      class="text-sm font-medium text-gray-dark"
-                    >
-                      {{ slot.startTime }}-{{ slot.endTime }}
-                    </span>
+
+                  <div class="flex-1 flex justify-between items-start">
+                    <div class="flex items-center gap-2">
+                      <span class="text-base font-medium text-gray-dark">
+                        {{ dateLabel.split(' ')[0] }}
+                      </span>
+                      <span
+                        class="px-1.2 py-0.2 rounded bg-gray-100 text-[8px] text-gray-500 font-medium"
+                      >
+                        {{ dateLabel.split(' ')[1] }}
+                      </span>
+                    </div>
+
+                    <div class="flex flex-col items-end gap-0.5 mt-[1px]">
+                      <span
+                        v-for="(slot, idx) in slotsByDate"
+                        :key="idx"
+                        class="text-sm font-medium text-gray-dark tracking-tighter"
+                      >
+                        {{ slot.startTime }}-{{ slot.endTime }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </template>
               <template v-else>
                 <!-- 单时段显示（兼容旧格式） -->
-                <div class="flex justify-between items-start">
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[10px] font-medium tracking-widest text-gray-400 w-8 shrink-0">
+                    Date
+                  </span>
                   <div class="flex items-center gap-2">
                     <span class="text-base font-medium text-gray-dark">{{
                       formatDateDisplay(invitation.bookingDate).split(' ')[0]
@@ -394,16 +408,14 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                       {{ formatDateDisplay(invitation.bookingDate).split(' ')[1] }}
                     </span>
                   </div>
-                  <span class="text-sm font-medium text-gray-dark">{{
+                  <span class="text-sm font-medium text-gray-dark tracking-tighter">{{
                     invitation.timeSlot.time
                   }}</span>
                 </div>
               </template>
 
-              <div class="flex items-center gap-2 text-xs text-gray-400">
-                <span class="text-gray-400 text-[11px] uppercase tracking-wider w-16 shrink-0"
-                  >From</span
-                >
+              <div class="flex items-center gap-3 text-xs text-gray-400">
+                <span class="text-gray-400 text-[11px] tracking-wider shrink-0">From</span>
                 <span class="text-sm font-medium text-gray-dark">{{
                   invitation.inviter.fullName
                 }}</span>
@@ -414,13 +426,13 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
           <div class="flex gap-2">
             <button
               @click="rejectInvitation(invitation)"
-              class="flex-1 py-2 rounded-lg border border-gray-100 text-sm font-medium text-gray-600"
+              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95 border-gray-100 text-gray-600 hover:bg-gray-50"
             >
               Reject
             </button>
             <button
               @click="confirmInvitation(invitation)"
-              class="flex-1 py-2 rounded-lg bg-success text-sm font-medium text-white shadow-sm"
+              class="flex-1 py-2 rounded-lg bg-success text-sm font-medium text-white shadow-sm hover:bg-success/90 transition-all active:scale-95"
             >
               Confirm
             </button>
@@ -492,7 +504,7 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                       </span>
                     </div>
 
-                    <div class="flex flex-col items-end gap-0.5">
+                    <div class="flex flex-col items-end gap-0.5 mt-[1px]">
                       <span
                         v-for="(slot, idx) in slotsByDate"
                         :key="idx"
@@ -518,88 +530,92 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
                 v-if="booking.partners && booking.partners.length > 0"
                 class="flex items-center gap-3 text-xs text-gray-400 flex-wrap"
               >
-                <span>with</span>
+                <span class="text-gray-400 text-[11px] tracking-wider shrink-0"> With </span>
                 <template v-for="(p, i) in booking.partners" :key="p.id">
                   <span class="text-sm font-medium text-gray-dark">{{
                     (p as any).partnerName || p.fullName || p.username
                   }}</span>
-                  <!-- 状态图标 -->
+                  <!-- 状态图标 - 优化为更明显的样式 -->
                   <span
-                    v-if="p.invitationStatus === 'PENDING' || p.invitationStatus === null"
-                    class="flex items-center"
+                    v-if="p.invitationStatus === 'PENDING'"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warning/10"
                     title="Pending"
                   >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                       <circle
                         cx="6"
                         cy="6"
                         r="5"
                         stroke="currentColor"
-                        stroke-width="1"
-                        class="text-gray-300"
+                        stroke-width="1.5"
+                        class="text-warning"
                       />
                       <path
-                        d="M6 3v3h2"
+                        d="M6 3v3h1.5"
                         stroke="currentColor"
-                        stroke-width="1"
+                        stroke-width="1.5"
                         stroke-linecap="round"
-                        class="text-gray-300"
+                        class="text-warning"
                       />
                     </svg>
+                    <span class="text-[9px] font-medium text-warning leading-none">Pending</span>
                   </span>
                   <span
                     v-else-if="p.invitationStatus === 'ACCEPTED'"
-                    class="flex items-center"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/10"
                     title="Accepted"
                   >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                       <path
                         d="M2 6l3 3L10 4"
                         stroke="currentColor"
-                        stroke-width="1.5"
+                        stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         class="text-success"
                       />
                     </svg>
+                    <span class="text-[9px] font-medium text-success leading-none">Accepted</span>
                   </span>
                   <span
                     v-else-if="p.invitationStatus === 'DECLINED'"
-                    class="flex items-center"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10"
                     title="Declined"
                   >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                       <path
                         d="M3 3l6 6M9 3l-6 6"
                         stroke="currentColor"
-                        stroke-width="1.5"
+                        stroke-width="2"
                         stroke-linecap="round"
                         class="text-red-500"
                       />
                     </svg>
+                    <span class="text-[9px] font-medium text-red-500 leading-none">Declined</span>
                   </span>
                   <span
                     v-else-if="p.invitationStatus === 'EXPIRED'"
-                    class="flex items-center"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-200"
                     title="Expired"
                   >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                       <circle
                         cx="6"
                         cy="6"
                         r="5"
                         stroke="currentColor"
-                        stroke-width="1"
-                        class="text-gray-300"
+                        stroke-width="1.5"
+                        class="text-gray-400"
                       />
                       <path
                         d="M6 4v2M6 8h.01"
                         stroke="currentColor"
-                        stroke-width="1"
+                        stroke-width="1.5"
                         stroke-linecap="round"
-                        class="text-gray-300"
+                        class="text-gray-400"
                       />
                     </svg>
+                    <span class="text-[9px] font-medium text-gray-400 leading-none">Expired</span>
                   </span>
                   <span v-if="i < booking.partners.length - 1" class="mx-0.5">,</span>
                 </template>
@@ -609,28 +625,28 @@ const groupTimeSlotsByDate = (timeSlotDetails: any[] | undefined) => {
 
           <div class="flex gap-2">
             <button
-              @click="() => handleChangeBooking(booking)"
-              :disabled="isBookingExpiredForBooking(booking)"
-              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
-              :class="[
-                isBookingExpiredForBooking(booking)
-                  ? 'border-gray-50 text-gray-300 cursor-not-allowed'
-                  : 'border-gray-100 text-gray-500 hover:bg-gray-50',
-              ]"
-            >
-              Change
-            </button>
-            <button
               @click="() => handleCancelBooking(booking.id || booking.bookingId)"
               :disabled="isCancelling || isBookingExpiredForBooking(booking)"
               class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
               :class="[
                 isBookingExpiredForBooking(booking)
                   ? 'border-gray-50 text-gray-300 cursor-not-allowed'
-                  : 'border-gray-100 text-gray-500 hover:bg-gray-50',
+                  : 'border-gray-100 text-gray-600 hover:bg-gray-50',
               ]"
             >
               {{ isCancelling ? 'Cancelling...' : 'Cancel' }}
+            </button>
+            <button
+              @click="() => handleChangeBooking(booking)"
+              :disabled="isBookingExpiredForBooking(booking)"
+              class="flex-1 py-2 rounded-lg border text-sm font-medium transition-all active:scale-95"
+              :class="[
+                isBookingExpiredForBooking(booking)
+                  ? 'border-gray-50 text-gray-300 cursor-not-allowed'
+                  : 'border-gray-100 text-gray-600 hover:bg-gray-50',
+              ]"
+            >
+              Change
             </button>
           </div>
         </div>

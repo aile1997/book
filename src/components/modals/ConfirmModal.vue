@@ -15,8 +15,8 @@ interface Props {
   cancelText?: string
   // 传入当前选中的座位和时间段数据（可选）
   data?: {
-    seatNumber: string
-    timeSlots: any[]
+    seatNumber?: string
+    timeSlots?: any[]
     totalCost?: number
   }
 }
@@ -113,7 +113,7 @@ const handleConfirm = () => {
         <!-- 详细数据模式：显示座位和时段信息 -->
         <div
           v-if="shouldShowDetails"
-          class="w-full max-w-[340px] bg-[#7B61FF] rounded-[32px] p-6 shadow-2xl flex flex-col text-white"
+          class="w-full max-w-[340px] bg-[#2C2C2C] rounded-[32px] p-6 shadow-2xl flex flex-col text-white"
         >
           <h3 class="text-2xl font-semibold mb-6 text-center">{{ title }}</h3>
 
@@ -161,7 +161,7 @@ const handleConfirm = () => {
               <span class="text-white/60 text-sm">Total Cost</span>
               <div class="flex items-center gap-1.5">
                 <div class="w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                  <span class="text-[#7B61FF] text-xs font-bold">€</span>
+                  <span class="text-[#2C2C2C] text-xs font-bold">€</span>
                 </div>
                 <span class="text-xl font-bold">{{ data.totalCost }}</span>
               </div>
@@ -177,7 +177,7 @@ const handleConfirm = () => {
             </button>
             <button
               @click="handleConfirm"
-              class="flex-1 py-3.5 rounded-2xl bg-white text-[#7B61FF] text-base font-bold shadow-lg active:scale-95 transition-all"
+              class="flex-1 py-3.5 rounded-2xl bg-white text-[#2C2C2C] text-base font-bold shadow-lg active:scale-95 transition-all"
             >
               {{ confirmText }}
             </button>

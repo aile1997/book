@@ -25,13 +25,14 @@ class CacheManager {
 
   private checkVersion() {
     const savedVersion = localStorage.getItem(this.versionKey)
-
     // 如果本地存的版本号与当前代码里的版本号不一致
     if (savedVersion && savedVersion !== this.currentVersion) {
       console.log(`[Version Control] 检测到新版本: ${this.currentVersion}`)
 
-      // 1. 清除旧缓存
-      this.clear()
+      // 1. 清除旧版本缓存（自动通过版本号失效，无需手动清除）
+      // 旧缓存键如 "seat_areas_v1.0.0" 将无法被新版本访问
+      // 但为了节省存储空间，仍然执行一次清理
+      this.clearOldVersionCaches(savedVersion)
 
       // 2. 更新版本号到本地
       localStorage.setItem(this.versionKey, this.currentVersion)
@@ -46,6 +47,40 @@ class CacheManager {
       // 首次进入，仅记录版本不刷新
       localStorage.setItem(this.versionKey, this.currentVersion)
     }
+  }
+
+  /**
+   * 清除旧版本的缓存
+   * @param oldVersion 旧版本号
+   */
+  private clearOldVersionCaches(oldVersion: string) {
+    const keysToDelete: string[] = []
+    const oldVersionSuffix = `_v${oldVersion}`
+
+    this.cache.forEach((_, key) => {
+      // 删除带旧版本号后缀的缓存
+      if (key.endsWith(oldVersionSuffix)) {
+        keysToDelete.push(key)
+      }
+    })
+
+    keysToDelete.forEach((key) => this.cache.delete(key))
+    this.saveToStorage()
+
+    console.log(`[Version Control] 已清除 ${keysToDelete.length} 个旧版本缓存项`)
+  }
+
+  /**
+   * 生成带版本号的缓存键
+   * @param key 原始缓存键
+   * @returns 带版本号的缓存键（用户信息等除外）
+   */
+  private getVersionedKey(key: string): string {
+    // 跳过不需要版本化的键
+    if (VERSION_EXEMPT_KEYS.has(key)) {
+      return key
+    }
+    return `${key}_v${this.currentVersion}`
   }
 
   /**
@@ -86,7 +121,8 @@ class CacheManager {
    * @returns 缓存的数据，如果不存在或已过期则返回 null
    */
   get<T>(key: string): T | null {
-    const item = this.cache.get(key)
+    const versionedKey = this.getVersionedKey(key)
+    const item = this.cache.get(versionedKey)
 
     if (!item) {
       return null
@@ -95,7 +131,7 @@ class CacheManager {
     // 检查是否过期
     const now = Date.now()
     if (now - item.timestamp > item.ttl) {
-      this.cache.delete(key)
+      this.cache.delete(versionedKey)
       this.saveToStorage()
       return null
     }
@@ -110,13 +146,14 @@ class CacheManager {
    * @param ttl 缓存有效期（毫秒），默认 5 分钟
    */
   set<T>(key: string, data: T, ttl: number = 300000) {
+    const versionedKey = this.getVersionedKey(key)
     const item: CacheItem<T> = {
       data,
       timestamp: Date.now(),
       ttl,
     }
 
-    this.cache.set(key, item)
+    this.cache.set(versionedKey, item)
     this.saveToStorage()
   }
 
@@ -125,18 +162,31 @@ class CacheManager {
    * @param key 缓存键
    */
   delete(key: string) {
-    this.cache.delete(key)
+    const versionedKey = this.getVersionedKey(key)
+    this.cache.delete(versionedKey)
     this.saveToStorage()
   }
 
   /**
-   * 清空所有缓存
+   * 清空所有缓存（保留用户信息和积分等跨版本数据）
    */
   clear() {
     console.log(this.cache)
 
-    this.cache.clear()
-    localStorage.removeItem(this.storageKey)
+    // 只清除带版本号的缓存键，保留用户信息等
+    const keysToDelete: string[] = []
+    this.cache.forEach((_, key) => {
+      // 如果键带版本号后缀或者是应该版本化的键，则删除
+      const shouldDelete = !VERSION_EXEMPT_KEYS.has(key)
+      if (shouldDelete) {
+        keysToDelete.push(key)
+      }
+    })
+
+    keysToDelete.forEach((key) => this.cache.delete(key))
+
+    // 保存剩余的缓存到 localStorage
+    this.saveToStorage()
   }
 
   /**
@@ -145,7 +195,22 @@ class CacheManager {
    * @returns 是否存在有效缓存
    */
   has(key: string): boolean {
-    return this.get(key) !== null
+    const versionedKey = this.getVersionedKey(key)
+    const item = this.cache.get(versionedKey)
+
+    if (!item) {
+      return false
+    }
+
+    // 检查是否过期
+    const now = Date.now()
+    if (now - item.timestamp > item.ttl) {
+      this.cache.delete(versionedKey)
+      this.saveToStorage()
+      return false
+    }
+
+    return true
   }
 
   /**
@@ -175,24 +240,27 @@ export const cache = new CacheManager()
 
 // 导出缓存键常量
 export const CacheKeys = {
-  // 用户相关
+  // 用户相关（跨版本保留）
   USER_INFO: 'user_info',
   USER_CREDITS: 'user_credits',
 
-  // 座位相关
+  // 座位相关（自动版本化）
   SEAT_AREAS: 'seat_areas',
   SEAT_TIME_SLOTS: 'seat_time_slots',
   SEAT_MAP: (areaId?: number) => `seat_map_${areaId || 'all'}`,
   SEAT_AVAILABILITY: (date: string, timeSlotId: number, areaId?: number) =>
     `seat_availability_${date}_${timeSlotId}_${areaId || 'all'}`,
 
-  // 预订相关
+  // 预订相关（自动版本化）
   USER_BOOKINGS: 'user_bookings',
   USER_INVITATIONS: 'user_invitations',
 
-  // 交易相关
+  // 交易相关（自动版本化）
   USER_TRANSACTIONS: 'user_transactions',
 }
+
+// 不需要版本化的缓存键（用户信息等）
+const VERSION_EXEMPT_KEYS = new Set([CacheKeys.USER_INFO, CacheKeys.USER_CREDITS])
 
 // 导出缓存有效期常量（毫秒）
 export const CacheTTL = {

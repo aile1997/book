@@ -2,23 +2,42 @@ import { ref } from 'vue'
 import type { BookingGroup, Booking } from '../types/booking'
 
 /**
- * 颜色生成器 - 生成色差较大的颜色
- * 使用 HSL 颜色空间，通过均匀分布色相来确保颜色差异
+ * 颜色生成器 - 生成色差较大的颜色，并按预订顺序排列
+ *
+ * 设计原则：
+ * 1. 使用黄金角度（137.5°）分布色相，确保颜色差异最大化
+ * 2. 固定饱和度和亮度，只变化色相，确保视觉一致性
+ * 3. 颜色按预订顺序在色环上渐变，先预订的为冷色，后预订的为暖色
+ * 4. 使用 HSL 颜色空间，便于控制和转换
+ *
  * @param count - 需要生成的颜色数量
+ * @param startHue - 起始色相（默认 200°，蓝色系）
  * @returns 颜色数组（HSL 格式字符串）
  */
-function generateDistinctColors(count: number): string[] {
+function generateDistinctColors(count: number, startHue: number = 200): string[] {
   if (count === 0) return []
+  if (count === 1) return [`hsl(${startHue}, 75%, 52%)`]
 
   const colors: string[] = []
-  const hueStep = 360 / count
+
+  // 使用黄金角度（Golden Angle ≈ 137.5°）确保颜色分布均匀
+  // 这比简单的 360/n 分布更好，因为可以避免颜色聚集
+  const goldenAngle = 137.508 // 黄金角度（度）
 
   for (let i = 0; i < count; i++) {
-    const hue = Math.floor(i * hueStep)
-    // 饱和度 70-90% 确保颜色鲜艳
-    const saturation = 70 + Math.random() * 20
-    // 亮度 45-60% 确保颜色不会太亮或太暗，适合显示文字
-    const lightness = 45 + Math.random() * 15
+    // 计算色相：起始色相 + 黄金角度 × 索引
+    // 这样可以确保颜色在色环上均匀分布，且有一定顺序规律
+    const hue = Math.floor((startHue + i * goldenAngle) % 360)
+
+    // 固定饱和度为 75%，确保颜色鲜艳但不刺眼
+    const saturation = 75
+
+    // 固定亮度为 52%，确保：
+    // - 颜色不会太亮（避免看不清）
+    // - 颜色不会太暗（避免显得压抑）
+    // - 适合在白色背景上显示深色文字
+    const lightness = 52
+
     colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`)
   }
 

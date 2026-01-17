@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useSeats } from '../../composables/useSeats'
 import type { Partner, SelectedTimeSlot } from '../../types/booking'
 import PinyinMatch from 'pinyin-match'
+import CustomSelect from '../common/CustomSelect.vue'
 
 interface Props {
   visible: boolean
@@ -355,14 +356,16 @@ watch(
               <label class="block text-sm font-medium text-white/90 mb-2 text-center">
                 选择时间段
               </label>
-              <select
+              <CustomSelect
                 v-model="selectedTimeSlotKey"
-                class="w-full px-4 py-2.5 rounded-lg border-0 text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-white/50"
-              >
-                <option v-for="slot in selectedTimeSlots" :key="slot.key" :value="slot.key">
-                  {{ slot.date }} {{ slot.time }}
-                </option>
-              </select>
+                :options="
+                  selectedTimeSlots.map((slot) => ({
+                    key: slot.key,
+                    label: `${slot.date} ${slot.time}`,
+                  }))
+                "
+                placeholder="选择时间段"
+              />
             </div>
 
             <!-- 搜索框 -->
@@ -438,14 +441,16 @@ watch(
               <label class="block text-sm font-medium text-white/90 mb-2 text-center">
                 选择时间段
               </label>
-              <select
+              <CustomSelect
                 v-model="selectedTimeSlotKey"
-                class="w-full px-4 py-2.5 rounded-lg border-0 text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-white/50"
-              >
-                <option v-for="slot in selectedTimeSlots" :key="slot.key" :value="slot.key">
-                  {{ slot.date }} {{ slot.time }}
-                </option>
-              </select>
+                :options="
+                  selectedTimeSlots.map((slot) => ({
+                    key: slot.key,
+                    label: `${slot.date} ${slot.time}`,
+                  }))
+                "
+                placeholder="选择时间段"
+              />
             </div>
 
             <div class="flex w-full h-[48px]">

@@ -34,66 +34,10 @@ const {
   generateSeatPath,
   calculateCustomSeatTransform,
   calculateCheckmarkPosition,
-  calculateSeatY,
+  calculateUserIconPosition,
+  calculateTooltipPosition,
+  generateCheckmarkPath,
 } = useSeatConfig()
-
-// 新增：计算校准后的勾选标记位置
-const getAdjustedCheckmarkPath = (
-  config: any,
-  index: number,
-  side: 'left' | 'right',
-  tableId: string,
-) => {
-  const { cx, cy } = calculateCheckmarkPosition(config, index)
-  // 计算"向内靠"的偏移量
-  // 标准座位偏移 1.5，C区异形座位偏移量加大（约 3.5）以适应其形状
-  const innerOffset = tableId === 'C' ? (side === 'left' ? -2 : 17) : -3
-  const dx = side === 'left' ? innerOffset : -innerOffset
-
-  const adjCx = cx + dx
-  // 返回路径字符串
-  return `M ${adjCx - 2} ${cy} L ${adjCx - 0.5} ${cy + 1.5} L ${adjCx + 2} ${cy - 1.5}`
-}
-
-// 新增：计算校准后人像图标位置
-const getUserIconPosition = (
-  config: any,
-  index: number,
-  side: 'left' | 'right',
-  tableId: string,
-) => {
-  const { cx, cy } = calculateCheckmarkPosition(config, index)
-
-  // C 区异形座位的偏移量（与勾选标记保持一致）
-  // 普通区域（A/B）的偏移量
-  const xOffset =
-    tableId === 'C'
-      ? side === 'left'
-        ? -1
-        : -16.5 // C 区
-      : side === 'left'
-        ? -2
-        : 3 // A/B 区
-
-  const adjCx = cx + xOffset
-
-  const yOffset =
-    tableId === 'C'
-      ? side === 'left'
-        ? -1
-        : -1 // C 区
-      : side === 'left'
-        ? 0
-        : 0 // A/B 区
-
-  const adjCy = cy + yOffset
-
-  // 图标尺寸为 8x8，需要减去一半以居中
-  return {
-    x: adjCx - 4,
-    y: adjCy - 4,
-  }
-}
 
 const hoveredSeat = ref<string | null>(null)
 
@@ -128,7 +72,9 @@ const isSeatHighlighted = (seatId: string): boolean => {
   return props.highlightedSeat === seatId
 }
 
-// 计算tooltip位置
+/**
+ * 计算tooltip位置（使用统一的中心点计算 + 偏移配置）
+ */
 const tooltipPosition = computed(() => {
   if (!props.highlightedPartner) return null
 
@@ -139,8 +85,8 @@ const tooltipPosition = computed(() => {
   const groupConfig = getSeatGroupConfig(seat.table, seat.position)
   if (!groupConfig) return null
 
-  const checkmarkPos = calculateCheckmarkPosition(groupConfig, seat.index)
-  return { x: checkmarkPos.cx, y: checkmarkPos.cy }
+  // 使用统一的tooltip位置计算，包含偏移配置
+  return calculateTooltipPosition(groupConfig, seat.index, seat.table, seat.position)
 })
 
 // 1. 定义本地显隐控制
@@ -234,7 +180,7 @@ const handleTooltipClick = () => {
                 <!-- 选中标记（勾选） -->
                 <g v-if="isSeatSelected(seat.id)">
                   <path
-                    :d="getAdjustedCheckmarkPath(table.seats.left, seat.index, 'left', table.id)"
+                    :d="generateCheckmarkPath(calculateCheckmarkPosition(table.seats.left, seat.index, table.id, 'left').cx, calculateCheckmarkPosition(table.seats.left, seat.index, table.id, 'left').cy)"
                     :stroke="'#FFFFFF'"
                     stroke-width="1.5"
                     fill="none"
@@ -246,8 +192,8 @@ const handleTooltipClick = () => {
                 <!-- 当前用户预订标记（人像图标） -->
                 <g v-if="(seat as any).bookedByMe">
                   <image
-                    :x="getUserIconPosition(table.seats.left, seat.index, 'left', table.id).x"
-                    :y="getUserIconPosition(table.seats.left, seat.index, 'left', table.id).y"
+                    :x="calculateUserIconPosition(table.seats.left, seat.index, table.id, 'left').x"
+                    :y="calculateUserIconPosition(table.seats.left, seat.index, table.id, 'left').y"
                     width="8"
                     height="8"
                     href="@/assets/images/booking/user-square.svg"
@@ -304,7 +250,7 @@ const handleTooltipClick = () => {
                 <!-- 选中标记（勾选） -->
                 <g v-if="isSeatSelected(seat.id)">
                   <path
-                    :d="getAdjustedCheckmarkPath(table.seats.right, seat.index, 'right', table.id)"
+                    :d="generateCheckmarkPath(calculateCheckmarkPosition(table.seats.right, seat.index, table.id, 'right').cx, calculateCheckmarkPosition(table.seats.right, seat.index, table.id, 'right').cy)"
                     :stroke="'#FFFFFF'"
                     stroke-width="1.5"
                     fill="none"
@@ -316,8 +262,8 @@ const handleTooltipClick = () => {
                 <!-- 当前用户预订标记（人像图标） -->
                 <g v-if="(seat as any).bookedByMe">
                   <image
-                    :x="getUserIconPosition(table.seats.right, seat.index, 'right', table.id).x"
-                    :y="getUserIconPosition(table.seats.right, seat.index, 'right', table.id).y"
+                    :x="calculateUserIconPosition(table.seats.right, seat.index, table.id, 'right').x"
+                    :y="calculateUserIconPosition(table.seats.right, seat.index, table.id, 'right').y"
                     width="8"
                     height="8"
                     href="@/assets/images/booking/user-square.svg"
@@ -333,22 +279,27 @@ const handleTooltipClick = () => {
             class="cursor-pointer"
             @click.stop="handleTooltipClick"
           >
-            <!-- Tooltip背景 -->
+            <!-- Tooltip背景（更紧凑的宽度计算） -->
             <rect
-              :x="tooltipPosition.x - 40"
-              :y="tooltipPosition.y - 35"
-              width="80"
-              height="25"
-              rx="4"
-              fill="#333333"
-              opacity="0.9"
+              :x="
+                tooltipPosition.x -
+                Math.max(20, `${highlightedPartner.name}-${highlightedPartner.seat}`.length * 4)
+              "
+              :y="tooltipPosition.y - 30"
+              :width="
+                Math.max(40, `${highlightedPartner.name}-${highlightedPartner.seat}`.length * 8)
+              "
+              height="19"
+              rx="5"
+              fill="#1a1a1a"
+              opacity="0.65"
             />
 
-            <!-- Tooltip箭头 -->
+            <!-- Tooltip箭头（紧贴背景，完美融合） -->
             <path
-              :d="`M ${tooltipPosition.x - 5} ${tooltipPosition.y - 8} L ${tooltipPosition.x} ${tooltipPosition.y - 5} L ${tooltipPosition.x + 5} ${tooltipPosition.y - 8}`"
-              fill="#333333"
-              opacity="0.9"
+              :d="`M ${tooltipPosition.x - 3.5} ${tooltipPosition.y - 11} L ${tooltipPosition.x} ${tooltipPosition.y - 7.5} L ${tooltipPosition.x + 3.5} ${tooltipPosition.y - 11}`"
+              fill="#1a1a1a"
+              opacity="0.65"
             />
 
             <!-- Tooltip文字 -->
@@ -356,10 +307,11 @@ const handleTooltipClick = () => {
               :x="tooltipPosition.x"
               :y="tooltipPosition.y - 20"
               fill="white"
-              font-size="8"
+              font-size="9"
               font-weight="500"
               text-anchor="middle"
               dominant-baseline="middle"
+              style="text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3)"
             >
               {{ `${highlightedPartner.name}-${highlightedPartner.seat}` }}
             </text>

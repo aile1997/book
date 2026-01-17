@@ -167,7 +167,7 @@ export const getLarkAuthCode = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     // 非飞书环境：本地调试模式
     if (!window.h5sdk) {
-      return resolve('aGQhH8eIfGD9A93GHDfFBE83A602xBcB')
+      return resolve('ezPqxd9J6zHeAbzH9K8f9684HAf5e829')
     }
 
     // 飞书环境：正常获取 code

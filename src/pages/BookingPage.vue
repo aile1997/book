@@ -143,13 +143,13 @@ const loadBookingHistory = async () => {
 const cancelBookingById = async (bookingId: number) => {
   try {
     await cancelBookingAPI(bookingId)
-    showSuccess('预订已取消')
+    showSuccess('Booking cancelled')
     showBookingHistoryModal.value = false // 关闭弹框
     await loadBookingHistory() // 刷新列表
     await refreshData() // 刷新座位可用性
   } catch (error) {
     const errorMessage = parseApiError(error)
-    showError(errorMessage || '取消预订失败')
+    showError(errorMessage || 'Failed to cancel booking')
   }
 }
 
@@ -200,6 +200,7 @@ const currentBookingTimeSlots = computed(() => {
       return {
         date: dateStr,
         time: `${slot.startTime} - ${slot.endTime}`,
+        dateISO: slot.bookingDate,
       }
     })
   }
@@ -211,6 +212,7 @@ const currentBookingTimeSlots = computed(() => {
     return {
       date: dateStr,
       time: `${b.startTime} - ${b.endTime}`,
+      dateISO: b.bookingDate,
     }
   })
 })
@@ -231,6 +233,7 @@ const tomorrow = computed(() => {
 const formatDateDisplay = (dateString: string) => {
   const date = new Date(dateString)
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  console.log(month)
   const day = date.getDate().toString().padStart(2, '0')
   const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
   const weekday = weekdays[date.getDay()]
@@ -244,14 +247,20 @@ const formatDateDisplay = (dateString: string) => {
  */
 const groupSlotsByDate = (slots: Array<{ date: string; time: string }>) => {
   const map: Record<string, Array<{ date: string; time: string }>> = {}
+  console.log(slots)
 
   slots.forEach((slot) => {
-    // 从 date 中提取日期部分（格式：MM.DD）
-    const datePart = slot.date.split(' ')[0] || slot.date
-    // 获取完整的日期+星期显示
-    const displayDate = slot.date.includes(' ')
-      ? slot.date // 如果已包含星期，直接使用
-      : formatDateDisplay(datePart) // 否则格式化为 "MM.DD WEEKDAY"
+    let displayDate: string
+
+    // 如果 date 已经包含空格（格式："01.17 Sat."），直接使用
+    if (slot.date.includes(' ')) {
+      displayDate = slot.date
+    } else {
+      // 否则从 dateISO 中提取日期并格式化
+      // 优先使用 dateISO，如果没有则回退到 date
+      const dateSource = (slot as any).dateISO || slot.date
+      displayDate = formatDateDisplay(dateSource)
+    }
 
     if (!map[displayDate]) {
       map[displayDate] = []
@@ -467,7 +476,7 @@ const toggleTimeSlot = async (dateIndex: number, timeIndex: number) => {
   } else {
     // 未选中，检查是否达到上限
     if (!canSelectMoreTimeSlots.value) {
-      showError(`最多只能选择 ${maxTimeSlotSelection} 个时段`)
+      showError(`Maximum ${maxTimeSlotSelection} time slots`)
       return
     }
     // 添加到选择列表
@@ -630,9 +639,9 @@ const executeBatchSeatAvailabilityQuery = async () => {
 
       // 如果有不可用的时段，显示提示并还原选中状态
       if (unavailableSlots.length > 0) {
-        const slotDetails = unavailableSlots.map((s) => `${s.date} ${s.time}`).join('、')
+        const slotDetails = unavailableSlots.map((s) => `${s.date} ${s.time}`).join('\n')
         showError(
-          `${currentlySelectedSeatObj.id} 座位在以下时段已被占用：\n${slotDetails}\n\n请选择其它时间段或重新选择座位`,
+          `Seat ${currentlySelectedSeatObj.id} is unavailable:\n\n${slotDetails}\n\nPlease choose another time or seat.`,
         )
 
         // 还原选中状态：移除不可用时段
@@ -677,7 +686,7 @@ const executeBatchSeatAvailabilityQuery = async () => {
   } catch (error) {
     const errorMessage = parseApiError(error)
     console.error('批量查询座位可用性失败:', errorMessage)
-    showError(errorMessage || '查询座位可用性失败，请稍后重试')
+    showError(errorMessage || 'Failed to check seat availability')
   }
 }
 
@@ -839,15 +848,15 @@ const assignNearbySeats = (mySeatId: string, partnersCount: number) => {
  */
 const bookNow = async () => {
   // 基础校验：登录状态与时间段选择
-  if (!isAuthenticated.value) return showError('请先登录才能进行预订操作')
-  if (selectedTimeSlots.value.length === 0) return showError('请先选择至少一个预订时间段')
+  if (!isAuthenticated.value) return showError('Please log in to book a seat')
+  if (selectedTimeSlots.value.length === 0) return showError('Please select at least 1 time slot')
 
   // 1. 确定目标座位
   const targetSeat = selectedSeat.value
     ? seats.value.find((s) => s.id === selectedSeat.value)
     : myBookingInCurrentSlot.value
 
-  if (!targetSeat?.backendSeatId) return showError('请先选择有效的座位')
+  if (!targetSeat?.backendSeatId) return showError('Please select a seat first')
 
   // 2. 伙伴预订状态校验（需要检查所有选定时段）
   if (invitedPartners.value.length > 0) {
@@ -872,15 +881,15 @@ const bookNow = async () => {
 
       if (conflicts.length > 0) {
         const details = conflicts
-          .map((c) => `${c.partner.fullName} (${c.slot.date} ${c.slot.time})`)
+          .map((c) => ` ${c.partner.fullName}\n  ${c.slot.date} ${c.slot.time}`)
           .join('\n')
-        return showError(`以下伙伴在相应时段已有预订：\n${details}`)
+        return showError(`These partners already have bookings:\n\n${details}`)
       }
     } catch (err) {
       const errorMessage = parseApiError(err)
       console.error('校验伙伴状态失败:', errorMessage)
       // 伙伴状态校验失败，阻止继续预订
-      return showError(errorMessage || '校验伙伴状态失败，请稍后重试')
+      return showError(errorMessage || 'Failed to validate partners')
     }
   }
 
@@ -994,13 +1003,13 @@ const bookNow = async () => {
         // 空值检查：确保 myBookingInCurrentSlot 存在且 bookingId 有效
         const currentBooking = myBookingInCurrentSlot.value
         if (!currentBooking) {
-          showError('未找到当前预订，请刷新页面重试')
+          showError('Booking not found. Please refresh the page.')
           return
         }
 
         const bookingId = currentBooking.bookingId
         if (!bookingId) {
-          showError('预订 ID 无效，请刷新页面重试')
+          showError('Invalid booking. Please refresh.')
           return
         }
 
@@ -1013,7 +1022,7 @@ const bookNow = async () => {
           await handleSuccess()
         } catch (error) {
           const errorMessage = parseApiError(error)
-          showError(errorMessage || '换座失败')
+          showError(errorMessage || 'Failed to change seat')
         }
       },
     }
@@ -1027,13 +1036,13 @@ const bookNow = async () => {
         // 空值检查：确保 myBookingInCurrentSlot 存在且 bookingId 有效
         const currentBooking = myBookingInCurrentSlot.value
         if (!currentBooking) {
-          showError('未找到当前预订，请刷新页面重试')
+          showError('Booking not found. Please refresh the page.')
           return
         }
 
         const bookingId = currentBooking.bookingId
         if (!bookingId) {
-          showError('预订 ID 无效，请刷新页面重试')
+          showError('Invalid booking. Please refresh.')
           return
         }
 
@@ -1046,7 +1055,7 @@ const bookNow = async () => {
           await handleSuccess()
         } catch (error) {
           const errorMessage = parseApiError(error)
-          showError(errorMessage || '邀请失败')
+          showError(errorMessage || 'Failed to send invitation')
         }
       },
     }
@@ -1066,7 +1075,7 @@ const bookNow = async () => {
       await handleSuccess()
     } catch (error) {
       const errorMessage = parseApiError(error)
-      showError(errorMessage || '预订失败')
+      showError(errorMessage || 'Booking failed')
     }
   }
 }
@@ -1086,19 +1095,19 @@ async function refreshData() {
  */
 const swapSeatForAllSlots = async (newSeatId: number) => {
   if (selectedTimeSlots.value.length === 0) {
-    return showError('请先选择时段')
+    return showError('Please select time slots first')
   }
 
   // 查找当前预订
   const currentBooking = myBookingInCurrentSlot.value
   if (!currentBooking) {
-    return showError('没有找到当前预订')
+    return showError('Booking not found')
   }
 
   // 空值检查：确保 bookingId 有效
   const bookingId = currentBooking.bookingId
   if (!bookingId) {
-    showError('预订 ID 无效，请刷新页面重试')
+    showError('Invalid booking ID. Please refresh.')
     return
   }
 
@@ -1130,12 +1139,12 @@ const swapSeatForAllSlots = async (newSeatId: number) => {
       invitePartners,
     })
 
-    showSuccess('换座成功')
+    showSuccess('Seat changed')
     await loadBookingHistory() // 刷新预订历史
     await refreshData() // 刷新座位可用性
   } catch (error) {
     const errorMessage = parseApiError(error)
-    showError(errorMessage || '换座失败')
+    showError(errorMessage || 'Failed to change seat')
   }
 }
 
@@ -1338,9 +1347,9 @@ const goBack = () => {
         <h3 class="text-sm font-medium text-gray-dark mb-4 tracking-tight">
           {{
             selectedSeat && myBookingInCurrentSlot
-              ? 'Changing Seat For'
+              ? 'Changing Seat'
               : myBookingInCurrentSlot
-                ? 'Current Booking'
+                ? 'Current Selection'
                 : 'Booking Summary'
           }}
         </h3>
@@ -1443,7 +1452,7 @@ const goBack = () => {
 
           <div
             v-if="bookingHistory.length > 0"
-            class="absolute -top-2 -right-2 w-7 h-7 bg-[#39D37F] border-4 border-white rounded-full flex items-center justify-center text-white text-xs font-black shadow-sm"
+            class="absolute -top-2 -right-2 w-7 h-7 bg-[#39D37F] border-4 border-white rounded-full flex items-center justify-center text-white text-xs font-black shadow-sm pointer-events-none"
           >
             {{ bookingHistory.length }}
           </div>

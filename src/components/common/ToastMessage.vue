@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { watch, computed } from 'vue'
 
 export interface ToastProps {
   message: string
@@ -7,6 +7,7 @@ export interface ToastProps {
   visible: boolean
   onConfirm?: () => void
   onCancel?: () => void
+  duration: number
 }
 
 interface Emits {
@@ -19,6 +20,22 @@ const props = withDefaults(defineProps<ToastProps>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+// 格式化消息：给关键信息添加下划线
+const formattedMessage = computed(() => {
+  let msg = props.message
+
+  // 1.匹配：字母 + (可选连字符) + 数字
+  // \b 确保单词边界，[A-Z] 匹配字母，-? 匹配 0 或 1 个连字符，\d{1,2} 匹配 1-2 位数字
+  msg = msg.replace(/\b([A-Z]-?\d{1,2})\b/g, '<u class="toast-underline">$1</u>')
+  // 2. 匹配日期+时间段（如 01.17 09:00 - 12:00）- 数字.数字 时间段
+  msg = msg.replace(
+    /\b(\d{2}\.\d{2}\s+\d{2}:\d{2}\s*[-–]\s*\d{2}:\d{2})\b/g,
+    '<u class="toast-underline">$1</u>',
+  )
+
+  return msg
+})
 
 // 自动关闭
 watch(
@@ -90,9 +107,7 @@ const getIcon = () => {
               </div>
 
               <!-- 消息文本 -->
-              <p class="text-white text-sm font-medium leading-snug">
-                {{ message }}
-              </p>
+              <p class="text-white text-sm font-medium leading-snug" v-html="formattedMessage"></p>
             </div>
 
             <!-- 右侧：关闭按钮 -->
@@ -156,5 +171,13 @@ const getIcon = () => {
 .toast-leave-to {
   transform: translate(-50%, -20px);
   opacity: 0;
+}
+
+/* 关键信息下划线 */
+:deep(.toast-underline) {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(255, 255, 255, 0.6);
 }
 </style>
